@@ -2,6 +2,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Literal
 import pandas as pd
 from office_runtime.office.config import OfficeConfig
 from office_runtime.office.io import read_sheet_values, normalize, write_json, write_text
@@ -88,7 +89,18 @@ def _safe(cmd: list[str]) -> tuple[int, str]:
     txt = (r.stdout or "") + ("\n" + r.stderr if r.stderr else "")
     return r.returncode, txt.strip()
 
-def _scan_repo(cfg: OfficeConfig, project_id: str, repo_or_workdir: str, scans_dir: Path) -> dict:
+def _existing_scan_paths(project_id: str, scans_dir: Path) -> dict:
+    out = {}
+    prereqs = scans_dir / f"repo_prereqs__{project_id}.tsv"
+    srp = scans_dir / f"repo_srp__{project_id}.txt"
+    if prereqs.exists():
+        out["repo_prereqs_tsv"] = str(prereqs)
+    if srp.exists():
+        out["repo_srp_txt"] = str(srp)
+    return out
+
+
+def _refresh_scan_repo(cfg: OfficeConfig, project_id: str, repo_or_workdir: str, scans_dir: Path) -> dict:
     scans_dir.mkdir(parents=True, exist_ok=True)
     out = {}
     target = str(repo_or_workdir or "").strip()
@@ -133,7 +145,11 @@ def _bundle_type_for(row: dict, selected_from: str) -> str | None:
 
     return None
 
-def build_bundles(cfg: OfficeConfig, out_dir: Path | None = None) -> dict:
+def build_bundles(
+    cfg: OfficeConfig,
+    out_dir: Path | None = None,
+    scan_mode: Literal["none", "existing", "refresh"] = "refresh",
+) -> dict:
     latest = out_dir or cfg.latest_dir
     bundles_dir = latest / "bundles"
     scans_dir = latest / "scans"
@@ -173,7 +189,14 @@ def build_bundles(cfg: OfficeConfig, out_dir: Path | None = None) -> dict:
             continue
 
         repo_or_workdir = str(row.get("workdir", "")).strip() or str(row.get("repo_path", "")).strip()
-        scan_paths = _scan_repo(cfg, pid, repo_or_workdir, scans_dir) if repo_or_workdir else {}
+        if scan_mode == "none":
+            scan_paths = {}
+        elif scan_mode == "existing":
+            scan_paths = _existing_scan_paths(pid, scans_dir)
+        elif scan_mode == "refresh":
+            scan_paths = _refresh_scan_repo(cfg, pid, repo_or_workdir, scans_dir) if repo_or_workdir else {}
+        else:
+            raise ValueError(f"Unsupported scan_mode: {scan_mode}")
         bundle = _row_to_bundle(row, bundle_type, selected_from, scan_paths)
 
         out = bundles_dir / f"{bundle_type.split('_')[0]}__{pid}.json"
