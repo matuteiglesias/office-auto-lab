@@ -25,7 +25,7 @@ import sys, os, importlib, traceback, pkgutil
 from typing import Dict, Any
 
 # plugin loader (plugins folder must exist, each plugin module should define a class subclassing plugins.base.BasePlugin)
-def load_plugins_from_folder(folder="src/repo_health/plugins") -> Dict[str, Any]:
+def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins") -> Dict[str, Any]:
     plugins = {}
     # ensure package importable
     cwd = os.getcwd()
@@ -37,7 +37,7 @@ def load_plugins_from_folder(folder="src/repo_health/plugins") -> Dict[str, Any]
         return plugins
     for finder, name, ispkg in pkgutil.iter_modules([folder]):
         if name.endswith("_plugin"):
-            mod_name = f"repo_health.plugins.{name}"
+            mod_name = f"office_runtime.ops.office_runtime.ops.office_runtime.ops.repo_health.plugins.{name}"
             try:
                 mod = importlib.import_module(mod_name)
                 print(f"Tried import {mod_name}")
@@ -48,7 +48,7 @@ def load_plugins_from_folder(folder="src/repo_health/plugins") -> Dict[str, Any]
             for attr in dir(mod):
                 obj = getattr(mod, attr)
                 try:
-                    from repo_health.plugins.base import BasePlugin
+                    from office_runtime.ops.office_runtime.ops.office_runtime.ops.repo_health.plugins.base import BasePlugin
                     if isinstance(obj, type) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
                         inst = obj()
                         plugins[inst.name] = inst

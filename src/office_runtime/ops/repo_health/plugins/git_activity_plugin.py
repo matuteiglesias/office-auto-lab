@@ -1,4 +1,4 @@
-# plugins/commit_recent_plugin.py
+# plugins/git_activity_plugin.py
 """
 commit_recent plugin v1: repo observability
 Goal: give a compact, deterministic health surface for a local git repo.
@@ -264,7 +264,7 @@ def get_plugin():
 
 # TODO
 
-# commit_recent_plugin.py
+# git_activity_plugin.py
 
 # What it covers well:
 

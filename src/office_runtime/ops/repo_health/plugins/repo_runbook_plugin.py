@@ -1,4 +1,4 @@
-# plugins/runbook_plugin.py
+# plugins/repo_runbook_plugin.py
 from __future__ import annotations
 
 import os
@@ -144,7 +144,7 @@ class RunbookPlugin(BasePlugin):
 # TODO
 
 
-# runbook_plugin.py
+# repo_runbook_plugin.py
 
 # What it covers well:
 

@@ -38,6 +38,6 @@ def load_config() -> OfficeConfig:
         runtime_gid=_env("OFFICE_RUNTIME_GID", "1395426441"),
         support_gid=_env("OFFICE_SUPPORT_GID", "788211576"),
         out_root=out_root,
-        scripts_dir=Path(_env("OFFICE_SCRIPTS_DIR", str(root / "scripts"))).resolve(),
+        scripts_dir=Path(_env("OFFICE_SCRIPTS_DIR", str(root / "src" / "office_runtime" / "scripts"))).resolve(),
         strict=_env("OFFICE_STRICT", "false").lower() == "true",
     )

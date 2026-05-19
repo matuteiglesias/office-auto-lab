@@ -3,7 +3,7 @@ import csv
 import json
 from pathlib import Path
 import pandas as pd
-from .io import write_text
+from office_runtime.office.io import write_text
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))

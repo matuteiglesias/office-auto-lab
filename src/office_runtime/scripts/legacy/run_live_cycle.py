@@ -30,7 +30,7 @@ def main() -> int:
                 raise SystemExit(r.returncode)
 
         # 1) frontier update (must write out/frontier/latest.csv)
-        _p(["python3", "-m", "repo_health.run_frontier", "--sa", args.sa, "--sheet-id", args.sheet_id])
+        _p(["python3", "-m", "office_runtime.ops.repo_health.run_frontier", "--sa", args.sa, "--sheet-id", args.sheet_id])
 
         # 2) compile (reads frontier csv)
         _p(["python3", "scripts/compile_blocks.py", "--frontier", args.frontier_csv, "--date", args.date])

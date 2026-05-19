@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Usage:
-#   ./repo_prereqs_scan.sh /abs/path/repoA /abs/path/repoB ...
+#   ./repo_contract_scan.sh /abs/path/repoA /abs/path/repoB ...
 #
 # Output:
 #   TSV header + one row per repo: repo_path, workdir, runbook_path, output_paths, smoke_cmd, notes

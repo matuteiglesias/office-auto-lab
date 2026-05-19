@@ -10,7 +10,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from repo_health.sheets import auth_gspread, read_tab_records
+from office_runtime.ops.repo_health.sheets import auth_gspread, read_tab_records
 
 
 PROJECTS = "front_registry"

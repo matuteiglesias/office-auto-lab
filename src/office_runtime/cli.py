@@ -1,9 +1,9 @@
 from __future__ import annotations
 import json
-from .config import load_config
-from .compile import run_compile
-from .bundles import build_bundles
-from .staff_briefs import build_staff_briefs
+from office_runtime.office.config import load_config
+from office_runtime.office.compile import run_compile
+from office_runtime.staff.bundles import build_bundles
+from office_runtime.staff.briefs import build_staff_briefs
 
 def main() -> int:
     cfg = load_config()

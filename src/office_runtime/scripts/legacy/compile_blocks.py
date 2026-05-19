@@ -13,7 +13,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from repo_health.compiler.generate import (
+from office_runtime.ops.repo_health.compiler.generate import (
     parse_frontier_rows,
     rollup_projects,
     generate_candidate_blocks,

@@ -1,4 +1,4 @@
-# plugins/smoke_plugin.py
+# plugins/make_smoke_plugin.py
 from __future__ import annotations
 
 import os

@@ -3,8 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 import pandas as pd
-from .config import OfficeConfig
-from .io import read_sheet_values, normalize, write_json, write_text
+from office_runtime.office.config import OfficeConfig
+from office_runtime.office.io import read_sheet_values, normalize, write_json, write_text
 
 SUPPORT_COLS = [
     "project_id",
@@ -95,8 +95,8 @@ def _scan_repo(cfg: OfficeConfig, project_id: str, repo_or_workdir: str, scans_d
     if not target:
         return out
 
-    prereqs = cfg.scripts_dir / "repo_prereqs_scan.sh"
-    srp = cfg.scripts_dir / "repo_srp.sh"
+    prereqs = cfg.scripts_dir / "repo_contract_scan.sh"
+    srp = cfg.scripts_dir / "repo_snapshot_protocol.sh"
 
     if prereqs.exists():
         code, txt = _safe(["bash", str(prereqs), target])

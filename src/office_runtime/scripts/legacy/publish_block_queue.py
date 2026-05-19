@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse, json
 from pathlib import Path
 
-from repo_health.sheets import auth_gspread, write_tab_overwrite  # reuse what runner already uses
+from office_runtime.ops.repo_health.sheets import auth_gspread, write_tab_overwrite  # reuse what runner already uses
 
 def _load_jsonl(path: Path) -> list[dict]:
     out = []

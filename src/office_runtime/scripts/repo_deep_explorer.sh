@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# repo_explorer.sh
+# repo_deep_explorer.sh
 # Usage:
-#   ./repo_explorer.sh /path/to/repo
-#   ./repo_explorer.sh /path/to/repo --depth 4 --max-depth-du 2 --largest 40
+#   ./repo_deep_explorer.sh /path/to/repo
+#   ./repo_deep_explorer.sh /path/to/repo --depth 4 --max-depth-du 2 --largest 40
 #
 # Prints a lightweight snapshot to stdout (console). No files written.
 
@@ -13,9 +13,9 @@ shift || true
 
 if [[ -z "${DIR}" || "${DIR}" == "-h" || "${DIR}" == "--help" ]]; then
   cat <<'USAGE'
-repo_explorer.sh
+repo_deep_explorer.sh
 Usage:
-  ./repo_explorer.sh /path/to/repo [--depth N] [--max-depth-du N] [--largest N] [--no-ignore]
+  ./repo_deep_explorer.sh /path/to/repo [--depth N] [--max-depth-du N] [--largest N] [--no-ignore]
 
 Options:
   --depth N         Directory walk depth (default 4)

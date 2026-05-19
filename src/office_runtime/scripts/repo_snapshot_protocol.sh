@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# repo_srp.sh
+# repo_snapshot_protocol.sh
 # Snapshot Reading Protocol (SRP) scanner.
 # Purpose: quick, low-noise repo triage: git -> key files -> entrypoints -> minimal risk peek.
-# Complementary to repo_explorer.sh (no du/tree/largest here).
+# Complementary to repo_deep_explorer.sh (no du/tree/largest here).
 
 set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-repo_srp.sh
+repo_snapshot_protocol.sh
 Usage:
-  ./repo_srp.sh /path/to/repo [options]
-  ./repo_srp.sh --list /path/to/repos.txt [options]
+  ./repo_snapshot_protocol.sh /path/to/repo [options]
+  ./repo_snapshot_protocol.sh --list /path/to/repos.txt [options]
 
 Options:
   --list FILE           File with repo paths (one per line)
@@ -25,7 +25,7 @@ Options:
 
 Notes:
   - Uses rg if available; falls back to grep/find.
-  - Avoids heavy scans by design. Use repo_explorer.sh for deeper archaeology.
+  - Avoids heavy scans by design. Use repo_deep_explorer.sh for deeper archaeology.
 
 USAGE
 }

@@ -2,9 +2,9 @@
 import argparse, sys, time, traceback
 from datetime import date as Date
 from typing import Dict, List, Any, Tuple
-from repo_health.frontier_export import export_frontier_latest
+from office_runtime.ops.repo_health.frontier_export import export_frontier_latest
 
-from repo_health.sheets import (
+from office_runtime.ops.repo_health.sheets import (
     auth_gspread,
     read_tab_records,          # implement small helper
     write_tab_overwrite,       # implement small helper
@@ -12,8 +12,8 @@ from repo_health.sheets import (
     ensure_header_has_columns, # optional helper
     batch_update_cells_by_col, # optional helper for Projects summary
 )
-from repo_health.policy import compute_effective_runset, RunIntent
-from repo_health.plugin_loader import load_plugins_from_folder
+from office_runtime.ops.repo_health.policy import compute_effective_runset, RunIntent
+from office_runtime.ops.repo_health.plugin_loader import load_plugins_from_folder
 
 PROJECTS_SHEET = "front_registry"
 CAPABILITIES_SHEET = "Capabilities"
@@ -374,7 +374,7 @@ def main(argv):
 
 
     # Load plugins
-    plugins = load_plugins_from_folder("src/repo_health/plugins")
+    plugins = load_plugins_from_folder("src/office_runtime/ops/repo_health/plugins")
     if not plugins:
         log.warning("no plugins loaded", extra={"bucket": "PLUGINS_NONE"})
     else:

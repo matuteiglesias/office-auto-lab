@@ -1,4 +1,4 @@
-# plugins/env_plugin.py
+# plugins/repo_env_plugin.py
 from __future__ import annotations
 
 import importlib
