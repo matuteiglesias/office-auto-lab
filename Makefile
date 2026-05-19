@@ -1,7 +1,13 @@
-.PHONY: smoke imports repo-scans compile-blocks office audit
+.PHONY: imports audit daily office-compile staff-bundles staff-briefs repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
+
+ROOTS ?= .
+START ?= $(shell date +%F)
+END ?= $(shell date +%F)
+OUT_DIR ?= artifacts/evidence
+GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
+FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 smoke: imports repo-scans compile-blocks
-
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
@@ -32,7 +38,39 @@ plugins = load_plugins_from_folder('src/office_runtime/ops/repo_health/plugins')
 print('plugins:', sorted(plugins)); \
 print('imports ok')"
 
+audit:
+	python3 -m compileall src
+	$(MAKE) imports
+	git diff --check
 
+daily:
+	PYTHONPATH=src python3 -m office_runtime.cli daily
+
+office-compile:
+	PYTHONPATH=src python3 -m office_runtime.cli office compile
+
+staff-bundles:
+	PYTHONPATH=src python3 -m office_runtime.cli staff bundles --scan-mode existing
+
+staff-briefs:
+	PYTHONPATH=src python3 -m office_runtime.cli staff briefs
+
+repo-health-policy:
+	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health policy
+
+repo-health-run:
+	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health run
+
+evidence-git:
+	PYTHONPATH=src python3 -m office_runtime.cli evidence git --roots $(ROOTS) --start $(START) --end $(END) --out $(GIT_OUT)
+
+evidence-files:
+	PYTHONPATH=src python3 -m office_runtime.cli evidence files --roots $(ROOTS) --start $(START) --end $(END) --out $(FILES_OUT)
+
+evidence-today: evidence-git evidence-files
+
+logs-tail:
+	@tail -n 30 artifacts/logs/daily/*.ledger.log
 
 repo-scans:
 	bash scripts/repo_contract_scan.sh "$$PWD" >/tmp/office_auto_lab_prereqs.tsv
@@ -50,6 +88,3 @@ compile-blocks:
 
 office:
 	PYTHONPATH=src python3 -m office_runtime.office.main
-
-audit:
-	rg -n "^\s*from\s+(sheets|policy|utils|utils_frontier_export|compiler|plugins)\b|^\s*import\s+(sheets|policy|utils|utils_frontier_export|compiler|plugins)\b" src scripts || true

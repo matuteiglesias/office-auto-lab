@@ -2,9 +2,76 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
+
+def _new_run_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+
+def _log_compile_manifest(manifest: dict) -> None:
+    from office_runtime.ledger import append_ledger
+
+    counts = manifest.get("row_counts", {}) or {}
+    metrics = {
+        "merged": counts.get("merged"),
+        "expressed": counts.get("expressed_state"),
+        "focus": counts.get("focus_get_queue"),
+        "support": counts.get("support_queue"),
+        "warnings": len(manifest.get("warnings", [])),
+    }
+    append_ledger("office.compile", "ok", run_id=manifest.get("run_id"), metrics=metrics)
+
+
+def _log_staff_bundles(result: dict, run_id: str | None = None) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger(
+        "staff.bundles",
+        "ok",
+        run_id=run_id,
+        metrics={"bundles": result.get("bundles_built"), "scan_mode": result.get("scan_mode")},
+    )
+
+
+def _log_staff_briefs(result: dict, run_id: str | None = None) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger("staff.briefs", "ok", run_id=run_id, metrics={"briefs": result.get("briefs_built")})
+
+
+def _log_evidence_git(summary: dict) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger(
+        "evidence.git",
+        "ok",
+        metrics={
+            "repos": summary.get("repos_found"),
+            "commits": summary.get("commits"),
+            "errors": summary.get("errors"),
+            "rows": summary.get("rows_written"),
+        },
+        artifacts={"out": str(summary.get("out"))},
+    )
+
+
+def _log_evidence_files(summary: dict) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger(
+        "evidence.files",
+        "ok",
+        metrics={
+            "files": summary.get("rows_written"),
+            "max_depth": summary.get("max_depth"),
+            "errors": summary.get("errors"),
+        },
+        artifacts={"out": str(summary.get("out"))},
+    )
 
 def _cmd_daily(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
@@ -15,8 +82,12 @@ def _cmd_daily(args: argparse.Namespace) -> int:
     cfg = load_config()
     manifest = run_compile(cfg)
     if manifest.get("status") == "ok":
+        _log_compile_manifest(manifest)
         manifest["bundle_build"] = build_bundles(cfg, scan_mode=args.scan_mode)
+        manifest["bundle_build"]["scan_mode"] = args.scan_mode
+        _log_staff_bundles(manifest["bundle_build"], run_id=manifest.get("run_id"))
         manifest["brief_build"] = build_staff_briefs(cfg.latest_dir)
+        _log_staff_briefs(manifest["brief_build"], run_id=manifest.get("run_id"))
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
     return 0 if manifest.get("status") == "ok" else 1
 
@@ -27,6 +98,8 @@ def _cmd_office_compile(_: argparse.Namespace) -> int:
 
     cfg = load_config()
     manifest = run_compile(cfg)
+    if manifest.get("status") == "ok":
+        _log_compile_manifest(manifest)
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
     return 0 if manifest.get("status") == "ok" else 1
 
@@ -37,6 +110,8 @@ def _cmd_staff_bundles(args: argparse.Namespace) -> int:
 
     cfg = load_config()
     result = build_bundles(cfg, scan_mode=args.scan_mode)
+    result["scan_mode"] = args.scan_mode
+    _log_staff_bundles(result)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
@@ -47,6 +122,7 @@ def _cmd_staff_briefs(_: argparse.Namespace) -> int:
 
     cfg = load_config()
     result = build_staff_briefs(cfg.latest_dir)
+    _log_staff_briefs(result)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
@@ -67,21 +143,46 @@ def _cmd_ops_repo_health_run(args: argparse.Namespace) -> int:
 
 def _cmd_evidence_git(args: argparse.Namespace) -> int:
     from office_runtime.evidence import git_trace
+    from office_runtime.run_logging import RunLogger
+
+    run_id = _new_run_id()
+    logger = RunLogger("evidence.git", run_id)
+    logger.event("run.start", status="ok", start=args.start, end=args.end)
+    logger.event("roots.scan", status="ok", roots=[str(x) for x in args.roots], max_depth=args.max_depth)
 
     repos = git_trace.discover_repos(args.roots, max_depth=args.max_depth)
+    logger.event("repos.discovered", status="ok", repos_found=len(repos))
     rows = git_trace.iter_commit_rows(
         repos,
         start=args.start,
         end=args.end,
         limit_per_repo=args.limit_per_repo,
     )
-    n = git_trace.write_jsonl(args.out, rows)
-    print(json.dumps({"status": "ok", "repos_found": len(repos), "rows_written": n, "out": str(args.out)}, indent=2, ensure_ascii=False))
+    rows_list = list(rows)
+    n = git_trace.write_jsonl(args.out, rows_list)
+    summary = {
+        "status": "ok",
+        "repos_found": len(repos),
+        "rows_written": n,
+        "commits": sum(1 for r in rows_list if r.get("kind") == "git_commit"),
+        "errors": sum(1 for r in rows_list if str(r.get("kind", "")).endswith("_error")),
+        "out": str(args.out),
+    }
+    logger.event("commits.trace", status="ok", rows_written=n, commits=summary["commits"], errors=summary["errors"], out=str(args.out))
+    logger.event("run.end", status="ok")
+    _log_evidence_git(summary)
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 
 
 def _cmd_evidence_files(args: argparse.Namespace) -> int:
     from office_runtime.evidence import fs_trace
+    from office_runtime.run_logging import RunLogger
+
+    run_id = _new_run_id()
+    logger = RunLogger("evidence.files", run_id)
+    logger.event("run.start", status="ok", start=args.start, end=args.end)
+    logger.event("roots.scan", status="ok", roots=[str(x) for x in args.roots], max_depth=args.max_depth)
 
     rows = fs_trace.iter_file_events(
         args.roots,
@@ -91,8 +192,19 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
         include_hidden=args.include_hidden,
         limit=args.limit,
     )
-    n = fs_trace.write_jsonl(args.out, rows)
-    print(json.dumps({"status": "ok", "rows_written": n, "out": str(args.out)}, indent=2, ensure_ascii=False))
+    rows_list = list(rows)
+    n = fs_trace.write_jsonl(args.out, rows_list)
+    summary = {
+        "status": "ok",
+        "rows_written": n,
+        "max_depth": args.max_depth,
+        "errors": sum(1 for r in rows_list if str(r.get("kind", "")).endswith("_error")),
+        "out": str(args.out),
+    }
+    logger.event("files.trace", status="ok", rows_written=n, errors=summary["errors"], out=str(args.out))
+    logger.event("run.end", status="ok")
+    _log_evidence_files(summary)
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 
 

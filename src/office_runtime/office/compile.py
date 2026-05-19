@@ -4,6 +4,7 @@ import pandas as pd
 from .config import OfficeConfig
 from .io import coerce_bool, read_sheet_values, normalize, write_text, write_json, utc_ts, promote_latest
 from .validate import validate_required, validate_rows
+from office_runtime.run_logging import RunLogger
 from .render import (
     render_principal_brief,
     render_support_queue,
@@ -158,13 +159,19 @@ def run_compile(cfg: OfficeConfig) -> dict:
     run_id = utc_ts()
     run_dir = cfg.runs_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    logger = RunLogger("office.compile", run_id)
+    logger.event("run.start", status="ok", run_dir=str(run_dir))
 
     front = normalize(read_sheet_values(cfg.service_account_json, cfg.spreadsheet_id, cfg.front_gid))
     carry = normalize(read_sheet_values(cfg.service_account_json, cfg.spreadsheet_id, cfg.carry_gid))
+    logger.event("sheet.read", status="ok", front_rows=len(front), carry_rows=len(carry))
 
     issues = validate_required(front, carry)
+    logger.event("validate.done", status="ok", issues=len(issues))
     if any(i["severity"] == "error" for i in issues):
         write_json(run_dir / "manifest.json", {"run_id": run_id, "status": "error", "issues": issues})
+        logger.event("manifest.write", level="ERROR", status="error", path=str(run_dir / "manifest.json"))
+        logger.event("run.end", level="ERROR", status="error")
         return {"run_id": run_id, "status": "error", "issues": issues}
 
     df, unmatched_front, unmatched_carry = _merge(front, carry)
@@ -172,6 +179,7 @@ def run_compile(cfg: OfficeConfig) -> dict:
 
     principal_week, principal_today, support, escal, blocks, active_exec = _bucket(df)
     routes = _attention_routes(df)
+    logger.event("route.done", status="ok", merged=len(df), expressed=len(routes["expressed_state"]))
 
     principal_week.to_csv(run_dir / "principal_brief_week.csv", index=False)
     principal_today.to_csv(run_dir / "principal_brief_today.csv", index=False)
@@ -183,12 +191,17 @@ def run_compile(cfg: OfficeConfig) -> dict:
     unmatched_carry.to_csv(run_dir / "unmatched_carry_state.csv", index=False)
     df.to_csv(run_dir / "merged_state.csv", index=False)
     for name, route_df in routes.items():
-        route_df.to_csv(run_dir / f"{name}.csv", index=False)
+        out_path = run_dir / f"{name}.csv"
+        route_df.to_csv(out_path, index=False)
+        logger.event("artifact.write", status="ok", path=str(out_path))
 
 
     write_text(run_dir / "principal_brief_week.md", render_principal_brief(principal_week, "Principal Brief - Week"))
+    logger.event("artifact.write", status="ok", path=str(run_dir / "principal_brief_week.md"))
     write_text(run_dir / "principal_brief_today.md", render_principal_brief(principal_today, "Principal Brief - Today"))
+    logger.event("artifact.write", status="ok", path=str(run_dir / "principal_brief_today.md"))
     write_text(run_dir / "support_queue.md", render_support_queue(support))
+    logger.event("artifact.write", status="ok", path=str(run_dir / "support_queue.md"))
     write_text(run_dir / "validation_report.md", render_validation_report(issues))
     write_text(run_dir / "today_compile.md", render_today_compile(principal_today, support, escal, blocks))
     write_text(
@@ -243,5 +256,8 @@ def run_compile(cfg: OfficeConfig) -> dict:
         render_office_summary(manifest, principal_today, support, active_exec, escal, unmatched_front, unmatched_carry, issues),
     )
     write_json(run_dir / "manifest.json", manifest)
+    logger.event("manifest.write", status="ok", path=str(run_dir / "manifest.json"))
     promote_latest(run_dir, cfg.latest_dir)
+    logger.event("latest.promote", status="ok", latest_dir=str(cfg.latest_dir))
+    logger.event("run.end", status="ok")
     return manifest
