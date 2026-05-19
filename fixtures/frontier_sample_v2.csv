@@ -1,0 +1,21 @@
+bucket,date,duration_ms,executed,normalized_class,plugin,project_id,run_id,short_diag,ts_started
+NOT_A_GIT_REPO,2025-12-31,5,True,actionable_failure,commit_recent,5,r1,repo_root is not a git work tree,1767202637
+CMD_NONZERO:2,2025-12-31,3211,True,actionable_failure,smoke,5,r2,nonzero rc=2 log=artifacts/5/smoke.log,1767202637
+MISSING_METADATA:repo_path,2025-12-31,0,True,system_error,commit_recent,50.4,r3,repo_path/workdir missing or not a directory,1767202645
+MAKEFILE_NOT_FOUND,2025-12-31,0,True,ineligible,smoke,50.4,r4,No Makefile found at repo root,1767202645
+PLUGIN_NOT_FOUND,2025-12-31,0,False,system_error,endpoint,50.4,r5,plugin endpoint not loaded,1767202645
+CMD_NONZERO:2,2025-12-31,8,True,actionable_failure,smoke,14,r6,nonzero rc=2 log=artifacts/14/smoke.log,1767202640
+WARN,2025-12-31,31,True,warning,commit_recent,14,r7,repo has uncommitted changes,1767202640
+CMD_NONZERO:2,2025-12-31,7,True,actionable_failure,smoke,15,r8,nonzero rc=2 log=artifacts/15/smoke.log,1767202640
+WARN,2025-12-31,29,True,warning,runbook,15,r9,best=notes/runbook.md found=1 days=74 smoke=False prereqs=False troubleshoot=False,1767202640
+CMD_NONZERO:2,2025-12-31,8,True,actionable_failure,smoke,33,r10,nonzero rc=2 log=artifacts/33/smoke.log,1767202645
+WARN,2025-12-31,17,True,warning,runbook,33,r11,best=notes/runbook.md found=1 days=40 smoke=False prereqs=False troubleshoot=False,1767202645
+CMD_NONZERO:2,2025-12-31,13,True,actionable_failure,smoke,52.3,r12,nonzero rc=2 log=artifacts/52.3/smoke.log,1767202645
+MISSING_METADATA:output_paths,2025-12-31,0,False,system_error,pipeline_output,52.3,r13,output_paths missing for pipeline_output plugin,1767202645
+CMD_NONZERO:1,2025-12-31,6,True,actionable_failure,smoke,85,r14,nonzero rc=1 log=artifacts/85/smoke.log,1767202645
+WARN,2025-12-31,5,True,warning,runbook,88,r15,no runbook.* (or README fallback) found under repo root,1767202645
+WARN,2025-12-31,79,True,warning,commit_recent,48.1,r16,last commit is 2367h old (threshold 336h),1767202645
+NOT_A_GIT_REPO,2025-12-31,2,True,actionable_failure,commit_recent,48.2,r17,repo_root is not a git work tree,1767202645
+MAKEFILE_NOT_FOUND,2025-12-31,0,True,ineligible,smoke,50.2,r18,No Makefile found at repo root,1767202645
+WARN,2025-12-31,0,True,warning,runbook,55,r19,no runbook.* (or README fallback) found under repo root,1767202645
+WARN,2025-12-31,0,True,warning,runbook,21,r20,no runbook.* (or README fallback) found under repo root,1767202640

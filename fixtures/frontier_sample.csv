@@ -1,0 +1,21 @@
+bucket,normalized_class,plugin,project_id,run_id,short_diag,ts_started
+NOT_A_GIT_REPO,actionable_failure,commit_recent,5,11186fdf2c15,"repo_root is not a git work tree",1767202637
+CMD_NONZERO:2,actionable_failure,smoke,5,ccb6f2792512,"nonzero rc=2 log=artifacts/5/smoke.log",1767202637
+CMD_NONZERO:2,actionable_failure,smoke,14,3833e0e24208,"nonzero rc=2 log=artifacts/14/smoke.log",1767202640
+CMD_NONZERO:2,actionable_failure,smoke,15,ee2f5f1cb214,"nonzero rc=2 log=artifacts/15/smoke.log",1767202640
+CMD_NONZERO:2,actionable_failure,smoke,33,54030b7dfe37,"nonzero rc=2 log=artifacts/33/smoke.log",1767202645
+CMD_NONZERO:2,actionable_failure,smoke,50.1,75710c3c9d9c,"nonzero rc=2 log=artifacts/50.1/smoke.log",1767202645
+CMD_NONZERO:2,actionable_failure,smoke,52.3,fb1cb8f9c681,"nonzero rc=2 log=artifacts/52.3/smoke.log",1767202645
+CMD_NONZERO:2,actionable_failure,smoke,85,7dd70f886083,"nonzero rc=2 log=artifacts/85/smoke.log",1767202645
+NOT_A_GIT_REPO,actionable_failure,commit_recent,48.2,8a52426e84d0,"repo_root is not a git work tree",1767202645
+MAKEFILE_NOT_FOUND,ineligible,smoke,50.2,ca20e053011e,"No Makefile found at repo root (expected Makefile/makefile)",1767202645
+MAKEFILE_NOT_FOUND,ineligible,smoke,50.4,20711c0244b2,"No Makefile found at repo root (expected Makefile/makefile)",1767202645
+MISSING_METADATA:repo_path,system_error,commit_recent,50.4,75b933e08ee8,"repo_path/workdir missing or not a directory",1767202645
+PLUGIN_NOT_FOUND,system_error,endpoint,50.4,39c138588b2b,"plugin endpoint not loaded",1767202645
+WARN,warning,runbook,5,8501f5fcc931,"best=notes/runbook.md found=1 days=1.87 smoke=False prereqs=False troubleshoot=False",1767202637
+WARN,warning,commit_recent,14,0211277dc33c,"repo has uncommitted changes",1767202640
+WARN,warning,runbook,15,4dc17bac4dee,"best=notes/runbook.md found=1 days=74.73 smoke=False prereqs=False troubleshoot=False",1767202640
+WARN,warning,runbook,21,9522dccc74d3,"no runbook.* (or README fallback) found under repo root",1767202640
+WARN,warning,runbook,55,00e178d67cf0,"no runbook.* (or README fallback) found under repo root",1767202645
+WARN,warning,runbook,88,07a6b7ee417a,"no runbook.* (or README fallback) found under repo root",1767202645
+WARN,warning,commit_recent,48.1,7fb7b4ecfbea,"last commit is 2367.6h old (threshold 336.0h)",1767202645

@@ -1,0 +1,60 @@
+flowchart TB
+    subgraph Genome["Genome / Source Memory"]
+        FR["front_registry<br/>project inventory"]
+        CS["carry_state<br/>expression state"]
+        CAP["Capabilities<br/>surface markers"]
+        POL["PluginPolicy + PluginPrereqs<br/>receptor rules"]
+    end
+
+    subgraph Clock["Clock / Metabolic Routing"]
+        CC["clock_compile<br/>MAINT / FOCUS / SUPPORT / WATCH / POST"]
+        TC["today_compile"]
+        OS["office_summary"]
+    end
+
+    subgraph Immune["Immune / Health Sensors"]
+        RH["repo_health.run_frontier"]
+        PLUG["plugins<br/>commit_recent / env / pipeline_output / runbook / smoke"]
+        PR["PluginResults<br/>append-only event log"]
+        RF["out/frontier/latest.csv<br/>circulating frontier"]
+        RTH["runtime_health<br/>current health markers"]
+    end
+
+    subgraph Chaperones["Chaperones / Repair Packets"]
+        BUN["bundles"]
+        BR["staff_briefs"]
+        SQ["support_queue"]
+    end
+
+    subgraph Human["Human Principal"]
+        HM["human_maint"]
+        HF["human_focus / biosynthesis"]
+        HP["human_post / closure"]
+    end
+
+    FR --> RH
+    CAP --> RH
+    POL --> RH
+    RH --> PLUG
+    PLUG --> PR
+    PLUG --> RF
+    PLUG --> RTH
+
+    FR --> OS
+    CS --> OS
+    RTH --> OS
+
+    OS --> TC
+    OS --> CC
+    TC --> SQ
+    CC --> HM
+    CC --> HF
+
+    SQ --> BUN
+    BUN --> BR
+    BR --> HF
+
+    HM --> HP
+    HF --> HP
+    HP --> CS
+    HP --> FR

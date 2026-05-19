@@ -1,0 +1,44 @@
+{
+  "ModeId": ["PIPELINE", "TOOLSMITH", "SERVICE", "CONTRACT", "GOVERNANCE", "CONTACT", "MAINT"],
+  "Severity": ["system_error", "actionable_failure", "ineligible", "warning", "ok"],
+  "PluginId": ["smoke", "commit_recent", "runbook", "endpoint"],
+  "IssueType": [
+    "repo_not_git",
+    "repo_path_missing",
+    "makefile_missing",
+    "plugin_not_loaded",
+    "cmd_nonzero",
+    "runbook_missing",
+    "worktree_dirty",
+    "staleness_old_commit",
+    "unknown"
+  ],
+  "ArchetypeId": [
+    "substrate_bootstrap_sweep",
+    "plugin_boundary_fix",
+    "smoke_failure_triage",
+    "shared_root_cause_elimination",
+    "runbook_sweep",
+    "hygiene_cleanup",
+    "season_decisions"
+  ],
+  "OperatorId": [
+    "LockInSession",
+    "ADRLite",
+    "DefineCapabilitiesAndTests",
+    "RepoInitUpgrade",
+    "PrereqsBootstrap",
+    "RunSmoke",
+    "FailureClassify",
+    "DebugPacketCreate",
+    "MinimalReproExtraction",
+    "ResolveDebugPacket",
+    "RegressionGuardrailAdd",
+    "RunbookHumanDraft",
+    "RunbookMachineSpec",
+    "EvidenceManifestWrite",
+    "WorktreeClean",
+    "AssessSeasonForProject",
+    "CadenceSetOrArchive"
+  ]
+}

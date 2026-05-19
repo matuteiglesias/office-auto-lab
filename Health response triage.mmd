@@ -1,0 +1,40 @@
+flowchart TB
+    Raw["Raw sensor rows<br/>PluginResults / frontier"]
+    Dedup["Dedup by<br/>project_id + plugin + bucket"]
+    Classify["Classify response lane"]
+
+    Raw --> Dedup --> Classify
+
+    Classify --> SmokeFail["Smoke exists but fails<br/>CMD_NONZERO"]
+    Classify --> MissingTarget["Makefile exists<br/>missing smoke target"]
+    Classify --> MissingMake["No Makefile"]
+    Classify --> RunbookWarn["Thin / missing runbook"]
+    Classify --> Dirty["Dirty worktree"]
+    Classify --> StaleOutput["Stale pipeline output"]
+    Classify --> Pass["PASS / positive control"]
+
+    SmokeFail --> ActiveCheck1{"Active or support-needed?"}
+    MissingTarget --> ActiveCheck2{"Active or support-needed?"}
+    MissingMake --> ActiveCheck3{"Actually a code repo?"}
+    RunbookWarn --> TouchCheck{"Already touching repo?"}
+    Dirty --> ActiveCheck4{"Active repo?"}
+    StaleOutput --> ActiveCheck5{"Active pipeline?"}
+    Pass --> Template["Use as template<br/>do not repair"]
+
+    ActiveCheck1 -->|yes| DebugPacket["debug packet<br/>inspect smoke.log"]
+    ActiveCheck1 -->|no| Watch["watch only"]
+
+    ActiveCheck2 -->|yes| AddSmoke["add thin make smoke"]
+    ActiveCheck2 -->|no| Watch
+
+    ActiveCheck3 -->|yes| Bootstrap["minimal Makefile / smoke"]
+    ActiveCheck3 -->|no| PolicyFix["remove smoke binding"]
+
+    TouchCheck -->|yes| TinyRunbook["add Smoke / Prereqs / Troubleshooting"]
+    TouchCheck -->|no| Watch
+
+    ActiveCheck4 -->|yes| Hygiene["commit / stash / discard / note WIP"]
+    ActiveCheck4 -->|no| Watch
+
+    ActiveCheck5 -->|yes| OutputUnlock["run or prepare output next-unlock"]
+    ActiveCheck5 -->|no| Watch

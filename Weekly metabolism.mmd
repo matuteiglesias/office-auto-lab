@@ -1,0 +1,15 @@
+flowchart LR
+    M["Monday<br/>Compile + select expressed fronts"]
+    T["Tuesday<br/>Build / biosynthesis"]
+    W["Wednesday<br/>Repair + build"]
+    Th["Thursday<br/>Externalize / integrate"]
+    F["Friday<br/>Reingest + close"]
+    Sa["Saturday<br/>Light homeostasis / optional play"]
+    Su["Sunday<br/>Recovery + low-pressure capture"]
+
+    M --> T --> W --> Th --> F --> Sa --> Su --> M
+
+    M -.->|"choose 3-5 expressed fronts"| T
+    W -.->|"health response block"| F
+    F -.->|"carry / horizon / needs update"| M
+    Sa -.->|"no major new fronts"| Su

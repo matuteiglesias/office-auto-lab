@@ -1,0 +1,21 @@
+flowchart TB
+    Pre["Before cycle<br/>staff_get"]
+    Maint["Hour 1<br/>Human MAINT<br/>checklists / upkeep / small repairs"]
+    Focus["Hours 2-4<br/>Human FOCUS<br/>one packet, one evidence target"]
+    Post["After cycle<br/>staff_post<br/>evidence / next pointer / carry update"]
+    Break["Mandatory break<br/>30-60 min after long focus"]
+
+    subgraph StaffLane["Parallel staff lane"]
+        Watch["staff_watch<br/>quiet sensing"]
+        Get["staff_get<br/>compile checklist or focus packet"]
+        Reingest["staff_post<br/>reingest touched state"]
+    end
+
+    Watch --> Get
+    Get --> Pre
+    Pre --> Maint
+    Maint --> Focus
+    Focus --> Post
+    Post --> Reingest
+    Reingest --> Break
+    Break --> Watch

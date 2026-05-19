@@ -1,0 +1,45 @@
+flowchart TD
+
+    A["Oficina compila"] --> A1["Principal Brief - Week"]
+    A --> A2["Principal Brief - Today"]
+    A --> A3["Today Compile"]
+    A --> A4["Support Queue"]
+    A --> A5["Escalations"]
+    A --> A6["Block Candidates"]
+    A --> A7["Office Summary"]
+
+    A2 --> B["Principal decide lo que haga falta"]
+    A5 --> B
+    A7 --> B
+
+    B --> B1{"¿Aprueba, corrige o acepta compilación?"}
+
+    B1 -->|Aprueba / acepta| C["Staff prepara"]
+    B1 -->|Corrige| A
+
+    A4 --> C
+    C --> C1["Unlocker Brief"]
+    C --> C2["Health Check Brief"]
+    C --> C3["Decision Brief"]
+    C --> C4["Execution Brief"]
+
+    C1 --> D["Ops ejecuta"]
+    C2 --> D
+    C3 --> B
+    C4 --> D
+    A3 --> D
+    A6 --> D
+
+    D --> D1["BOOT sobre subconjunto compilado"]
+    D1 --> D2["Usa Day Clock y modos"]
+    D2 --> D3["Produce evidencia"]
+    D3 --> D4["Devuelve update a Oficina"]
+
+    D4 --> E["Oficina reingesta"]
+    E --> E1["Actualiza carry state"]
+    E --> E2["Spawnea follow-ups"]
+    E --> E3["Recompila si hace falta"]
+
+    E1 --> A
+    E2 --> A
+    E3 --> A

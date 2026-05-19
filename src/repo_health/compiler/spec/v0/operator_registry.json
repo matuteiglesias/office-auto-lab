@@ -1,0 +1,29 @@
+{
+  "version": "v0",
+  "notes": "Names plus legality and default timeboxes. Steps and commands live in runbooks.",
+  "operators": [
+    {"op_id":"LockInSession","legal_modes":["GOVERNANCE","CONTACT"],"default_timebox_min":10,"evidence_pattern":"lockin_note","acceptance_checks":["evidence_written"]},
+    {"op_id":"ADRLite","legal_modes":["GOVERNANCE","CONTRACT","TOOLSMITH"],"default_timebox_min":15,"evidence_pattern":"adr_note","acceptance_checks":["evidence_written"]},
+    {"op_id":"DefineCapabilitiesAndTests","legal_modes":["TOOLSMITH","GOVERNANCE"],"default_timebox_min":30,"evidence_pattern":"capabilities_doc","acceptance_checks":["evidence_written"]},
+
+    {"op_id":"RepoInitUpgrade","legal_modes":["TOOLSMITH"],"default_timebox_min":20,"evidence_pattern":"repo_baseline","acceptance_checks":["repo_root_valid"]},
+    {"op_id":"PrereqsBootstrap","legal_modes":["TOOLSMITH"],"default_timebox_min":25,"evidence_pattern":"prereqs_added","acceptance_checks":["makefile_present","runbook_stub_present"]},
+
+    {"op_id":"RunSmoke","legal_modes":["PIPELINE","TOOLSMITH"],"default_timebox_min":15,"evidence_pattern":"smoke_log","acceptance_checks":["smoke_executed"]},
+    {"op_id":"FailureClassify","legal_modes":["PIPELINE","CONTRACT"],"default_timebox_min":20,"evidence_pattern":"triage_table","acceptance_checks":["triage_artifact_written"]},
+
+    {"op_id":"DebugPacketCreate","legal_modes":["CONTRACT","SERVICE","PIPELINE"],"default_timebox_min":15,"evidence_pattern":"debug_packet","acceptance_checks":["packet_written"]},
+    {"op_id":"MinimalReproExtraction","legal_modes":["CONTRACT"],"default_timebox_min":25,"evidence_pattern":"repro_cmd","acceptance_checks":["repro_defined"]},
+    {"op_id":"ResolveDebugPacket","legal_modes":["CONTRACT","SERVICE"],"default_timebox_min":45,"evidence_pattern":"fix_commit","acceptance_checks":["regression_rerun"]},
+    {"op_id":"RegressionGuardrailAdd","legal_modes":["CONTRACT","TOOLSMITH"],"default_timebox_min":25,"evidence_pattern":"guardrail_test","acceptance_checks":["guardrail_present"]},
+
+    {"op_id":"RunbookHumanDraft","legal_modes":["GOVERNANCE","CONTACT"],"default_timebox_min":15,"evidence_pattern":"runbook_human","acceptance_checks":["runbook_written"]},
+    {"op_id":"RunbookMachineSpec","legal_modes":["TOOLSMITH","GOVERNANCE"],"default_timebox_min":20,"evidence_pattern":"runbook_machine","acceptance_checks":["commands_listed"]},
+    {"op_id":"EvidenceManifestWrite","legal_modes":["PIPELINE","TOOLSMITH"],"default_timebox_min":15,"evidence_pattern":"manifest","acceptance_checks":["manifest_written"]},
+
+    {"op_id":"WorktreeClean","legal_modes":["MAINT","TOOLSMITH"],"default_timebox_min":20,"evidence_pattern":"clean_worktree","acceptance_checks":["worktree_clean"]},
+
+    {"op_id":"AssessSeasonForProject","legal_modes":["GOVERNANCE"],"default_timebox_min":30,"evidence_pattern":"season_note","acceptance_checks":["decision_recorded"]},
+    {"op_id":"CadenceSetOrArchive","legal_modes":["GOVERNANCE"],"default_timebox_min":20,"evidence_pattern":"cadence_update","acceptance_checks":["cadence_updated"]}
+  ]
+}

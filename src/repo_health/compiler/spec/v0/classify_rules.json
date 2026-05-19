@@ -1,0 +1,41 @@
+{
+  "version": "v0",
+  "signature_policy": "plugin|issue_type|bucket_prefix",
+  "bucket_prefix_policy": "take bucket up to first ':' if present, else full bucket",
+  "rules": [
+    {
+      "when": {"bucket_equals":"NOT_A_GIT_REPO"},
+      "then": {"issue_type":"repo_not_git"}
+    },
+    {
+      "when": {"bucket_equals":"MAKEFILE_NOT_FOUND"},
+      "then": {"issue_type":"makefile_missing"}
+    },
+    {
+      "when": {"bucket_startswith":"MISSING_METADATA:repo_path"},
+      "then": {"issue_type":"repo_path_missing"}
+    },
+    {
+      "when": {"bucket_equals":"PLUGIN_NOT_FOUND"},
+      "then": {"issue_type":"plugin_not_loaded"}
+    },
+    {
+      "when": {"bucket_startswith":"CMD_NONZERO"},
+      "then": {"issue_type":"cmd_nonzero"}
+    },
+
+    {
+      "when": {"plugin_equals":"runbook", "short_diag_contains_any":["no runbook", "no runbook.*", "README fallback", "found=0"]},
+      "then": {"issue_type":"runbook_missing"}
+    },
+    {
+      "when": {"plugin_equals":"commit_recent", "short_diag_contains_any":["uncommitted changes", "dirty"]},
+      "then": {"issue_type":"worktree_dirty"}
+    },
+    {
+      "when": {"plugin_equals":"commit_recent", "short_diag_contains_any":["last commit is", "threshold"]},
+      "then": {"issue_type":"staleness_old_commit"}
+    }
+  ],
+  "default": {"issue_type":"unknown"}
+}

@@ -1,0 +1,123 @@
+{
+  "version": "v0",
+  "archetypes": [
+    {
+      "archetype":"substrate_bootstrap_sweep",
+      "mode":"TOOLSMITH",
+      "duration_min":90,
+      "max_projects":4,
+      "selection_rule":"Pick projects with blockers in {repo_path_missing, makefile_missing, repo_not_git}. Prefer system_error then ineligible.",
+      "feasibility_rule":"If repo_path pointer is missing, convert the target into a governance note instead of attempting smoke.",
+      "operator_plan_template":[
+        {"op_id":"RepoInitUpgrade","timebox_min":20,"when":"per_project_if_needed"},
+        {"op_id":"PrereqsBootstrap","timebox_min":25,"when":"per_project_if_makefile_or_runbook_missing"},
+        {"op_id":"RunSmoke","timebox_min":15,"when":"only_if_smoke_contract_exists"},
+        {"op_id":"LockInSession","timebox_min":10,"when":"once"}
+      ],
+      "expected_delta_rules":[
+        "makefile_missing -> removed",
+        "repo_path_missing -> downgraded_or_reclassified",
+        "repo_not_git -> removed_or_excluded_by_policy"
+      ]
+    },
+    {
+      "archetype":"plugin_boundary_fix",
+      "mode":"CONTRACT",
+      "duration_min":90,
+      "max_projects":1,
+      "selection_rule":"Pick one plugin_not_loaded signature, highest severity.",
+      "feasibility_rule":"Requires a log pointer or a reproducible command extracted from short_diag; otherwise emit DebugPacketCreate only.",
+      "operator_plan_template":[
+        {"op_id":"MinimalReproExtraction","timebox_min":25,"when":"once"},
+        {"op_id":"DebugPacketCreate","timebox_min":15,"when":"if_nontrivial"},
+        {"op_id":"ResolveDebugPacket","timebox_min":45,"when":"once"},
+        {"op_id":"RegressionGuardrailAdd","timebox_min":25,"when":"if_time_remaining"}
+      ],
+      "expected_delta_rules":[
+        "plugin_not_loaded -> removed_or_reclassified"
+      ]
+    },
+    {
+      "archetype":"smoke_failure_triage",
+      "mode":"PIPELINE",
+      "duration_min":90,
+      "max_projects":8,
+      "selection_rule":"Pick projects with cmd_nonzero where can_run_smoke is true.",
+      "feasibility_rule":"Exclude projects with blockers other than repo_not_git.",
+      "operator_plan_template":[
+        {"op_id":"RunSmoke","timebox_min":15,"when":"per_project_until_budget"},
+        {"op_id":"FailureClassify","timebox_min":20,"when":"once"},
+        {"op_id":"DebugPacketCreate","timebox_min":15,"when":"1_to_3_real_logic_bug"},
+        {"op_id":"LockInSession","timebox_min":10,"when":"once"}
+      ],
+      "expected_delta_rules":[
+        "cmd_nonzero -> reclassified_with_triage_artifact"
+      ]
+    },
+    {
+      "archetype":"shared_root_cause_elimination",
+      "mode":"CONTRACT",
+      "duration_min":90,
+      "max_projects":4,
+      "selection_rule":"Only generate if triage output shows 3+ failures share a signature class.",
+      "feasibility_rule":"Requires triage table artifact from a prior smoke_failure_triage block.",
+      "operator_plan_template":[
+        {"op_id":"MinimalReproExtraction","timebox_min":25,"when":"once"},
+        {"op_id":"ResolveDebugPacket","timebox_min":45,"when":"once"},
+        {"op_id":"RegressionGuardrailAdd","timebox_min":25,"when":"once"},
+        {"op_id":"RunSmoke","timebox_min":15,"when":"verify_on_2_projects"}
+      ],
+      "expected_delta_rules":[
+        "cmd_nonzero -> downgraded_or_removed_for_multiple_projects"
+      ]
+    },
+    {
+      "archetype":"runbook_sweep",
+      "mode":"GOVERNANCE",
+      "duration_min":90,
+      "max_projects":10,
+      "selection_rule":"Pick projects with runbook_missing warnings.",
+      "feasibility_rule":"Always feasible.",
+      "operator_plan_template":[
+        {"op_id":"RunbookHumanDraft","timebox_min":15,"when":"per_project_minimal"},
+        {"op_id":"RunbookMachineSpec","timebox_min":20,"when":"top_3_projects_only"},
+        {"op_id":"LockInSession","timebox_min":10,"when":"once"}
+      ],
+      "expected_delta_rules":[
+        "runbook_missing -> removed_or_downgraded"
+      ]
+    },
+    {
+      "archetype":"hygiene_cleanup",
+      "mode":"MAINT",
+      "duration_min":30,
+      "max_projects":6,
+      "selection_rule":"Pick projects with worktree_dirty warnings.",
+      "feasibility_rule":"Always feasible.",
+      "operator_plan_template":[
+        {"op_id":"WorktreeClean","timebox_min":20,"when":"per_project_until_budget"},
+        {"op_id":"RunSmoke","timebox_min":15,"when":"optional_if_time"}
+      ],
+      "expected_delta_rules":[
+        "worktree_dirty -> removed"
+      ]
+    },
+    {
+      "archetype":"season_decisions",
+      "mode":"GOVERNANCE",
+      "duration_min":90,
+      "max_projects":3,
+      "selection_rule":"Pick projects with staleness_old_commit warnings. Resolve by policy, not fake commits.",
+      "feasibility_rule":"Always feasible.",
+      "operator_plan_template":[
+        {"op_id":"AssessSeasonForProject","timebox_min":30,"when":"per_project"},
+        {"op_id":"CadenceSetOrArchive","timebox_min":20,"when":"per_project"},
+        {"op_id":"ADRLite","timebox_min":15,"when":"if_policy_changed"},
+        {"op_id":"LockInSession","timebox_min":10,"when":"once"}
+      ],
+      "expected_delta_rules":[
+        "staleness_old_commit -> removed_by_policy_change"
+      ]
+    }
+  ]
+}

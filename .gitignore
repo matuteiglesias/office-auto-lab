@@ -1,0 +1,13 @@
+artifacts/
+out/
+logs/
+private/
+*.json
+!src/repo_health/compiler/spec/v0/*.json
+!fixtures/*.csv
+__pycache__/
+*.pyc
+.env
+.env.*
+newgsheets-*.json
+service_account*.json

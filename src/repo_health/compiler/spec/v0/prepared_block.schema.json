@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://matuteiglesias.link/schemas/prepared_block.v0.schema.json",
+  "title": "PreparedBlock v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "block_id",
+    "date",
+    "duration_min",
+    "mode",
+    "archetype",
+    "title",
+    "triggers",
+    "targets",
+    "operator_plan",
+    "expected_frontier_deltas",
+    "stop_rules",
+    "acceptance"
+  ],
+  "properties": {
+    "block_id": {"type":"string", "minLength": 8},
+    "date": {"type":"string", "pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
+    "duration_min": {"type":"integer", "minimum": 10, "maximum": 240},
+    "mode": {"type":"string"},
+    "archetype": {"type":"string"},
+    "title": {"type":"string", "minLength": 3},
+
+    "triggers": {
+      "type":"array",
+      "minItems": 1,
+      "items": {
+        "type":"object",
+        "additionalProperties": false,
+        "required":["project_id","plugin","severity","issue_type","signature"],
+        "properties": {
+          "project_id":{"type":"string"},
+          "plugin":{"type":"string"},
+          "severity":{"type":"string"},
+          "issue_type":{"type":"string"},
+          "signature":{"type":"string"}
+        }
+      }
+    },
+
+    "targets": {
+      "type":"array",
+      "minItems": 1,
+      "items": {
+        "type":"object",
+        "additionalProperties": false,
+        "required":["project_id","issue_signatures"],
+        "properties": {
+          "project_id":{"type":"string"},
+          "issue_signatures":{"type":"array","items":{"type":"string"},"minItems":1}
+        }
+      }
+    },
+
+    "operator_plan": {
+      "type":"array",
+      "minItems": 2,
+      "items": {
+        "type":"object",
+        "additionalProperties": false,
+        "required":["op_id","timebox_min","stop_rule","expected_evidence"],
+        "properties": {
+          "op_id":{"type":"string"},
+          "timebox_min":{"type":"integer","minimum":5,"maximum":120},
+          "stop_rule":{"type":"string"},
+          "expected_evidence":{"type":"array","items":{"type":"string"}}
+        }
+      }
+    },
+
+    "expected_frontier_deltas": {
+      "type":"array",
+      "minItems": 1,
+      "items": {
+        "type":"object",
+        "additionalProperties": false,
+        "required":["project_id","from_issue_type","to_state"],
+        "properties": {
+          "project_id":{"type":"string"},
+          "from_issue_type":{"type":"string"},
+          "to_state":{"type":"string", "enum":["removed","downgraded","reclassified"]}
+        }
+      }
+    },
+
+    "stop_rules": {"type":"array","items":{"type":"string"}, "minItems": 1},
+    "acceptance": {"type":"array","items":{"type":"string"}, "minItems": 1},
+
+    "score": {
+      "type":"object",
+      "additionalProperties": false,
+      "required":["total","components"],
+      "properties": {
+        "total":{"type":"number"},
+        "components":{"type":"object"}
+      }
+    },
+
+    "notes": {"type":"string"},
+    "hydration": {
+      "type":"object",
+      "additionalProperties": false,
+      "properties": {
+        "brief":{"type":"string"},
+        "commands":{"type":"array","items":{"type":"string"}}
+      }
+    }
+  }
+}

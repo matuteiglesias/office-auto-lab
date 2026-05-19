@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    participant Registry as front_registry
+    participant Policy as Capabilities / Policy / Prereqs
+    participant Sensor as repo_health.run_frontier
+    participant Plugins as Health Plugins
+    participant Runtime as runtime_health
+    participant Frontier as out/frontier/latest.csv
+    participant Office as office.main
+    participant Briefs as bundles + staff_briefs
+    participant Human as Human Block
+
+    Registry->>Sensor: project rows
+    Policy->>Sensor: receptor rules
+    Sensor->>Sensor: compute EffectiveRunSet
+    Sensor->>Plugins: execute selected probes
+    Plugins-->>Sensor: PASS / WARN / FAIL / INELIGIBLE
+    Sensor->>Frontier: write latest local frontier
+    Sensor->>Runtime: write current project health
+    Sensor->>Plugins: append PluginResults
+
+    Runtime->>Office: current health marker surface
+    Registry->>Office: project inventory
+    Office->>Office: compile expressed / latent / support / watch
+    Office->>Briefs: package selected support/escalation fronts
+    Briefs->>Human: focus packet / healthcheck / unlocker
+    Human->>Human: MAINT or FOCUS
+    Human-->>Office: POST evidence + next pointer
