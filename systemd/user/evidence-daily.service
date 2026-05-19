@@ -1,0 +1,7 @@
+[Unit]
+Description=Office Runtime - Evidence Daily
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/matias/repos/office-auto-lab
+ExecStart=/usr/bin/bash -lc 'TODAY=$(date +%%F); /usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh evidence git --roots /home/matias/repos /home/matias/Documents --start "$TODAY" --end "$TODAY" --out "artifacts/evidence/git_trace/${TODAY}_${TODAY}.jsonl"; /usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh evidence files --roots /home/matias/repos /home/matias/Documents --start "$TODAY" --end "$TODAY" --out "artifacts/evidence/fs_trace/${TODAY}_${TODAY}.jsonl" --max-depth 8'

@@ -1,0 +1,10 @@
+[Unit]
+Description=Office Runtime - Staff Briefs Timer
+
+[Timer]
+OnCalendar=*-*-* 08:10:00
+OnCalendar=*-*-* 16:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
