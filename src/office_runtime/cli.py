@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 
-def _cmd_daily(_: argparse.Namespace) -> int:
+def _cmd_daily(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
     from office_runtime.office.compile import run_compile
     from office_runtime.staff.bundles import build_bundles
@@ -15,7 +15,7 @@ def _cmd_daily(_: argparse.Namespace) -> int:
     cfg = load_config()
     manifest = run_compile(cfg)
     if manifest.get("status") == "ok":
-        manifest["bundle_build"] = build_bundles(cfg)
+        manifest["bundle_build"] = build_bundles(cfg, scan_mode=args.scan_mode)
         manifest["brief_build"] = build_staff_briefs(cfg.latest_dir)
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
     return 0 if manifest.get("status") == "ok" else 1
@@ -31,12 +31,12 @@ def _cmd_office_compile(_: argparse.Namespace) -> int:
     return 0 if manifest.get("status") == "ok" else 1
 
 
-def _cmd_staff_bundles(_: argparse.Namespace) -> int:
+def _cmd_staff_bundles(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
     from office_runtime.staff.bundles import build_bundles
 
     cfg = load_config()
-    result = build_bundles(cfg)
+    result = build_bundles(cfg, scan_mode=args.scan_mode)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     daily = subparsers.add_parser("daily", help="Run office compile + staff bundles + staff briefs.")
+    daily.add_argument("--scan-mode", choices=["none", "existing", "refresh"], default="existing")
     daily.set_defaults(handler=_cmd_daily)
 
     office = subparsers.add_parser("office", help="Office surfaces.")
@@ -109,7 +110,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     staff = subparsers.add_parser("staff", help="Staff surfaces.")
     staff_sub = staff.add_subparsers(dest="staff_cmd", required=True)
-    staff_sub.add_parser("bundles", help="Build staff bundles only.").set_defaults(handler=_cmd_staff_bundles)
+    staff_bundles = staff_sub.add_parser("bundles", help="Build staff bundles only.")
+    staff_bundles.add_argument("--scan-mode", choices=["none", "existing", "refresh"], default="refresh")
+    staff_bundles.set_defaults(handler=_cmd_staff_bundles)
     staff_sub.add_parser("briefs", help="Build staff briefs only.").set_defaults(handler=_cmd_staff_briefs)
 
     ops = subparsers.add_parser("ops", help="Ops surfaces.")
