@@ -37,7 +37,7 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
         return plugins
     for finder, name, ispkg in pkgutil.iter_modules([folder]):
         if name.endswith("_plugin"):
-            mod_name = f"office_runtime.ops.office_runtime.ops.office_runtime.ops.repo_health.plugins.{name}"
+            mod_name = f"office_runtime.ops.repo_health.plugins.{name}"
             try:
                 mod = importlib.import_module(mod_name)
                 print(f"Tried import {mod_name}")
@@ -48,7 +48,7 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
             for attr in dir(mod):
                 obj = getattr(mod, attr)
                 try:
-                    from office_runtime.ops.office_runtime.ops.office_runtime.ops.repo_health.plugins.base import BasePlugin
+                    from office_runtime.ops.repo_health.plugins.base import BasePlugin
                     if isinstance(obj, type) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
                         inst = obj()
                         plugins[inst.name] = inst

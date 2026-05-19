@@ -2,7 +2,38 @@
 
 smoke: imports repo-scans compile-blocks
 
+
 imports:
+	PYTHONPATH=src python3 -c "import office_runtime; \
+import office_runtime.cli; \
+import office_runtime.office.compile; \
+import office_runtime.office.config; \
+import office_runtime.office.io; \
+import office_runtime.office.render; \
+import office_runtime.office.validate; \
+import office_runtime.staff.bundles; \
+import office_runtime.staff.briefs; \
+import office_runtime.ops.repo_health.policy; \
+import office_runtime.ops.repo_health.sheets; \
+import office_runtime.ops.repo_health.frontier_export; \
+import office_runtime.ops.repo_health.runner; \
+import office_runtime.ops.repo_health.plugin_loader; \
+import office_runtime.ops.repo_health.compiler.generate; \
+import office_runtime.ops.repo_health.compiler.ir; \
+import office_runtime.ops.repo_health.compiler.classify; \
+import office_runtime.ops.repo_health.plugins.base; \
+import office_runtime.ops.repo_health.plugins.git_activity_plugin; \
+import office_runtime.ops.repo_health.plugins.make_smoke_plugin; \
+import office_runtime.ops.repo_health.plugins.repo_artifact_plugin; \
+import office_runtime.ops.repo_health.plugins.repo_env_plugin; \
+import office_runtime.ops.repo_health.plugins.repo_runbook_plugin; \
+from office_runtime.ops.repo_health.plugin_loader import load_plugins_from_folder; \
+plugins = load_plugins_from_folder('src/office_runtime/ops/repo_health/plugins'); \
+print('plugins:', sorted(plugins)); \
+print('imports ok')"
+
+
+
 	PYTHONPATH=src python3 - <<'PY'
 	import office_runtime
 	import office_runtime.cli
@@ -38,7 +69,7 @@ imports:
 	print("plugins:", sorted(plugins))
 	print("imports ok")
 	PY
-	
+
 repo-scans:
 	bash scripts/repo_contract_scan.sh "$$PWD" >/tmp/office_auto_lab_prereqs.tsv
 	bash scripts/repo_snapshot_protocol.sh "$$PWD" >/tmp/office_auto_lab_srp.txt
