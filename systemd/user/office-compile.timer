@@ -1,0 +1,12 @@
+[Unit]
+Description=Office Runtime - Office Compile Timer
+
+[Timer]
+OnCalendar=*-*-* 08:05:00
+OnCalendar=*-*-* 12:05:00
+OnCalendar=*-*-* 16:05:00
+OnCalendar=*-*-* 20:05:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

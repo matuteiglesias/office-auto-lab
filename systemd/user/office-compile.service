@@ -1,0 +1,7 @@
+[Unit]
+Description=Office Runtime - Office Compile
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/matias/repos/office-auto-lab
+ExecStart=/usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh office compile
