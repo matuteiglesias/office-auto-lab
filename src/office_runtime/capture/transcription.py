@@ -74,19 +74,60 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 
 def _audio_root(inbox_root: Path, audio_root: Path | None = None) -> Path:
-    configured = audio_root or os.environ.get("OFFICE_CAPTURE_AUDIO_ROOT")
+    configured = audio_root or os.environ.get("OFFICE_FEEDBACK_AUDIO_ROOT") or os.environ.get("OFFICE_CAPTURE_AUDIO_ROOT")
     root = Path(configured) if configured else inbox_root / AUDIO_DIR
     return (root if root.is_absolute() else inbox_root.parent / root).resolve()
 
 
-def _candidate_audio_paths(inbox_root: Path, raw_path: Path, row: dict[str, Any], event_id: str, audio_root: Path) -> list[Path]:
-    explicit = row.get("audio_path") or row.get("audio_rel_path") or row.get("audio")
+def _explicit_audio_path_value(row: dict[str, Any]) -> tuple[str | None, str | None, bool]:
+    audio = row.get("audio")
+    if isinstance(audio, dict):
+        rel_path = audio.get("rel_path")
+        if isinstance(rel_path, str) and rel_path.strip():
+            return rel_path, None, True
+        return None, "audio.rel_path is missing", True
+    if isinstance(row.get("audio_rel_path"), str) and row["audio_rel_path"].strip():
+        return row["audio_rel_path"], None, True
+    if isinstance(row.get("audio_path"), str) and row["audio_path"].strip():
+        return row["audio_path"], None, True
+    if isinstance(audio, str) and audio.strip():
+        return audio, None, True
+    if audio is not None:
+        return None, "audio must be an object with rel_path or a string path", True
+    return None, None, False
+
+
+def _resolve_explicit_audio_path(path_value: str, audio_root: Path) -> tuple[Path | None, str | None]:
+    path = Path(path_value)
+    if ".." in path.parts:
+        return None, "audio path traversal is not allowed"
+    if path.is_absolute():
+        return path.resolve(), None
+
+    parts = path.parts
+    prefix = ("inbox", AUDIO_DIR)
+    if len(parts) >= len(prefix) and parts[: len(prefix)] == prefix:
+        path = Path(*parts[len(prefix) :])
+    elif parts and parts[0] == AUDIO_DIR:
+        path = Path(*parts[1:])
+    if not path.parts:
+        return None, "audio path is missing"
+    return (audio_root / path).resolve(), None
+
+
+def _candidate_audio_paths(inbox_root: Path, raw_path: Path, row: dict[str, Any], event_id: str, audio_root: Path) -> tuple[list[Path], str | None]:
+    explicit, error, had_explicit_audio = _explicit_audio_path_value(row)
+    if error:
+        return [], error
     if explicit:
-        path = Path(str(explicit))
-        resolved = (path if path.is_absolute() else inbox_root.parent / path).resolve()
-        return [resolved]
+        resolved, resolve_error = _resolve_explicit_audio_path(explicit, audio_root)
+        if resolve_error or resolved is None:
+            return [], resolve_error
+        return [resolved], None
+    if had_explicit_audio:
+        return [], "audio path is missing"
     date_dir = audio_root / raw_path.stem
-    return sorted(p.resolve() for p in date_dir.glob(f"{event_id}.*") if p.is_file())
+    return sorted(p.resolve() for p in date_dir.glob(f"{event_id}.*") if p.is_file()), None
 
 
 def _resolve_audio_path(
@@ -99,7 +140,9 @@ def _resolve_audio_path(
     max_bytes: int | None = None,
 ) -> tuple[Path | None, str | None]:
     root = _audio_root(inbox_root, audio_root)
-    candidates = _candidate_audio_paths(inbox_root, raw_path, row, event_id, root)
+    candidates, candidate_error = _candidate_audio_paths(inbox_root, raw_path, row, event_id, root)
+    if candidate_error:
+        return None, candidate_error
     if not candidates:
         return None, f"audio not found under {root / raw_path.stem}"
     if len(candidates) > 1:

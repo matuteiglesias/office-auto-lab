@@ -140,6 +140,101 @@ class CaptureTranscriptionTests(unittest.TestCase):
             self.assertIn("audio too large", oversized["error"])
             self.assertEqual(client.audio.transcriptions.calls, 0)
 
+
+    def test_audio_object_rel_path_resolves_under_audio_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            audio_root = inbox / "human_feedback_audio"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (audio_root / "2026-06-21").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-21.jsonl").write_text(
+                json.dumps({
+                    "event_id": "cap_obj",
+                    "created_at": "2026-06-21T00:00:00Z",
+                    "audio": {"rel_path": "2026-06-21/cap_obj.webm", "mime_type": "audio/webm;codecs=opus", "bytes": 4},
+                }) + "\n",
+                encoding="utf-8",
+            )
+            (audio_root / "2026-06-21" / "cap_obj.webm").write_bytes(b"webm")
+
+            client = _FakeClient()
+            result = transcribe_event(inbox, "cap_obj", client=client, now="2026-06-21T00:01:00Z")
+
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(client.audio.transcriptions.calls, 1)
+
+    def test_audio_object_rootish_rel_path_is_normalized(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            audio_root = inbox / "human_feedback_audio"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (audio_root / "2026-06-21").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-21.jsonl").write_text(
+                json.dumps({
+                    "event_id": "cap_rootish",
+                    "audio": {"rel_path": "inbox/human_feedback_audio/2026-06-21/cap_rootish.webm"},
+                }) + "\n",
+                encoding="utf-8",
+            )
+            (audio_root / "2026-06-21" / "cap_rootish.webm").write_bytes(b"webm")
+
+            result = transcribe_event(inbox, "cap_rootish", client=_FakeClient())
+
+            self.assertEqual(result["status"], "ok")
+
+    def test_audio_dict_without_rel_path_is_not_stringified(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-21.jsonl").write_text(
+                json.dumps({"event_id": "cap_bad_dict", "audio": {"mime_type": "audio/webm"}}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = transcribe_event(inbox, "cap_bad_dict", client=_FakeClient())
+
+            self.assertEqual(result["status"], "error")
+            self.assertIn("audio.rel_path is missing", result["error"])
+            self.assertNotIn("{'", result["error"])
+
+    def test_rejects_path_traversal_and_absolute_outside_audio_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            (inbox / "human_feedback").mkdir(parents=True)
+            outside = Path(td) / "outside.webm"
+            outside.write_bytes(b"webm")
+            rows = [
+                {"event_id": "cap_traversal", "audio": {"rel_path": "../outside.webm"}},
+                {"event_id": "cap_absolute", "audio": {"rel_path": str(outside)}},
+            ]
+            (inbox / "human_feedback" / "2026-06-21.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+
+            traversal = transcribe_event(inbox, "cap_traversal", client=_FakeClient())
+            absolute = transcribe_event(inbox, "cap_absolute", client=_FakeClient())
+
+            self.assertEqual(traversal["status"], "error")
+            self.assertIn("traversal", traversal["error"])
+            self.assertEqual(absolute["status"], "error")
+            self.assertIn("escapes configured audio root", absolute["error"])
+
+    def test_legacy_audio_string_path_still_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            audio_root = inbox / "human_feedback_audio"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (audio_root / "2026-06-21").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-21.jsonl").write_text(
+                json.dumps({"event_id": "cap_legacy", "audio": "2026-06-21/cap_legacy.webm"}) + "\n",
+                encoding="utf-8",
+            )
+            (audio_root / "2026-06-21" / "cap_legacy.webm").write_bytes(b"webm")
+
+            result = transcribe_event(inbox, "cap_legacy", client=_FakeClient())
+
+            self.assertEqual(result["status"], "ok")
+
     def test_appends_failure_event_on_transcription_api_failure(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             inbox = Path(td) / "inbox"
