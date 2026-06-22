@@ -194,6 +194,96 @@ class CaptureLifecycleTests(unittest.TestCase):
             self.assertEqual(rows[0]["status"], "candidate")
             self.assertEqual(rows[0]["next"], "Reply to recruiter")
 
+    def test_human_review_decisions_update_lifecycle_status(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inbox = root / "inbox"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (inbox / "capture_processing").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-22.jsonl").write_text(
+                json.dumps({"event_id": "cap_review", "created_at": "2026-06-22T00:00:00Z"}) + "\n",
+                encoding="utf-8",
+            )
+            (inbox / "capture_processing" / "2026-06-22.jsonl").write_text(
+                "".join([
+                    json.dumps({
+                        "event_type": "capture.reingest_candidate.created",
+                        "source_event_id": "cap_review",
+                        "status": "pending_reingest",
+                        "ts": "2026-06-22T00:01:00Z",
+                        "reingest_candidate": {
+                            "target_surface": "queue",
+                            "target_id": "52.3",
+                            "proposed_delta": {"next": "Reply to recruiter", "needs": "Execution only"},
+                            "requires_human_approval": True,
+                        },
+                    }) + "\n",
+                    json.dumps({
+                        "event_type": "capture.approved",
+                        "source_event_id": "cap_review",
+                        "status": "approved",
+                        "source": "office-window",
+                        "ts": "2026-06-22T00:02:00Z",
+                        "approval": {
+                            "scope": "reingest_candidate",
+                            "target_surface": "queue",
+                            "target_id": "52.3",
+                            "approved_delta": {"next": "Write short reply", "needs": "Execution only"},
+                            "requires_apply": True,
+                        },
+                        "review": {"reviewer": "matias", "note": "Looks good."},
+                    }) + "\n",
+                ]),
+                encoding="utf-8",
+            )
+
+            lifecycle = compile_lifecycle(inbox, generated_at="2026-06-22T00:03:00Z")
+
+            capture = lifecycle["captures"][0]
+            self.assertEqual(capture["status"], "approved")
+            self.assertEqual(lifecycle["status_counts"]["approved"], 1)
+            self.assertEqual(capture["approval"]["target_surface"], "queue")
+            self.assertEqual(capture["approval"]["approved_delta"]["next"], "Write short reply")
+            self.assertEqual(capture["review"], {"decision": "approved", "ts": "2026-06-22T00:02:00Z", "reviewer": "matias", "note": "Looks good."})
+
+    def test_reprocess_request_can_reopen_terminal_review_status(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inbox = root / "inbox"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (inbox / "capture_processing").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-22.jsonl").write_text(
+                json.dumps({"event_id": "cap_reopen", "created_at": "2026-06-22T00:00:00Z"}) + "\n",
+                encoding="utf-8",
+            )
+            (inbox / "capture_processing" / "2026-06-22.jsonl").write_text(
+                "".join([
+                    json.dumps({
+                        "event_type": "capture.archived",
+                        "source_event_id": "cap_reopen",
+                        "status": "archived",
+                        "ts": "2026-06-22T00:01:00Z",
+                        "archive": {"reason": "no_action_needed", "note": "No longer needed."},
+                    }) + "\n",
+                    json.dumps({
+                        "event_type": "capture.reprocess_requested",
+                        "source_event_id": "cap_reopen",
+                        "status": "queued",
+                        "ts": "2026-06-22T00:02:00Z",
+                        "request": {"stage": "artifactize", "instruction": "Reprocess as work block."},
+                    }) + "\n",
+                ]),
+                encoding="utf-8",
+            )
+
+            lifecycle = compile_lifecycle(inbox, generated_at="2026-06-22T00:03:00Z")
+
+            capture = lifecycle["captures"][0]
+            self.assertEqual(capture["status"], "queued")
+            self.assertEqual(lifecycle["status_counts"]["queued"], 1)
+            self.assertEqual(capture["review"]["decision"], "reprocess_requested")
+            self.assertEqual(capture["review"]["instruction"], "Reprocess as work block.")
+
 
 if __name__ == "__main__":
     unittest.main()
