@@ -10,9 +10,11 @@ from office_runtime.capture.lifecycle import PROCESSING_DIR, compile_lifecycle
 from office_runtime.capture.transcription import append_jsonl, transcribe_event
 
 DEFAULT_PROCESSING_MODEL = "gpt-4o-mini"
-CAPTURE_MODES = ["Capture", "Re-entry", "Correction", "Question"]
+CAPTURE_MODES = ["Re-entry", "Correction", "Question", "Context Note", "Work Block Request", "Low Information"]
 CAPTURE_LANES = ["Projects / Ops", "Personal Ops", "Research", "Inbox", "Unknown"]
-ARTIFACT_TYPES = ["Next Pointer", "Work Block Candidate", "Note", "Question", "Other"]
+ARTIFACT_TYPES = ["Next Pointer", "Work Block Candidate", "Support Context", "Correction", "Question", "Discard Suggestion"]
+ARTIFACT_CANDIDATE_TYPES = ["next_pointer", "work_block_candidate_stub", "support_context", "correction", "question", "discard_suggestion"]
+REINGEST_TARGET_SURFACES = ["carry_state", "front_registry", "work_block_candidate_stub", "support_context", "discard_review", "none"]
 CONFIDENCE_VALUES = ["low", "medium", "high"]
 
 
@@ -60,7 +62,14 @@ def _context(capture: dict[str, Any]) -> dict[str, Any]:
         "transcript": capture.get("transcript") or {},
         "routing": capture.get("routing") or {},
         "artifact_candidate": capture.get("artifact_candidate") or {},
-        "capture_ontology": {"capture_modes": CAPTURE_MODES, "lanes": CAPTURE_LANES, "artifact_types": ARTIFACT_TYPES},
+        "capture_ontology": {
+            "capture_modes": CAPTURE_MODES,
+            "lanes": CAPTURE_LANES,
+            "artifact_types": ARTIFACT_TYPES,
+            "artifact_candidate_types": ARTIFACT_CANDIDATE_TYPES,
+            "reingest_target_surfaces": REINGEST_TARGET_SURFACES,
+            "target_id_rule": "For row-linked captures use target.project_id as target_id; source_event_id is already supplied separately.",
+        },
     }
 
 
@@ -72,7 +81,7 @@ ROUTING_SCHEMA = {
         "capture_mode": {"type": "string", "enum": CAPTURE_MODES},
         "lane": {"type": "string", "enum": CAPTURE_LANES},
         "artifact_type": {"type": "string", "enum": ARTIFACT_TYPES},
-        "routing_sentence": {"type": "string"},
+        "routing_sentence": {"type": "string", "minLength": 1},
         "confidence": {"type": "string", "enum": CONFIDENCE_VALUES},
     },
 }
@@ -82,10 +91,10 @@ ARTIFACT_SCHEMA = {
     "additionalProperties": False,
     "required": ["type", "text", "confidence", "evidence_excerpt"],
     "properties": {
-        "type": {"type": "string"},
-        "text": {"type": "string"},
+        "type": {"type": "string", "enum": ARTIFACT_CANDIDATE_TYPES},
+        "text": {"type": "string", "minLength": 1},
         "confidence": {"type": "string", "enum": CONFIDENCE_VALUES},
-        "evidence_excerpt": {"type": "string"},
+        "evidence_excerpt": {"type": "string", "minLength": 1},
     },
 }
 
@@ -94,7 +103,7 @@ REINGEST_SCHEMA = {
     "additionalProperties": False,
     "required": ["target_surface", "target_id", "proposed_delta", "requires_human_approval"],
     "properties": {
-        "target_surface": {"type": "string", "enum": ["carry_state", "front_registry", "queue", "none"]},
+        "target_surface": {"type": "string", "enum": REINGEST_TARGET_SURFACES},
         "target_id": {"type": "string"},
         "proposed_delta": {
             "type": "object",
@@ -149,6 +158,9 @@ def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> lis
     enum = schema.get("enum")
     if enum is not None and value not in enum:
         errors.append(f"{path} must be one of {enum}")
+    min_length = schema.get("minLength")
+    if isinstance(min_length, int) and isinstance(value, str) and len(value.strip()) < min_length:
+        errors.append(f"{path} must be a non-empty string")
     return errors
 
 
@@ -186,6 +198,23 @@ def _structured_response(prompt: str, schema: dict[str, Any], *, model: str, cli
     if errors:
         raise ValueError("invalid structured output: " + "; ".join(errors))
     return parsed
+
+
+def _normalize_payload(output_key: str, payload: dict[str, Any], capture: dict[str, Any]) -> dict[str, Any]:
+    if output_key != "reingest_candidate":
+        return payload
+    target_surface = str(payload.get("target_surface") or "")
+    target = capture.get("target") if isinstance(capture.get("target"), dict) else {}
+    project_id = str(target.get("project_id") or "").strip()
+    if target_surface == "none":
+        payload["target_id"] = ""
+        delta = payload.get("proposed_delta") if isinstance(payload.get("proposed_delta"), dict) else {}
+        delta["next"] = None
+        delta["needs"] = None
+        payload["proposed_delta"] = delta
+    elif project_id:
+        payload["target_id"] = project_id
+    return payload
 
 
 def _append_or_preview(inbox_root: Path, capture: dict[str, Any], event: dict[str, Any], *, dry_run: bool) -> dict[str, Any]:
@@ -234,6 +263,7 @@ def _derive_event(
     prompt = prompt_prefix + " Return only schema JSON.\n" + json.dumps(_context(capture), ensure_ascii=False)
     try:
         payload = _structured_response(prompt, schema, model=selected_model, client=client)
+        payload = _normalize_payload(output_key, payload, capture)
     except Exception as exc:
         event = _build_failed_event(event_id, stage, str(exc), model=selected_model, now=now)
         return _append_or_preview(inbox_root, capture, event, dry_run=dry_run) | {"status": "error", "error": str(exc)}
@@ -257,7 +287,12 @@ def route_event(
         stage="capture.routed",
         output_key="routing",
         schema=ROUTING_SCHEMA,
-        prompt_prefix="Route this capture into the finite office capture ontology.",
+        prompt_prefix=(
+            "Route this capture into the finite office capture ontology. "
+            "Use only the provided ontology enum values. Never use generic labels such as Capture, Note, or object. "
+            "routing_sentence must be a non-empty sentence explaining the route. "
+            "If the transcript is test/noise/low-information (for example 'prueba prueba 1 2 3'), use capture_mode Low Information and artifact_type Discard Suggestion; do not invent a task."
+        ),
         model=model,
         client=client,
         now=now,
@@ -284,7 +319,12 @@ def artifactize_event(
         stage="capture.artifact_candidate.created",
         output_key="artifact_candidate",
         schema=ARTIFACT_SCHEMA,
-        prompt_prefix="Create a concise, reviewable artifact candidate from this routed capture.",
+        prompt_prefix=(
+            "Create a concise, reviewable artifact candidate from this routed capture. "
+            "Use only artifact_candidate_types from the ontology; never output object or generic Note. "
+            "For low-information/test/noise captures, create type discard_suggestion with text/evidence explaining that no actionable office update was found. "
+            "Do not invent tasks or decisions that are not supported by the transcript."
+        ),
         model=model,
         client=client,
         now=now,
@@ -311,7 +351,14 @@ def propose_reingest_event(
         stage="capture.reingest_candidate.created",
         output_key="reingest_candidate",
         schema=REINGEST_SCHEMA,
-        prompt_prefix="Propose a human-approved reingest delta. Do not apply it or mutate office state.",
+        prompt_prefix=(
+            "Propose a human-approved reingest delta. Do not apply it or mutate office state. "
+            "Row linkage is already known in target and row_snapshot; do not rediscover or invent a target. "
+            "If target.project_id exists, target_id must be that project_id; source_event_id is preserved separately by the system. "
+            "Use target_surface none for discard_suggestion, questions with no destination, and low-information/test/noise captures. "
+            "For target_surface none, proposed_delta.next and proposed_delta.needs must be null. "
+            "For actionable captures, proposed_delta.next must be an action phrase, never an id like 52.3; proposed_delta.needs describes execution or support needed."
+        ),
         model=model,
         client=client,
         now=now,
