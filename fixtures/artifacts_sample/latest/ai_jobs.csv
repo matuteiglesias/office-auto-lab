@@ -1,0 +1,3 @@
+project_id,bundle_type,selected_from,bundle_path
+FAKE-ALPHA,decision_brief,principal_brief_today,fixtures/artifacts_sample/latest/bundles/decision__FAKE-ALPHA.json
+FAKE-BRAVO,healthcheck_brief,support_queue,fixtures/artifacts_sample/latest/bundles/healthcheck__FAKE-BRAVO.json

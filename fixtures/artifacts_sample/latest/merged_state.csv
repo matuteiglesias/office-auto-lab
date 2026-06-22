@@ -1,0 +1,6 @@
+project_id,Title,carry,horizon,needs,principal,expected,human_maint,human_focus,staff_get,staff_watch,staff_post,workdir,Context Brief (next unlock),_score
+FAKE-ALPHA,Example Payments Cleanup,Escalate,Today,Execution + decision,Required,1,0,1,1,0,0,/tmp/fake-payments,"Pick one fake failing checkout scenario and write a short diagnosis.",9
+FAKE-BRAVO,Example Inbox Triage,Support-needed,This week,Health check + unlocker,Optional,1,1,0,1,0,0,/tmp/fake-inbox,"Confirm the fake webhook path is documented before assigning work.",1
+FAKE-CHARLIE,Example Report Builder,Active,Today,Execution,Optional,1,0,1,1,0,1,/tmp/fake-reports,"Generate a sample report from canned data only.",8
+FAKE-ECHO,Example Dormant Watch Item,Dormant,Later,Watch for owner signal,Optional,0,0,0,0,1,0,/tmp/fake-watch,"Keep visible for frontend watch-list rendering.",-2
+FAKE-DELTA,Example Maintenance Sweep,Active,This week,Maintenance,Optional,1,1,0,1,0,0,/tmp/fake-maint,"Run a fake hygiene checklist and record status.",2

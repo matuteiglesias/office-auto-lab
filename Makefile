@@ -1,4 +1,4 @@
-.PHONY: imports audit daily office-compile staff-bundles staff-briefs repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
+.PHONY: imports audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -12,6 +12,8 @@ smoke: imports repo-scans compile-blocks
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
 import office_runtime.cli; \
+import office_runtime.capture; \
+import office_runtime.capture.lifecycle; \
 import office_runtime.office.compile; \
 import office_runtime.office.config; \
 import office_runtime.office.io; \
@@ -54,6 +56,9 @@ staff-bundles:
 
 staff-briefs:
 	PYTHONPATH=src python3 -m office_runtime.cli staff briefs
+
+capture-lifecycle:
+	PYTHONPATH=src python3 -m office_runtime.cli capture lifecycle
 
 repo-health-policy:
 	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health policy

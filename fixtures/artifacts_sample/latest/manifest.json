@@ -1,0 +1,70 @@
+{
+  "run_id": "synthetic-2026-06-21T000000Z",
+  "status": "ok",
+  "fixture": true,
+  "notice": "Synthetic non-sensitive sample data for Office Window frontend development. Not produced from Google Sheets or live artifacts.",
+  "row_counts": {
+    "front_registry": 5,
+    "carry_state": 5,
+    "merged": 5,
+    "principal_brief_week": 2,
+    "principal_brief_today": 1,
+    "support_queue": 1,
+    "escalations": 1,
+    "block_candidates": 2,
+    "expressed_state": 3,
+    "latent_state": 1,
+    "maint_get_queue": 1,
+    "focus_get_queue": 2,
+    "watch_queue": 1,
+    "post_eligible_queue": 1
+  },
+  "selected_ids": {
+    "principal_brief_today": [
+      "FAKE-ALPHA"
+    ],
+    "support_queue": [
+      "FAKE-BRAVO"
+    ],
+    "escalations": [
+      "FAKE-ALPHA"
+    ],
+    "block_candidates": [
+      "FAKE-ALPHA",
+      "FAKE-CHARLIE"
+    ],
+    "maint_get_queue": [
+      "FAKE-DELTA"
+    ],
+    "focus_get_queue": [
+      "FAKE-ALPHA",
+      "FAKE-CHARLIE"
+    ],
+    "watch_queue": [
+      "FAKE-ECHO"
+    ]
+  },
+  "warnings": [
+    {
+      "severity": "warning",
+      "code": "synthetic_fixture",
+      "message": "Fixture rows are intentionally fake and stable."
+    }
+  ],
+  "file_outputs": [
+    "manifest.json",
+    "merged_state.csv",
+    "principal_brief_today.csv",
+    "support_queue.csv",
+    "focus_get_queue.csv",
+    "maint_get_queue.csv",
+    "watch_queue.csv",
+    "post_eligible_queue.csv",
+    "today_compile.md",
+    "office_summary.md",
+    "brief_index.csv",
+    "ai_jobs.csv",
+    "logs/events.jsonl",
+    "README.md"
+  ]
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -208,6 +209,19 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def _cmd_capture_lifecycle(args: argparse.Namespace) -> int:
+    from office_runtime.capture.lifecycle import compile_and_write
+    from office_runtime.office.config import load_config
+
+    cfg = load_config()
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    out_dir = args.out or cfg.latest_dir
+    result = compile_and_write(inbox_root, out_dir)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="office_runtime.cli")
     subparsers = parser.add_subparsers(dest="command")
@@ -239,6 +253,13 @@ def build_parser() -> argparse.ArgumentParser:
         "repo_health_args", nargs=argparse.REMAINDER, help="Arguments passed through to repo-health runner."
     )
     repo_health_sub.choices["run"].set_defaults(handler=_cmd_ops_repo_health_run)
+
+    capture = subparsers.add_parser("capture", help="Capture processing surfaces.")
+    capture_sub = capture.add_subparsers(dest="capture_cmd", required=True)
+    cap_lifecycle = capture_sub.add_parser("lifecycle", help="Compile non-mutating capture lifecycle artifacts.")
+    cap_lifecycle.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and capture_processing JSONL streams.")
+    cap_lifecycle.add_argument("--out", type=Path, default=None, help="Output directory for capture_lifecycle artifacts. Defaults to OFFICE_OUT_ROOT/latest.")
+    cap_lifecycle.set_defaults(handler=_cmd_capture_lifecycle)
 
     evidence = subparsers.add_parser("evidence", help="Evidence surfaces.")
     evidence_sub = evidence.add_subparsers(dest="evidence_cmd", required=True)
