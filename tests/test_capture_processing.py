@@ -6,7 +6,13 @@ import unittest
 from pathlib import Path
 
 from office_runtime.capture.lifecycle import compile_lifecycle
-from office_runtime.capture.processing import artifactize_event, process_event, propose_reingest_event, route_event
+from office_runtime.capture.processing import (
+    REINGEST_SCHEMA,
+    artifactize_event,
+    process_event,
+    propose_reingest_event,
+    route_event,
+)
 
 
 class FakeResponses:
@@ -39,6 +45,29 @@ class FakeTranscriptionClient:
         self.audio = FakeAudio()
 
 
+def assert_strict_object_schema(testcase: unittest.TestCase, schema: dict, path: str = "$") -> None:
+    if schema.get("type") == "object":
+        testcase.assertIn("properties", schema, path)
+        testcase.assertEqual(schema.get("additionalProperties"), False, path)
+        properties = schema["properties"]
+        testcase.assertEqual(set(schema.get("required", [])), set(properties), path)
+        for key, child in properties.items():
+            if isinstance(child, dict):
+                assert_strict_object_schema(testcase, child, f"{path}.{key}")
+
+
+class StrictSchemaFakeResponses(FakeResponses):
+    def create(self, **kwargs):
+        schema = kwargs["text"]["format"]["schema"]
+        assert_strict_object_schema(unittest.TestCase(), schema)
+        return super().create(**kwargs)
+
+
+class StrictSchemaFakeClient(FakeClient):
+    def __init__(self, outputs: list[dict]):
+        self.responses = StrictSchemaFakeResponses(outputs)
+
+
 def seed_transcribed_capture(inbox: Path) -> None:
     (inbox / "human_feedback").mkdir(parents=True)
     (inbox / "capture_processing").mkdir(parents=True)
@@ -65,6 +94,47 @@ def seed_transcribed_capture(inbox: Path) -> None:
 
 
 class CaptureProcessingTests(unittest.TestCase):
+    def test_reingest_schema_is_strict_recursively(self) -> None:
+        assert_strict_object_schema(self, REINGEST_SCHEMA)
+
+    def test_propose_reingest_submits_strict_schema_to_responses_api(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            inbox = Path(td) / "inbox"
+            seed_transcribed_capture(inbox)
+            client = FakeClient([
+                {
+                    "capture_mode": "Re-entry",
+                    "lane": "Projects / Ops",
+                    "artifact_type": "Next Pointer",
+                    "routing_sentence": "This is Re-entry capture for Projects / Ops.",
+                    "confidence": "medium",
+                },
+                {
+                    "type": "next_pointer",
+                    "text": "Reply to recruiter. Do not redesign the CRM.",
+                    "confidence": "medium",
+                    "evidence_excerpt": "Reply to recruiter",
+                },
+            ])
+            self.assertEqual(route_event(inbox, "cap_001", client=client)["status"], "ok")
+            self.assertEqual(artifactize_event(inbox, "cap_001", client=client)["status"], "ok")
+
+            strict_client = StrictSchemaFakeClient([
+                {
+                    "target_surface": "carry_state",
+                    "target_id": "52.3",
+                    "proposed_delta": {"next": "Reply to recruiter", "needs": "Execution only"},
+                    "requires_human_approval": True,
+                }
+            ])
+            result = propose_reingest_event(inbox, "cap_001", client=strict_client, now="2026-06-22T00:04:00Z")
+
+            self.assertEqual(result["status"], "ok")
+            schema = strict_client.responses.calls[0]["text"]["format"]["schema"]
+            self.assertIn("proposed_delta", schema["properties"])
+            self.assertIn("proposed_delta", schema["required"])
+            self.assertEqual(set(schema["properties"]["proposed_delta"]["required"]), {"next", "needs"})
+
     def test_routes_artifactizes_and_proposes_reingest(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             inbox = Path(td) / "inbox"
@@ -117,7 +187,7 @@ class CaptureProcessingTests(unittest.TestCase):
             client = FakeClient([
                 {"capture_mode": "Re-entry", "lane": "Projects / Ops", "artifact_type": "Next Pointer", "routing_sentence": "Route it.", "confidence": "medium"},
                 {"type": "next_pointer", "text": "Reply to recruiter.", "confidence": "medium", "evidence_excerpt": "Reply"},
-                {"target_surface": "carry_state", "target_id": "", "proposed_delta": {"next": "Reply to recruiter"}, "requires_human_approval": True},
+                {"target_surface": "carry_state", "target_id": "", "proposed_delta": {"next": "Reply to recruiter", "needs": None}, "requires_human_approval": True},
             ])
 
             result = process_event(
@@ -130,7 +200,6 @@ class CaptureProcessingTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "ok")
             self.assertEqual([step["step"] for step in result["steps"]], ["transcribe", "route", "artifactize", "propose_reingest"])
-
 
     def test_invalid_structured_output_appends_failure_event(self) -> None:
         with tempfile.TemporaryDirectory() as td:

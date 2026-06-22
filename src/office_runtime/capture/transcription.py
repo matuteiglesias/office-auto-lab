@@ -79,19 +79,33 @@ def _audio_root(inbox_root: Path, audio_root: Path | None = None) -> Path:
     return (root if root.is_absolute() else inbox_root.parent / root).resolve()
 
 
+def _extract_audio_path_value(row: dict[str, Any]) -> str | None:
+    for key in ("audio_path", "audio_rel_path"):
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    audio = row.get("audio")
+
+    if isinstance(audio, dict):
+        value = audio.get("rel_path") or audio.get("path")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return None
+
+    if isinstance(audio, str) and audio.strip():
+        return audio.strip()
+
+    return None
+
+
 def _explicit_audio_path_value(row: dict[str, Any]) -> tuple[str | None, str | None, bool]:
+    explicit = _extract_audio_path_value(row)
+    if explicit:
+        return explicit, None, True
     audio = row.get("audio")
     if isinstance(audio, dict):
-        rel_path = audio.get("rel_path")
-        if isinstance(rel_path, str) and rel_path.strip():
-            return rel_path, None, True
         return None, "audio.rel_path is missing", True
-    if isinstance(row.get("audio_rel_path"), str) and row["audio_rel_path"].strip():
-        return row["audio_rel_path"], None, True
-    if isinstance(row.get("audio_path"), str) and row["audio_path"].strip():
-        return row["audio_path"], None, True
-    if isinstance(audio, str) and audio.strip():
-        return audio, None, True
     if audio is not None:
         return None, "audio must be an object with rel_path or a string path", True
     return None, None, False

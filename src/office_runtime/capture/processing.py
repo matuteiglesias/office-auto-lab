@@ -96,16 +96,37 @@ REINGEST_SCHEMA = {
     "properties": {
         "target_surface": {"type": "string", "enum": ["carry_state", "front_registry", "queue", "none"]},
         "target_id": {"type": "string"},
-        "proposed_delta": {"type": "object", "additionalProperties": {"type": "string"}},
+        "proposed_delta": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["next", "needs"],
+            "properties": {
+                "next": {"type": ["string", "null"]},
+                "needs": {"type": ["string", "null"]},
+            },
+        },
         "requires_human_approval": {"type": "boolean"},
     },
 }
 
 
+def _matches_json_type(value: Any, expected: str) -> bool:
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "null":
+        return value is None
+    return True
+
+
 def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
     errors: list[str] = []
     expected = schema.get("type")
-    if expected == "object":
+    expected_types = expected if isinstance(expected, list) else [expected]
+    if "object" in expected_types and isinstance(value, dict):
         if not isinstance(value, dict):
             return [f"{path} must be object"]
         required = schema.get("required", [])
@@ -122,12 +143,9 @@ def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> lis
             child_schema = properties.get(key) or (additional if isinstance(additional, dict) else None)
             if child_schema:
                 errors.extend(_validate_schema(item, child_schema, f"{path}.{key}"))
-    elif expected == "string":
-        if not isinstance(value, str):
-            errors.append(f"{path} must be string")
-    elif expected == "boolean":
-        if not isinstance(value, bool):
-            errors.append(f"{path} must be boolean")
+    elif expected is not None and not any(_matches_json_type(value, item) for item in expected_types):
+        expected_label = " or ".join(str(item) for item in expected_types)
+        errors.append(f"{path} must be {expected_label}")
     enum = schema.get("enum")
     if enum is not None and value not in enum:
         errors.append(f"{path} must be one of {enum}")
