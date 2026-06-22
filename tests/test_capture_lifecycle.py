@@ -109,5 +109,91 @@ class CaptureLifecycleTests(unittest.TestCase):
             self.assertEqual(rows[0]["status"], "pending_transcription")
 
 
+    def test_writes_capture_work_block_candidate_stub_artifacts_only(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inbox = root / "inbox"
+            out = root / "artifacts" / "latest"
+            (inbox / "human_feedback").mkdir(parents=True)
+            (inbox / "capture_processing").mkdir(parents=True)
+            (inbox / "human_feedback" / "2026-06-22.jsonl").write_text(
+                "".join([
+                    json.dumps({
+                        "event_id": "cap_block",
+                        "created_at": "2026-06-22T00:00:00Z",
+                        "project_id": "52.3",
+                        "project_title": "Job Search Management",
+                        "queue_key": "focus",
+                    }) + "\n",
+                    json.dumps({
+                        "event_id": "cap_note",
+                        "created_at": "2026-06-22T00:01:00Z",
+                        "project_id": "99.1",
+                        "project_title": "Notes",
+                    }) + "\n",
+                ]),
+                encoding="utf-8",
+            )
+            (inbox / "capture_processing" / "2026-06-22.jsonl").write_text(
+                "".join([
+                    json.dumps({
+                        "event_type": "capture.artifact_candidate.created",
+                        "source_event_id": "cap_block",
+                        "status": "artifact_candidate",
+                        "ts": "2026-06-22T00:02:00Z",
+                        "artifact_candidate": {
+                            "type": "work_block_candidate_stub",
+                            "text": "Reply to recruiter in a bounded 25 minute block.",
+                            "confidence": "medium",
+                            "evidence_excerpt": "Reply to recruiter",
+                        },
+                    }) + "\n",
+                    json.dumps({
+                        "event_type": "capture.reingest_candidate.created",
+                        "source_event_id": "cap_block",
+                        "status": "pending_reingest",
+                        "ts": "2026-06-22T00:03:00Z",
+                        "reingest_candidate": {
+                            "target_surface": "block_candidate_stub",
+                            "target_id": "52.3",
+                            "proposed_delta": {"next": "Reply to recruiter", "needs": "Execution only"},
+                            "requires_human_approval": True,
+                        },
+                    }) + "\n",
+                    json.dumps({
+                        "event_type": "capture.artifact_candidate.created",
+                        "source_event_id": "cap_note",
+                        "status": "artifact_candidate",
+                        "ts": "2026-06-22T00:04:00Z",
+                        "artifact_candidate": {
+                            "type": "note",
+                            "text": "Not a work block.",
+                            "confidence": "high",
+                            "evidence_excerpt": "Not a work block",
+                        },
+                    }) + "\n",
+                ]),
+                encoding="utf-8",
+            )
+
+            result = compile_and_write(inbox, out, generated_at="2026-06-22T00:05:00Z")
+
+            self.assertEqual(result["status"], "ok")
+            self.assertTrue((out / "capture_candidates.json").exists())
+            self.assertTrue((out / "capture_candidates.md").exists())
+            self.assertTrue((out / "block_candidate_stubs.csv").exists())
+            self.assertTrue((out / "block_candidate_stubs.md").exists())
+            self.assertFalse((out / "block_candidates.csv").exists())
+            data = json.loads((out / "capture_candidates.json").read_text(encoding="utf-8"))
+            self.assertEqual([row["source_event_id"] for row in data["candidates"]], ["cap_block"])
+            self.assertEqual(data["candidates"][0]["evidence_excerpt"], "Reply to recruiter")
+            self.assertEqual(data["candidates"][0]["review_required"], "true")
+            with (out / "block_candidate_stubs.csv").open(newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]["candidate_type"], "work_block_candidate_stub")
+            self.assertEqual(rows[0]["status"], "candidate")
+            self.assertEqual(rows[0]["next"], "Reply to recruiter")
+
+
 if __name__ == "__main__":
     unittest.main()

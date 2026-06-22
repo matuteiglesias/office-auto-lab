@@ -19,9 +19,10 @@ NON_MUTATING_CAPTURE_SURFACES = (
     "artifacts/latest/capture_lifecycle.json",
     "artifacts/latest/capture_lifecycle.md",
     "artifacts/latest/capture_lifecycle.csv",
-    "artifacts/latest/capture_candidates.csv",
+    "artifacts/latest/capture_candidates.json",
     "artifacts/latest/capture_candidates.md",
     "artifacts/latest/block_candidate_stubs.csv",
+    "artifacts/latest/block_candidate_stubs.md",
     "inbox/capture_artifacts/YYYY-MM-DD/*.md",
     "inbox/reingest_candidates/YYYY-MM-DD.jsonl",
 )
