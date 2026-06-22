@@ -325,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
     cap_transcribe.add_argument("--event-id", required=True, help="Raw human_feedback event_id to transcribe.")
     cap_transcribe.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and human_feedback_audio.")
     cap_transcribe.add_argument("--model", default=None, help="OpenAI transcription model to use. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
-    cap_transcribe.add_argument("--audio-root", type=Path, default=None, help="Configured audio root. Defaults to OFFICE_CAPTURE_AUDIO_ROOT or inbox/human_feedback_audio.")
+    cap_transcribe.add_argument("--audio-root", type=Path, default=None, help="Configured audio root. Defaults to OFFICE_FEEDBACK_AUDIO_ROOT, OFFICE_CAPTURE_AUDIO_ROOT, or inbox/human_feedback_audio.")
     cap_transcribe.add_argument("--max-bytes", type=int, default=None, help="Maximum accepted audio bytes. Defaults to OFFICE_CAPTURE_MAX_AUDIO_BYTES or 25MiB.")
     cap_transcribe.add_argument("--force", action="store_true", help="Append a new transcription even if one already exists.")
     cap_transcribe.add_argument("--dry-run", action="store_true", help="Print the derived event without appending it.")
