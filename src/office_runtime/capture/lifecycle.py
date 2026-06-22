@@ -89,7 +89,7 @@ def _event_id_for(row: dict[str, Any], derived: bool) -> str:
 
 
 def _stage_for(row: dict[str, Any], default: str) -> str:
-    return _first(row, "stage", "event", "type", "kind") or default
+    return _first(row, "event_type", "stage", "event", "type", "kind") or default
 
 
 def _timestamp_for(row: dict[str, Any]) -> str:
@@ -138,6 +138,7 @@ def _empty_capture(event_id: str) -> dict[str, Any]:
         "target": {"project_id": "", "title": "", "queue_key": ""},
         "audio": {"rel_path": ""},
         "human_note": "",
+        "row_snapshot": {},
         "transcript": {"status": "absent", "text": "", "model": ""},
         "routing": None,
         "artifact_candidate": None,
@@ -159,6 +160,8 @@ def _apply_raw(capture: dict[str, Any], row: dict[str, Any]) -> None:
     if audio["rel_path"] and not capture["audio"].get("rel_path"):
         capture["audio"] = audio
     capture["human_note"] = capture["human_note"] or _first(row, "human_note", "note", "text")
+    if isinstance(row.get("row_snapshot"), dict) and not capture.get("row_snapshot"):
+        capture["row_snapshot"] = row["row_snapshot"]
 
 
 def _apply_derived(capture: dict[str, Any], row: dict[str, Any], stage: str) -> None:
@@ -168,32 +171,48 @@ def _apply_derived(capture: dict[str, Any], row: dict[str, Any], stage: str) -> 
             capture["target"][key] = value
 
     if stage == "capture.transcribed":
+        transcript = row.get("transcript") if isinstance(row.get("transcript"), dict) else {}
         capture["transcript"] = {
             "status": _first(row, "status") or "ok",
-            "text": _first(row, "transcript", "transcript_text", "text"),
-            "model": _first(row, "model"),
+            "text": _first(transcript, "text") or _first(row, "transcript", "transcript_text", "text"),
+            "model": _first(transcript, "model") or _first(row, "model"),
         }
     elif stage == "capture.routed":
+        routing = row.get("routing") if isinstance(row.get("routing"), dict) else {}
         capture["routing"] = {
             "status": _first(row, "status") or "ok",
-            "route": _first(row, "route", "routing", "candidate_type"),
+            "route": _first(routing, "artifact_type") or _first(row, "route", "candidate_type"),
+            "capture_mode": _first(routing, "capture_mode"),
+            "lane": _first(routing, "lane"),
+            "artifact_type": _first(routing, "artifact_type"),
+            "routing_sentence": _first(routing, "routing_sentence"),
+            "confidence": _first(routing, "confidence"),
             "rationale": _first(row, "rationale", "summary"),
         }
     elif stage == "capture.artifact_candidate.created":
+        candidate = row.get("artifact_candidate") if isinstance(row.get("artifact_candidate"), dict) else {}
         capture["artifact_candidate"] = {
             "status": _first(row, "status") or "candidate",
             "candidate_id": _first(row, "candidate_id"),
-            "candidate_type": _first(row, "candidate_type"),
+            "candidate_type": _first(candidate, "type") or _first(row, "candidate_type"),
             "artifact_path": _first(row, "artifact_path", "candidate_ref"),
-            "summary": _first(row, "summary"),
+            "summary": _first(candidate, "text") or _first(row, "summary"),
+            "text": _first(candidate, "text"),
+            "confidence": _first(candidate, "confidence"),
+            "evidence_excerpt": _first(candidate, "evidence_excerpt"),
         }
     elif stage == "capture.reingest_candidate.created":
+        candidate = row.get("reingest_candidate") if isinstance(row.get("reingest_candidate"), dict) else {}
         capture["reingest_candidate"] = {
             "status": _first(row, "status") or "proposed",
             "reingest_candidate_id": _first(row, "reingest_candidate_id", "candidate_id"),
             "candidate_type": _first(row, "candidate_type"),
             "candidate_ref": _first(row, "candidate_ref", "artifact_path"),
-            "summary": _first(row, "summary"),
+            "summary": _first(row, "summary") or _first(candidate, "target_surface"),
+            "target_surface": _first(candidate, "target_surface"),
+            "target_id": _first(candidate, "target_id"),
+            "proposed_delta": candidate.get("proposed_delta", {}) if isinstance(candidate.get("proposed_delta"), dict) else {},
+            "requires_human_approval": bool(candidate.get("requires_human_approval", True)),
         }
     elif stage in {"capture.approved", "capture.applied"}:
         capture["approval"] = {
@@ -369,6 +388,128 @@ def write_csv(path: Path, lifecycle: dict[str, Any]) -> None:
             })
 
 
+def _is_work_block_candidate(capture: dict[str, Any]) -> bool:
+    artifact = capture.get("artifact_candidate") or {}
+    reingest = capture.get("reingest_candidate") or {}
+    typed_values = {
+        str(artifact.get("candidate_type") or "").strip().lower(),
+        str(artifact.get("type") or "").strip().lower(),
+        str(reingest.get("candidate_type") or "").strip().lower(),
+        str(reingest.get("target_surface") or "").strip().lower(),
+    }
+    return "work_block_candidate_stub" in typed_values or "block_candidate_stub" in typed_values
+
+
+def compile_capture_candidates(lifecycle: dict[str, Any]) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    for capture in lifecycle.get("captures", []):
+        if not _is_work_block_candidate(capture):
+            continue
+        target = capture.get("target") or {}
+        artifact = capture.get("artifact_candidate") or {}
+        reingest = capture.get("reingest_candidate") or {}
+        source_event_id = str(capture.get("event_id") or "")
+        text = str(artifact.get("text") or artifact.get("summary") or "")
+        evidence = str(artifact.get("evidence_excerpt") or "")
+        proposed_delta = reingest.get("proposed_delta") if isinstance(reingest.get("proposed_delta"), dict) else {}
+        row = {
+            "source_event_id": source_event_id,
+            "candidate_id": f"capture_{source_event_id}_work_block_candidate_stub",
+            "candidate_type": "work_block_candidate_stub",
+            "status": "candidate",
+            "review_required": "true",
+            "project_id": str(target.get("project_id") or reingest.get("target_id") or ""),
+            "title": str(target.get("title") or ""),
+            "queue_key": str(target.get("queue_key") or ""),
+            "target_surface": str(reingest.get("target_surface") or ""),
+            "target_id": str(reingest.get("target_id") or ""),
+            "text": text,
+            "next": str(proposed_delta.get("next") or text),
+            "needs": str(proposed_delta.get("needs") or "Execution review"),
+            "evidence_excerpt": evidence,
+            "created_at": str(capture.get("created_at") or ""),
+        }
+        candidates.append(row)
+    candidates.sort(key=lambda r: (r.get("created_at", ""), r.get("source_event_id", ""), r.get("candidate_id", "")))
+    return {"generated_at": lifecycle.get("generated_at", ""), "status": "ok", "candidates": candidates}
+
+
+def render_capture_candidates_markdown(data: dict[str, Any]) -> str:
+    lines = [
+        "# Capture Candidates",
+        "",
+        f"- Generated at: `{data.get('generated_at', '')}`",
+        f"- Candidates: {len(data.get('candidates', []))}",
+        "",
+    ]
+    for row in data.get("candidates", []):
+        lines += [
+            f"## {row.get('source_event_id', '')}",
+            "",
+            f"- Status: `{row.get('status', '')}` / review-required: `{row.get('review_required', '')}`",
+            f"- Project: `{row.get('project_id', '')}` {row.get('title', '')}".rstrip(),
+            f"- Type: `{row.get('candidate_type', '')}`",
+            f"- Target: `{row.get('target_surface', '')}` `{row.get('target_id', '')}`".rstrip(),
+            f"- Next: {row.get('next', '')}",
+        ]
+        if row.get("evidence_excerpt"):
+            lines += ["", "> " + str(row.get("evidence_excerpt", "")).replace("\n", " ")]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def render_block_candidate_stubs_markdown(data: dict[str, Any]) -> str:
+    lines = ["# Block Candidate Stubs", "", f"- Candidates: {len(data.get('candidates', []))}", ""]
+    for row in data.get("candidates", []):
+        lines += [
+            f"- `{row.get('source_event_id', '')}` → `{row.get('project_id', '')}`: {row.get('next', '')} "
+            f"(review-required: `{row.get('review_required', '')}`)",
+        ]
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_capture_candidate_artifacts(lifecycle: dict[str, Any], out_dir: Path) -> dict[str, str]:
+    out_dir = Path(out_dir)
+    data = compile_capture_candidates(lifecycle)
+    candidates_json = out_dir / "capture_candidates.json"
+    candidates_md = out_dir / "capture_candidates.md"
+    stubs_csv = out_dir / "block_candidate_stubs.csv"
+    stubs_md = out_dir / "block_candidate_stubs.md"
+    write_json(candidates_json, data)
+    candidates_md.write_text(render_capture_candidates_markdown(data), encoding="utf-8")
+    fields = [
+        "source_event_id",
+        "candidate_id",
+        "candidate_type",
+        "status",
+        "review_required",
+        "project_id",
+        "title",
+        "queue_key",
+        "target_surface",
+        "target_id",
+        "text",
+        "next",
+        "needs",
+        "evidence_excerpt",
+        "created_at",
+    ]
+    stubs_csv.parent.mkdir(parents=True, exist_ok=True)
+    with stubs_csv.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in data.get("candidates", []):
+            writer.writerow({field: row.get(field, "") for field in fields})
+    stubs_md.write_text(render_block_candidate_stubs_markdown(data), encoding="utf-8")
+    return {
+        "capture_candidates_json": str(candidates_json),
+        "capture_candidates_markdown": str(candidates_md),
+        "block_candidate_stubs_csv": str(stubs_csv),
+        "block_candidate_stubs_markdown": str(stubs_md),
+    }
+
+
 def write_lifecycle_artifacts(lifecycle: dict[str, Any], out_dir: Path) -> dict[str, str]:
     out_dir = Path(out_dir)
     json_path = out_dir / "capture_lifecycle.json"
@@ -377,7 +518,9 @@ def write_lifecycle_artifacts(lifecycle: dict[str, Any], out_dir: Path) -> dict[
     write_json(json_path, lifecycle)
     write_markdown(md_path, lifecycle)
     write_csv(csv_path, lifecycle)
-    return {"json": str(json_path), "markdown": str(md_path), "csv": str(csv_path)}
+    outputs = {"json": str(json_path), "markdown": str(md_path), "csv": str(csv_path)}
+    outputs.update(write_capture_candidate_artifacts(lifecycle, out_dir))
+    return outputs
 
 
 def compile_and_write(inbox_root: Path, out_dir: Path, *, generated_at: str | None = None) -> dict[str, Any]:

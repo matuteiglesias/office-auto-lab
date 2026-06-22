@@ -210,6 +210,66 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
 
 
 
+
+def _cmd_capture_transcribe(args: argparse.Namespace) -> int:
+    from office_runtime.capture.transcription import transcribe_event
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = transcribe_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run, audio_root=args.audio_root, max_bytes=args.max_bytes)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
+def _cmd_capture_transcribe_pending(args: argparse.Namespace) -> int:
+    from office_runtime.capture.transcription import transcribe_pending
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = transcribe_pending(inbox_root, limit=args.limit, model=args.model, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+def _cmd_capture_route(args: argparse.Namespace) -> int:
+    from office_runtime.capture.processing import route_event
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = route_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
+def _cmd_capture_artifactize(args: argparse.Namespace) -> int:
+    from office_runtime.capture.processing import artifactize_event
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = artifactize_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
+def _cmd_capture_propose_reingest(args: argparse.Namespace) -> int:
+    from office_runtime.capture.processing import propose_reingest_event
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = propose_reingest_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
+def _cmd_capture_process(args: argparse.Namespace) -> int:
+    from office_runtime.capture.processing import process_event
+
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    inbox_root = args.inbox_root or (root / "inbox")
+    result = process_event(inbox_root, args.event_id, transcription_model=args.transcription_model, model=args.model, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
 def _cmd_capture_lifecycle(args: argparse.Namespace) -> int:
     from office_runtime.capture.lifecycle import compile_and_write
     from office_runtime.office.config import load_config
@@ -260,6 +320,57 @@ def build_parser() -> argparse.ArgumentParser:
     cap_lifecycle.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and capture_processing JSONL streams.")
     cap_lifecycle.add_argument("--out", type=Path, default=None, help="Output directory for capture_lifecycle artifacts. Defaults to OFFICE_OUT_ROOT/latest.")
     cap_lifecycle.set_defaults(handler=_cmd_capture_lifecycle)
+
+    cap_transcribe = capture_sub.add_parser("transcribe", help="Transcribe one raw capture audio event into capture_processing.")
+    cap_transcribe.add_argument("--event-id", required=True, help="Raw human_feedback event_id to transcribe.")
+    cap_transcribe.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and human_feedback_audio.")
+    cap_transcribe.add_argument("--model", default=None, help="OpenAI transcription model to use. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
+    cap_transcribe.add_argument("--audio-root", type=Path, default=None, help="Configured audio root. Defaults to OFFICE_CAPTURE_AUDIO_ROOT or inbox/human_feedback_audio.")
+    cap_transcribe.add_argument("--max-bytes", type=int, default=None, help="Maximum accepted audio bytes. Defaults to OFFICE_CAPTURE_MAX_AUDIO_BYTES or 25MiB.")
+    cap_transcribe.add_argument("--force", action="store_true", help="Append a new transcription even if one already exists.")
+    cap_transcribe.add_argument("--dry-run", action="store_true", help="Print the derived event without appending it.")
+    cap_transcribe.set_defaults(handler=_cmd_capture_transcribe)
+
+    cap_pending = capture_sub.add_parser("transcribe-pending", help="Transcribe pending raw capture audio events.")
+    cap_pending.add_argument("--limit", type=int, default=5, help="Maximum pending captures to transcribe.")
+    cap_pending.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and human_feedback_audio.")
+    cap_pending.add_argument("--model", default=None, help="OpenAI transcription model to use. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
+    cap_pending.add_argument("--force", action="store_true", help="Process captures even if transcription already exists.")
+    cap_pending.add_argument("--dry-run", action="store_true", help="Print derived events without appending them.")
+    cap_pending.set_defaults(handler=_cmd_capture_transcribe_pending)
+
+    cap_route = capture_sub.add_parser("route", help="Route one transcribed capture using Structured Outputs.")
+    cap_route.add_argument("--event-id", required=True, help="Capture event_id to route.")
+    cap_route.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
+    cap_route.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
+    cap_route.add_argument("--force", action="store_true", help="Append a new routing event even if one already exists.")
+    cap_route.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
+    cap_route.set_defaults(handler=_cmd_capture_route)
+
+    cap_artifactize = capture_sub.add_parser("artifactize", help="Create one artifact candidate from a routed capture.")
+    cap_artifactize.add_argument("--event-id", required=True, help="Capture event_id to artifactize.")
+    cap_artifactize.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
+    cap_artifactize.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
+    cap_artifactize.add_argument("--force", action="store_true", help="Append a new artifact candidate even if one already exists.")
+    cap_artifactize.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
+    cap_artifactize.set_defaults(handler=_cmd_capture_artifactize)
+
+    cap_reingest = capture_sub.add_parser("propose-reingest", help="Create one pending reingest candidate without applying it.")
+    cap_reingest.add_argument("--event-id", required=True, help="Capture event_id to propose for reingest.")
+    cap_reingest.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
+    cap_reingest.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
+    cap_reingest.add_argument("--force", action="store_true", help="Append a new reingest proposal even if one already exists.")
+    cap_reingest.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
+    cap_reingest.set_defaults(handler=_cmd_capture_propose_reingest)
+
+    cap_process = capture_sub.add_parser("process", help="Run missing capture steps: transcribe, route, artifactize, propose reingest.")
+    cap_process.add_argument("--event-id", required=True, help="Capture event_id to process.")
+    cap_process.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
+    cap_process.add_argument("--model", default=None, help="OpenAI Responses model to use for structured outputs. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
+    cap_process.add_argument("--transcription-model", default=None, help="OpenAI transcription model to use if transcription is missing. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
+    cap_process.add_argument("--force", action="store_true", help="Run all stages even if prior derived events exist.")
+    cap_process.add_argument("--dry-run", action="store_true", help="Print proposed events without appending them.")
+    cap_process.set_defaults(handler=_cmd_capture_process)
 
     evidence = subparsers.add_parser("evidence", help="Evidence surfaces.")
     evidence_sub = evidence.add_subparsers(dest="evidence_cmd", required=True)
