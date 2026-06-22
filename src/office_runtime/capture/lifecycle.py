@@ -20,6 +20,9 @@ _STATUS_BY_STAGE = {
     "capture.artifact_candidate.created": "artifact_candidate",
     "capture.reingest_candidate.created": "pending_reingest",
     "capture.approved": "approved",
+    "capture.discarded": "discarded",
+    "capture.archived": "archived",
+    "capture.reprocess_requested": "queued",
     "capture.applied": "applied",
 }
 _STATUS_ORDER = [
@@ -29,8 +32,11 @@ _STATUS_ORDER = [
     "artifact_candidate",
     "pending_reingest",
     "approved",
-    "applied",
+    "discarded",
     "archived",
+    "queued",
+    "applied",
+    "failed",
     "malformed",
 ]
 
@@ -124,6 +130,11 @@ def _timeline_event(
         "reingest_candidate_id",
         "summary",
         "review_note",
+        "approval",
+        "review",
+        "discard",
+        "archive",
+        "request",
     ):
         if key in row:
             event[key] = row[key]
@@ -144,6 +155,7 @@ def _empty_capture(event_id: str) -> dict[str, Any]:
         "artifact_candidate": None,
         "reingest_candidate": None,
         "approval": {"status": "not_requested"},
+        "review": None,
         "events": [],
         "timeline": [],
         "warnings": [],
@@ -214,11 +226,32 @@ def _apply_derived(capture: dict[str, Any], row: dict[str, Any], stage: str) -> 
             "proposed_delta": candidate.get("proposed_delta", {}) if isinstance(candidate.get("proposed_delta"), dict) else {},
             "requires_human_approval": bool(candidate.get("requires_human_approval", True)),
         }
-    elif stage in {"capture.approved", "capture.applied"}:
+    elif stage == "capture.approved":
+        approval = row.get("approval") if isinstance(row.get("approval"), dict) else {}
+        review = row.get("review") if isinstance(row.get("review"), dict) else {}
         capture["approval"] = {
-            "status": "applied" if stage == "capture.applied" else "approved",
-            "review_note": _first(row, "review_note", "summary"),
+            "status": "approved",
+            "scope": _first(approval, "scope"),
+            "target_surface": _first(approval, "target_surface"),
+            "target_id": _first(approval, "target_id"),
+            "approved_delta": approval.get("approved_delta", {}) if isinstance(approval.get("approved_delta"), dict) else {},
+            "requires_apply": bool(approval.get("requires_apply", True)),
+            "reviewer": _first(review, "reviewer"),
+            "review_note": _first(review, "note") or _first(row, "review_note", "summary"),
+            "approved_at": _timestamp_for(row),
         }
+        capture["review"] = {"decision": "approved", "ts": _timestamp_for(row), "reviewer": _first(review, "reviewer"), "note": _first(review, "note")}
+    elif stage == "capture.applied":
+        capture["approval"] = {"status": "applied", "review_note": _first(row, "review_note", "summary")}
+    elif stage == "capture.discarded":
+        discard = row.get("discard") if isinstance(row.get("discard"), dict) else {}
+        capture["review"] = {"decision": "discarded", "ts": _timestamp_for(row), "reason": _first(discard, "reason"), "note": _first(discard, "note")}
+    elif stage == "capture.archived":
+        archive = row.get("archive") if isinstance(row.get("archive"), dict) else {}
+        capture["review"] = {"decision": "archived", "ts": _timestamp_for(row), "reason": _first(archive, "reason"), "note": _first(archive, "note")}
+    elif stage == "capture.reprocess_requested":
+        request = row.get("request") if isinstance(row.get("request"), dict) else {}
+        capture["review"] = {"decision": "reprocess_requested", "ts": _timestamp_for(row), "stage": _first(request, "stage"), "instruction": _first(request, "instruction")}
 
 
 def _finalize_capture(capture: dict[str, Any]) -> None:
@@ -227,8 +260,6 @@ def _finalize_capture(capture: dict[str, Any]) -> None:
     known = [e["stage"] for e in capture["timeline"] if e.get("stage") in _STATUS_BY_STAGE]
     if known:
         capture["status"] = _STATUS_BY_STAGE[known[-1]]
-    if any(e.get("stage") == "capture.archived" for e in capture["timeline"]):
-        capture["status"] = "archived"
     if capture["timeline"] and not capture["created_at"]:
         capture["created_at"] = capture["timeline"][0].get("ts", "")
 
