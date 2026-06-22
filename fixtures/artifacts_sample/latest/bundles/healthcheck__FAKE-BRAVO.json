@@ -1,0 +1,21 @@
+{
+  "fixture": true,
+  "bundle_type": "healthcheck_brief",
+  "selected_from": "support_queue",
+  "project": {
+    "project_id": "FAKE-BRAVO",
+    "Title": "Example Inbox Triage",
+    "carry": "Support-needed",
+    "horizon": "This week",
+    "needs": "Health check + unlocker",
+    "workdir": "/tmp/fake-inbox"
+  },
+  "human_context": {
+    "Context Brief (next unlock)": "Synthetic support item for rendering a health-check brief."
+  },
+  "runtime_context": {
+    "last_agg_status": "sample-warning",
+    "last_agg_bucket": "fixture"
+  },
+  "scan_paths": {}
+}

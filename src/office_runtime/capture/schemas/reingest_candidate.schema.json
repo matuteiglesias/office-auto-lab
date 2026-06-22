@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://office-auto-lab.local/schemas/reingest_candidate.schema.json",
+  "title": "Capture Reingest Candidate",
+  "description": "A reviewable proposal to make a processed capture visible to Office Auto Lab without applying it to canonical state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reingest_candidate_id",
+    "source_event_id",
+    "candidate_type",
+    "candidate_ref",
+    "project_id",
+    "summary",
+    "status",
+    "requires_human_approval",
+    "created_at"
+  ],
+  "properties": {
+    "reingest_candidate_id": {"type": "string", "minLength": 1},
+    "source_event_id": {"type": "string", "minLength": 1},
+    "candidate_type": {"type": "string", "enum": ["work_block_candidate_stub", "note", "routing_update", "question"]},
+    "candidate_ref": {"type": "string", "description": "Path or stable ID of the candidate artifact."},
+    "project_id": {"type": "string", "minLength": 1},
+    "project_title": {"type": "string"},
+    "summary": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["proposed", "approved", "rejected", "archived", "applied"]},
+    "requires_human_approval": {"const": true},
+    "created_at": {"type": "string", "format": "date-time"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "reviewed_by": {"type": "string"},
+    "review_note": {"type": "string"}
+  }
+}

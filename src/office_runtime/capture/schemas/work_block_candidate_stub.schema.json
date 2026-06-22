@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://office-auto-lab.local/schemas/work_block_candidate_stub.schema.json",
+  "title": "Work Block Candidate Stub",
+  "description": "A non-mutating, reviewable suggestion that human feedback may imply a bounded work block for a project row.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate_id",
+    "type",
+    "source_event_id",
+    "project_id",
+    "suggested_title",
+    "suggested_mode",
+    "rationale",
+    "evidence_excerpt",
+    "proposed_success_evidence",
+    "expected_duration_min",
+    "status",
+    "requires_human_approval",
+    "created_at"
+  ],
+  "properties": {
+    "candidate_id": {"type": "string", "minLength": 1},
+    "type": {"const": "work_block_candidate_stub"},
+    "source_event_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "project_title": {"type": "string"},
+    "suggested_title": {"type": "string", "minLength": 1},
+    "suggested_mode": {"type": "string", "enum": ["FOCUS", "MAINT", "SUPPORT", "DECISION", "WATCH"]},
+    "rationale": {"type": "string", "minLength": 1},
+    "evidence_excerpt": {"type": "string", "minLength": 1},
+    "proposed_success_evidence": {"type": "string", "minLength": 1},
+    "expected_duration_min": {"type": "integer", "minimum": 5, "maximum": 240},
+    "status": {"type": "string", "enum": ["candidate", "approved", "rejected", "archived", "applied"]},
+    "requires_human_approval": {"const": true},
+    "created_at": {"type": "string", "format": "date-time"},
+    "created_by": {"type": "string", "default": "office-auto-lab"}
+  }
+}

@@ -1,0 +1,3 @@
+{"ts":"2026-06-21T00:00:00Z","run_id":"synthetic-2026-06-21T000000Z","event":"run.start","status":"ok","fixture":true}
+{"ts":"2026-06-21T00:00:01Z","run_id":"synthetic-2026-06-21T000000Z","event":"artifact.write","status":"ok","path":"fixtures/artifacts_sample/latest/manifest.json","fixture":true}
+{"ts":"2026-06-21T00:00:02Z","run_id":"synthetic-2026-06-21T000000Z","event":"run.end","status":"ok","fixture":true}

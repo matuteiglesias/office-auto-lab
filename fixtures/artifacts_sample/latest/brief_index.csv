@@ -1,0 +1,4 @@
+project_id,brief_type,brief_path
+FAKE-ALPHA,decision_brief,fixtures/artifacts_sample/latest/briefs/decision__FAKE-ALPHA.md
+FAKE-BRAVO,healthcheck_brief,fixtures/artifacts_sample/latest/briefs/healthcheck__FAKE-BRAVO.md
+FAKE-CHARLIE,execution_brief,fixtures/artifacts_sample/latest/briefs/execution__FAKE-CHARLIE.md

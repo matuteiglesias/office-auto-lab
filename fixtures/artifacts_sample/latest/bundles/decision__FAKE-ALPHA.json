@@ -1,0 +1,21 @@
+{
+  "fixture": true,
+  "bundle_type": "decision_brief",
+  "selected_from": "principal_brief_today",
+  "project": {
+    "project_id": "FAKE-ALPHA",
+    "Title": "Example Payments Cleanup",
+    "carry": "Escalate",
+    "horizon": "Today",
+    "needs": "Execution + decision",
+    "workdir": "/tmp/fake-payments"
+  },
+  "human_context": {
+    "Decision (why)": "Synthetic fixture row needs a bounded fake decision."
+  },
+  "runtime_context": {
+    "last_agg_status": "sample-ok",
+    "last_agg_bucket": "fixture"
+  },
+  "scan_paths": {}
+}
