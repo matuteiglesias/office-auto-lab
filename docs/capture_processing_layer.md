@@ -146,6 +146,15 @@ The initial schemas should be intentionally small and review-oriented:
 - `work_block_candidate_stub`: a non-mutating suggestion that human feedback may imply a bounded work block attached to a project row.
 - `reingest_candidate`: a non-mutating proposal to make a processed capture visible to Office Auto Lab after review.
 
+Structured-output prompts should use the finite capture ontology instead of open-ended labels:
+
+- capture modes: `Re-entry`, `Correction`, `Question`, `Context Note`, `Work Block Request`, `Low Information`
+- artifact types: `Next Pointer`, `Work Block Candidate`, `Support Context`, `Correction`, `Question`, `Discard Suggestion`
+- artifact candidate types: `next_pointer`, `work_block_candidate_stub`, `support_context`, `correction`, `question`, `discard_suggestion`
+- reingest target surfaces: `carry_state`, `front_registry`, `work_block_candidate_stub`, `support_context`, `discard_review`, `none`
+
+Generic labels such as `Capture`, `Note`, `object`, and `queue` should not be model outputs unless they are deliberately reintroduced into the ontology. Row linkage is already known from the capture row; for row-linked captures, reingest `target_id` should be the linked `project_id`, while `source_event_id` remains separate provenance. Low-information or microphone-test captures should become `discard_suggestion` artifacts and use reingest `target_surface: none` with null proposed deltas rather than inventing work.
+
 A `work_block_candidate_stub` must include:
 
 - `candidate_id`
