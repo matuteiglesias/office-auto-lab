@@ -203,19 +203,72 @@ def _structured_response(prompt: str, schema: dict[str, Any], *, model: str, cli
 def _normalize_payload(output_key: str, payload: dict[str, Any], capture: dict[str, Any]) -> dict[str, Any]:
     if output_key != "reingest_candidate":
         return payload
-    target_surface = str(payload.get("target_surface") or "")
+
     target = capture.get("target") if isinstance(capture.get("target"), dict) else {}
-    project_id = str(target.get("project_id") or "").strip()
+    row = capture.get("row_snapshot") if isinstance(capture.get("row_snapshot"), dict) else {}
+    artifact = capture.get("artifact_candidate") if isinstance(capture.get("artifact_candidate"), dict) else {}
+
+    project_id = str(target.get("project_id") or row.get("project_id") or "").strip()
+    artifact_type = str(
+        artifact.get("candidate_type")
+        or artifact.get("type")
+        or ""
+    ).strip()
+    artifact_text = str(
+        artifact.get("text")
+        or artifact.get("summary")
+        or ""
+    ).strip()
+
+    delta = payload.get("proposed_delta") if isinstance(payload.get("proposed_delta"), dict) else {}
+
+
+# ARTIFACT_TYPES = ["Next Pointer", "Work Block Candidate", "Support Context", "Correction", "Question", "Discard Suggestion"]
+# ARTIFACT_CANDIDATE_TYPES = ["next_pointer", "work_block_candidate_stub", "support_context", "correction", "question", "discard_suggestion"]
+
+
+
+    actionable_types = {
+    "next_pointer",
+    "correction",
+    "work_block_candidate_stub",
+    "park_instruction",
+    "checklist_item",
+    "support_context",
+    "support_context_note",
+    }
+
+    # Deterministic row-linked reingest.
+    # If a capture is linked to a queue row and the artifact is actionable,
+    # the target is not model-generated.
+    if project_id and artifact_type in actionable_types:
+        payload["target_surface"] = "queue"
+        payload["target_id"] = project_id
+
+        if not delta.get("next"):
+            delta["next"] = artifact_text or None
+
+        if not delta.get("needs"):
+            delta["needs"] = row.get("needs") or None
+
+        payload["proposed_delta"] = delta
+        return payload
+
+    # Non-actionable / no-destination captures may remain target_surface none.
+    target_surface = str(payload.get("target_surface") or "").strip()
     if target_surface == "none":
         payload["target_id"] = ""
-        delta = payload.get("proposed_delta") if isinstance(payload.get("proposed_delta"), dict) else {}
         delta["next"] = None
         delta["needs"] = None
         payload["proposed_delta"] = delta
-    elif project_id:
-        payload["target_id"] = project_id
-    return payload
+        return payload
 
+    # If model chose a surface but missed id, fill from deterministic row id.
+    if project_id:
+        payload["target_id"] = project_id
+
+    payload["proposed_delta"] = delta
+    return payload
 
 def _append_or_preview(inbox_root: Path, capture: dict[str, Any], event: dict[str, Any], *, dry_run: bool) -> dict[str, Any]:
     path = _processing_path(inbox_root, capture)

@@ -1,0 +1,21 @@
+schema_version: cloud_retrofit_carry.v1
+retrofit_id: gcp_project_health
+repository: matuteiglesias/office-auto-lab
+status: PLANNED
+current_phase: phase_0
+current_pr: null
+last_accepted_pr: null
+next_pr: PR-G0
+accepted_commit: null
+accepted_artifacts: []
+decisions: []
+blockers: []
+pruned_items: []
+next_entry:
+  read_first:
+    - CODEX_START_HERE.md
+    - 00_embryo_plan_v0_1.md
+    - 01_starting_context_v0_1.md
+  first_action: Execute only the PR named by next_pr.
+do_not_reopen: []
+updated_at: null

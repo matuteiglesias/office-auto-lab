@@ -1,0 +1,5 @@
+{"event_type":"capture.processing_requested","source_event_id":"16ae1083-5383-4c26-bc92-332d6f81e974","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-22T03:40:22.308Z"}
+{"event_type":"capture.processing_requested","source_event_id":"e39c2302-2e95-4519-aa0d-1bc4307f8d15","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-22T03:40:27.521Z"}
+{"event_type":"capture.processing_requested","source_event_id":"e39c2302-2e95-4519-aa0d-1bc4307f8d15","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-22T03:57:28.149Z"}
+{"event_type":"capture.processing_requested","source_event_id":"e39c2302-2e95-4519-aa0d-1bc4307f8d15","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-22T04:06:02.558Z"}
+{"event_type":"capture.processing_requested","source_event_id":"e39c2302-2e95-4519-aa0d-1bc4307f8d15","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-22T04:07:32.924Z"}

@@ -1,0 +1,4 @@
+{"event_type":"capture.processing_requested","source_event_id":"01ea7275-f859-4076-acd3-cb97b5b33172","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-24T13:12:21.224Z"}
+{"event_type":"capture.processing_requested","source_event_id":"a8edd99a-602e-4604-b33b-d06b9d51ac97","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-24T13:12:28.637Z"}
+{"event_type":"capture.processing_requested","source_event_id":"54f45d03-9a57-4a78-96a3-b4ec6154e3f9","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-24T13:12:30.107Z"}
+{"event_type":"capture.processing_requested","source_event_id":"682a1204-1ff1-474f-9f6f-d402b7ca81db","requested_by":"office-window","requested_stage":"full_pipeline","status":"queued","ts":"2026-06-24T13:12:31.358Z"}
