@@ -1,10 +1,14 @@
 # Documentation and operational surface inventory
 
-**Status:** candidate canonical inventory  
-**Audience:** maintainers, contributors, documentation authors, and agents  
-**Owner:** office-auto-lab maintainers  
-**Verified against:** `cda8b286cc5db3c840d7f4dad143d62497f18a63`  
+**Status:** historical point-in-time inventory; superseded for navigation
+**Audience:** maintainers, contributors, documentation authors, and agents
+**Owner:** office-auto-lab maintainers
+**Verified against:** `cda8b286cc5db3c840d7f4dad143d62497f18a63`
 **Verification date:** 2026-07-30
+
+> Preserve this PR-OD0 baseline as evidence of the starting state. Use the
+> current [documentation router](README.md) and
+> [coverage report](documentation_coverage.md) for current ownership/status.
 
 ## Scope and method
 

@@ -1,14 +1,18 @@
 # Documentation canonicality map
 
-**Status:** proposed; human acceptance required  
-**Audience:** readers choosing a trustworthy page and maintainers planning PR-OD1+  
-**Owner:** office-auto-lab maintainers  
+**Status:** historical planning record; superseded by `docs/README.md`
+**Audience:** readers choosing a trustworthy page and maintainers planning PR-OD1+
+**Owner:** office-auto-lab maintainers
 **Verified against:** `cda8b286cc5db3c840d7f4dad143d62497f18a63`
 
 This map proposes one future canonical owner per reader task. It does not make
 the target pages exist early, and it does not self-accept the proposal. Until a
 replacement is created and verified, source/tests outrank all prose and the
 “current best source” column is the safest available route.
+
+> The PR-OD0 proposal below is preserved for migration history. Its target pages
+> now exist; use the [documentation router](README.md) for current canonical
+> ownership rather than treating future-tense rows as current status.
 
 | Reader task | Proposed canonical owner | Current best source | Migration action / PR |
 |---|---|---|---|
@@ -63,4 +67,3 @@ replacement is created and verified, source/tests outrank all prose and the
    provider-side evidence is supplied and human-reviewed.
 5. The broken Make smoke paths are a product/build defect and remain outside the
    documentation PR sequence unless separately authorized.
-

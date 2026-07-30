@@ -1,5 +1,11 @@
 # Capture processing layer plan
 
+> **Status: supporting design record; superseded for current behavior.** Use the
+> canonical [Capture owner guide](components/capture.md),
+> [routine operation](operations/local-routines.md), and
+> [artifact/schema references](reference/artifacts-and-manifests.md). Preserve
+> this page for original design rationale; its “proposed” language is historical.
+
 ## Boundary
 
 ```text

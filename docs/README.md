@@ -109,6 +109,18 @@ results, denial checks, recovery, and stop rules.
   — before/after architecture, decisions, rejected alternatives, evidence, and
   the exact designed-through-operated claim boundary.
 
+## Documentation maintenance and history
+
+- [Maintenance policy](documentation-maintenance.md) — quality gate, update
+  obligations, canonicality, migration, and review cadence.
+- [Coverage and known gaps](documentation_coverage.md) — final surface coverage,
+  product/test/evidence gaps, and program completion gate.
+- [Historical/supporting index](historical/README.md) — provenance routes that
+  are deliberately outside canonical procedures.
+
+Run `make docs-check` for relative-link, local-anchor, and required-metadata
+validation. `make audit` includes the same documentation gate.
+
 ## Contributors
 
 Use these source-truth routes alongside the component owner guides:
@@ -155,8 +167,9 @@ canonical page affected.
 - PR-OD4 consolidates canonical local operations and reference pages.
 - PR-OD5 distills canonical GCP architecture, operations, security, data, cost,
   and case-study documentation from the retrofit record.
-- Automated documentation checks remain planned for PR-OD6; they
-  are not silently supplied by retrofit or note files.
+- PR-OD6 classifies historical material, adds automated link/metadata validation,
+  publishes maintenance obligations and coverage gaps, and proposes final human
+  acceptance.
 
 Historical retrofit prompts and closure notes remain available for evidence but
 are intentionally absent from primary reader navigation.
