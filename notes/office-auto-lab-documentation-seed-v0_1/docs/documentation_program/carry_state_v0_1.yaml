@@ -1,0 +1,38 @@
+program: office_auto_lab_documentation
+version: 0.1
+status: READY
+repository: matuteiglesias/office-auto-lab
+seed_state: MERGE_READY
+next_pr: PR-OD0
+accepted_through: SEED
+human_acceptance_required: true
+
+constraints:
+  - documentation_only_prs
+  - one_active_pr_at_a_time
+  - source_and_runtime_evidence_outrank_existing_prose
+  - preserve_historical_and_retrofit_evidence
+  - do_not_claim_gcp_deployment_without_provider_evidence
+  - no_docs_site_framework_before_markdown_canonicality
+
+required_reading:
+  - CODEX_START_HERE.md
+  - 00_documentation_charter_v0_1.md
+  - 01_current_state_inventory_v0_1.md
+  - 02_target_docs_stack_v0_1.md
+  - 03_phased_pr_plan_v0_1.md
+  - 04_quality_and_acceptance_v0_1.md
+  - 05_canonicality_and_migration_rules_v0_1.md
+
+pr_sequence:
+  - PR-OD0
+  - PR-OD1
+  - PR-OD2
+  - PR-OD3
+  - PR-OD4
+  - PR-OD5
+  - PR-OD6
+
+known_blockers: []
+known_claim_boundary:
+  gcp_repo_health: "implemented, locally validated, merged, deployment-ready; not yet deployed or operated"
