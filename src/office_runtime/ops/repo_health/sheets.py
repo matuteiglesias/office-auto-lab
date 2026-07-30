@@ -122,7 +122,9 @@ def read_tab_records(sh: gspread.Spreadsheet, sheet_name: str) -> List[Record]:
     1 API call: ws.get_all_values()
     Returns list[dict] keyed by header row.
     """
-    ws = _get_or_create_ws(sh, sheet_name)
+    # Reads must not create missing policy tabs. A missing required tab is a
+    # configuration error, not an empty policy surface.
+    ws = sh.worksheet(sheet_name)
     all_vals = ws.get_all_values()
     if not all_vals:
         return []

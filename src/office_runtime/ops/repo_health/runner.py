@@ -48,10 +48,7 @@ class ContextFilter(logging.Filter):
         record.bucket = getattr(record, "bucket", "-")
         return True
 
-def setup_logging(run_id: str, log_dir: str = "logs") -> logging.Logger:
-    log_dir_path = Path(log_dir)
-    log_dir_path.mkdir(parents=True, exist_ok=True)
-
+def setup_logging(run_id: str, log_dir: str = "logs", *, write_file: bool = True) -> logging.Logger:
     root = logging.getLogger("checkins")
     root.setLevel(logging.INFO)
 
@@ -68,12 +65,14 @@ def setup_logging(run_id: str, log_dir: str = "logs") -> logging.Logger:
     ch.addFilter(ContextFilter(run_id))
     root.addHandler(ch)
 
-    # File handler per run
-    fh = logging.FileHandler(log_dir_path / f"run_{run_id}.log", encoding="utf-8")
-    fh.setLevel(logging.DEBUG)  # keep more detail in file
-    fh.setFormatter(formatter)
-    fh.addFilter(ContextFilter(run_id))
-    root.addHandler(fh)
+    if write_file:
+        log_dir_path = Path(log_dir)
+        log_dir_path.mkdir(parents=True, exist_ok=True)
+        fh = logging.FileHandler(log_dir_path / f"run_{run_id}.log", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        fh.addFilter(ContextFilter(run_id))
+        root.addHandler(fh)
 
     return root
 
@@ -179,6 +178,8 @@ def execute_intent(intent: RunIntent, project_ctx: Dict[str, Any], plugins: Dict
             "short_diag": f"plugin {plugin_name} not loaded",
             "ts_started": int(t0),
             "duration_ms": int((time.time() - t0) * 1000),
+            "evidence": [],
+            "meta": {},
         }
 
     try:
@@ -245,6 +246,8 @@ def execute_intent(intent: RunIntent, project_ctx: Dict[str, Any], plugins: Dict
             "short_diag": msg[:200],
             "ts_started": int(t0),
             "duration_ms": int((time.time() - t0) * 1000),
+            "evidence": raw.get("evidence", []),
+            "meta": raw.get("meta", {}),
         }
 
     except Exception as e:
@@ -259,6 +262,8 @@ def execute_intent(intent: RunIntent, project_ctx: Dict[str, Any], plugins: Dict
             "short_diag": f"{type(e).__name__}: {e}",
             "ts_started": int(t0),
             "duration_ms": int((time.time() - t0) * 1000),
+            "evidence": [],
+            "meta": {"exception_type": type(e).__name__},
         }
     
 
@@ -279,13 +284,13 @@ def _log_counts(log: logging.Logger, name: str, rows: list) -> None:
 
 def main(argv):
     args = parse_args(argv)
-    dry_run = not args.apply
+    dry_run = args.no_write or not args.apply
 
     # Create run_id before anything else so logs always have it
     run_id = _mk_run_id(args)
 
     # Setup logging once at the top-level
-    logger = setup_logging(run_id=run_id, log_dir="logs")
+    logger = setup_logging(run_id=run_id, log_dir="logs", write_file=not args.no_write)
     log = logging.getLogger("checkins")
     log_plan = logging.getLogger("checkins.plan")
     log_exec = logging.getLogger("checkins.execute")
@@ -447,6 +452,8 @@ def main(argv):
                 "normalized_class": "system_error",
                 "bucket": f"EXCEPTION:{type(e).__name__}",
                 "short_diag": f"execute_intent raised {type(e).__name__}",
+                "evidence": [],
+                "meta": {"exception_type": type(e).__name__},
             }
 
         results_rows.append(res)
@@ -470,7 +477,7 @@ def main(argv):
                 project_summary[pid] = (new_status, new_bucket)
 
     # Append results
-    if results_rows:
+    if results_rows and not args.no_write:
         log.info(
             "execute.write_results rows=%d sheet=%s",
             len(results_rows), PLUGIN_RESULTS_SHEET,

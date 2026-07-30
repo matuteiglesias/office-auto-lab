@@ -1,0 +1,6 @@
+project_id = "replace-me"
+billing_account_id = "000000-000000-000000"
+region = "us-central1"
+image = "us-central1-docker.pkg.dev/replace-me/repo-health/repo-health@sha256:replace-with-64-hex"
+source_commit = "replace-with-accepted-commit"
+policy_snapshot_json = "replace-with-jsonencode-output"

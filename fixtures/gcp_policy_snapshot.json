@@ -1,0 +1,15 @@
+{
+  "producer_commit": "fixture",
+  "policy_input_id": "g4-container-fixture",
+  "repository_allowlist": ["matuteiglesias/office-auto-lab"],
+  "projects": [{"project_id": "office-auto-lab", "repository_full_name": "matuteiglesias/office-auto-lab", "enabled": true, "next": "2026-07-29"}],
+  "capabilities": [{"project_id": "office-auto-lab", "capability_tag": "remote"}],
+  "plugin_policy": [
+    {"capability_tag": "remote", "plugin": "activity_remote", "default_mode": "on"},
+    {"capability_tag": "remote", "plugin": "runbook_remote", "default_mode": "on"}
+  ],
+  "plugin_prereqs": [
+    {"plugin": "activity_remote", "required_fields": "repository_full_name"},
+    {"plugin": "runbook_remote", "required_fields": "repository_full_name"}
+  ]
+}

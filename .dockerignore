@@ -1,0 +1,9 @@
+.git
+artifacts
+out
+inbox
+notes
+fixtures
+context
+__pycache__
+*.pyc
