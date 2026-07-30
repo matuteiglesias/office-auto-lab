@@ -1,0 +1,39 @@
+schema_version: cloud_retrofit_carry.v1
+retrofit_id: gcp_project_health
+repository: matuteiglesias/office-auto-lab
+status: BLOCKED_EXTERNAL
+current_phase: phase_5
+current_pr: PR-G5
+last_accepted_pr: PR-G4
+next_pr: PR-G5
+accepted_commit: ff0dbf6
+accepted_artifacts:
+  - context/closures/PR-G0.md
+  - docs/retrofit/gcp_project_health/03_g0_characterization_v0_1.md
+  - context/closures/PR-G1.md
+  - context/closures/PR-G2.md
+  - context/closures/PR-G3.md
+  - context/closures/PR-G4.md
+decisions:
+  - id: product_center
+    decision: The center is a running office that may inspect projects and own cross-project carry state.
+  - id: feature_retention
+    decision: Existing features may be pruned when retention would weaken the running-office system boundary.
+  - id: g5_implementation_review
+    decision: G5 Terraform and operator packet are accepted as bounded and safe; G5 execution acceptance remains blocked and G6 is inactive.
+blockers:
+  - id: g5_toolchain
+    detail: gcloud and Docker/Podman executables are unavailable; temporary Terraform 1.9.8 validates configuration but cannot plan without ADC.
+  - id: g5_account
+    detail: GCP project, billing account, deployer ADC/permissions, region, and image registry/digest are not provided.
+  - id: g5_runtime_evidence
+    detail: Plan/apply, manual execution, reconciliation, denied-access, billing, and teardown evidence require the missing external inputs.
+pruned_items: []
+next_entry:
+  read_first:
+    - CODEX_START_HERE.md
+    - 00_embryo_plan_v0_1.md
+    - 01_starting_context_v0_1.md
+  first_action: Execute only the PR named by next_pr.
+do_not_reopen: []
+updated_at: 2026-07-29

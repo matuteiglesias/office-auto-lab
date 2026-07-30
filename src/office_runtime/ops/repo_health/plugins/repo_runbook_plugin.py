@@ -6,7 +6,7 @@ import re
 import time
 from typing import Any, Dict, List
 
-from .base import BasePlugin, result
+from .base import BasePlugin, PluginCapability, result
 from ._utils import (
     find_runbook_files,
     safe_read_text_prefix,
@@ -30,6 +30,7 @@ _SECTION_RX = {
 
 
 class RunbookPlugin(BasePlugin):
+    capability = PluginCapability.LOCAL_ONLY
     name = "runbook"
     version = "1.0.0"
 

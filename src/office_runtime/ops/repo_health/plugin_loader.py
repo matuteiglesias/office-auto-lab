@@ -22,7 +22,12 @@ def row_to_dict(header, row):
 
 
 import sys, os, importlib, traceback, pkgutil
-from typing import Dict, Any
+from typing import Dict, Any, Iterable
+
+from office_runtime.ops.repo_health.plugins.base import BasePlugin, PluginCapability
+
+
+GCP_REMOTE_READ_ALLOWLIST = frozenset({"activity_remote", "runbook_remote"})
 
 # plugin loader (plugins folder must exist, each plugin module should define a class subclassing plugins.base.BasePlugin)
 def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins") -> Dict[str, Any]:
@@ -48,7 +53,6 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
             for attr in dir(mod):
                 obj = getattr(mod, attr)
                 try:
-                    from office_runtime.ops.repo_health.plugins.base import BasePlugin
                     if isinstance(obj, type) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
                         inst = obj()
                         plugins[inst.name] = inst
@@ -58,3 +62,21 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
 
     return plugins
 
+
+def select_gcp_plugins(
+    plugins: Dict[str, Any],
+    *,
+    allowlist: Iterable[str] = GCP_REMOTE_READ_ALLOWLIST,
+) -> Dict[str, BasePlugin]:
+    """Select explicitly approved, read-only plugins and fail closed."""
+    approved = set(allowlist)
+    selected: Dict[str, BasePlugin] = {}
+    for name, plugin in plugins.items():
+        raw_capability = getattr(plugin, "capability", None)
+        try:
+            capability = PluginCapability(raw_capability)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"plugin {name!r} has unknown capability {raw_capability!r}") from exc
+        if name in approved and capability is PluginCapability.REMOTE_READ:
+            selected[name] = plugin
+    return selected

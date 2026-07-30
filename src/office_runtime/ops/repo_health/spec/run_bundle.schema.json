@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "office-auto-lab/repo-health/run-bundle/v1",
+  "title": "Repo Health producer-owned run bundle",
+  "type": "object",
+  "required": ["schema_version", "run", "source", "policy", "intents", "plugin_results", "frontier", "prepared_blocks", "exceptions", "counters"],
+  "properties": {
+    "schema_version": {"const": "repo_health.run_bundle.v1"},
+    "run": {"type": "object", "required": ["run_id", "started_at", "ended_at", "status", "attempt"]},
+    "source": {"type": "object", "required": ["producer_commit"]},
+    "policy": {"type": "object", "required": ["input_id", "sha256"]},
+    "intents": {"type": "array"},
+    "plugin_results": {"type": "array"},
+    "frontier": {"type": "array"},
+    "prepared_blocks": {"type": "array"},
+    "exceptions": {"type": "array"},
+    "counters": {"type": "object"}
+  },
+  "additionalProperties": false
+}

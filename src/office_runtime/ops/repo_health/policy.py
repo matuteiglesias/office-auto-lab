@@ -536,6 +536,7 @@ def compute_effective_runset(
     intents: List[RunIntent] = []
     shown_projects = 0
     shown_intents = 0
+    make_target_conflicts = 0
 
     for pid, p in proj_by_id.items():
         if not _detect_enabled(p):
@@ -555,8 +556,6 @@ def compute_effective_runset(
         # implied plugins
         implied_plugins: Dict[str, List[str]] = {}
         make_target_by_plugin: Dict[str, str] = {}  # NEW
-        make_target_conflicts = 0  # NEW (optional debug)
-
         for tag in project_tags:
             for pol in pol_by_tag.get(tag, []):
                 if _s(pol.get("default_mode")).lower() != "on":
@@ -630,14 +629,10 @@ def compute_effective_runset(
             next_dt = _detect_next_date(p)
             due = _is_due_today(run_dt, next_dt)
 
-            # prereq gating remains
-            # scheduled = bool(due and prereq_ok)
-            scheduled = bool(prereq_ok)
+            scheduled = bool(due and prereq_ok)
 
-            # missing next -> not scheduled, but *auditable*
             if next_dt is None and prereq_ok:
-                # You can decide whether missing next should be a skip_reason or just a bucket
-                # skip_reason = skip_reason or "missing_next"
+                skip_reason = "missing_next"
                 debug_info["skip_reason"][skip_reason] += 1
 
 

@@ -103,9 +103,10 @@ def _parse_status_porcelain(lines: List[str]) -> Dict[str, int]:
 # ?
 
 
-from .base import BasePlugin, result
+from .base import BasePlugin, PluginCapability, result
 
 class CommitRecentPlugin(BasePlugin):
+    capability = PluginCapability.LOCAL_ONLY
     name = "commit_recent"
     version = "1.0.0"
 

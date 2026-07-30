@@ -1,6 +1,7 @@
 # plugins/base.py
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, Optional, List
 
 
@@ -36,9 +37,16 @@ def result(
     return out
 
 
+class PluginCapability(str, Enum):
+    LOCAL_ONLY = "local_only"
+    REMOTE_READ = "remote_read"
+    REMOTE_EXECUTE = "remote_execute"
+
+
 class BasePlugin:
-    name: str = "base" 
+    name: str = "base"
     version: str = "1.0.0"
+    capability: PluginCapability | str = PluginCapability.LOCAL_ONLY
 
     def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError("plugin must implement run(ctx) -> dict")

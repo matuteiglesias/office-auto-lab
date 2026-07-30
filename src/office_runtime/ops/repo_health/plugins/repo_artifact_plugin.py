@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, List, DefaultDict
 from collections import defaultdict
 
-from .base import BasePlugin, result
+from .base import BasePlugin, PluginCapability, result
 from ._utils import (
     FileHit,
     walk_files_deterministic,
@@ -35,6 +35,8 @@ class PipelineOutputPlugin(BasePlugin):
         - ctx["timeouts"]["search_s"]
         - ctx["config"]["pipeline_output"] overrides (optional)
     """
+
+    capability = PluginCapability.LOCAL_ONLY
 
     name = "pipeline_output"
     version = "1.0.1"

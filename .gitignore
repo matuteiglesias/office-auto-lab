@@ -11,3 +11,7 @@ __pycache__/
 .env.*
 newgsheets-*.json
 service_account*.json
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

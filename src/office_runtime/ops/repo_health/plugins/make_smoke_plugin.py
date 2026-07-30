@@ -6,7 +6,7 @@ import subprocess
 import time
 from typing import Any, Dict, Optional, List
 
-from .base import BasePlugin, result
+from .base import BasePlugin, PluginCapability, result
 from ._utils import snippet_sha256_of_file
 
 
@@ -18,6 +18,8 @@ class SmokeRunPlugin(BasePlugin):
           * make smoke     (cheap, offline, bounded)
           * make run_all   (full integration run)
     """
+
+    capability = PluginCapability.REMOTE_EXECUTE
 
     # If you want to avoid changing policy sheets right now, set this to "smoke".
     name = "smoke"

@@ -9,7 +9,7 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-from .base import BasePlugin, result
+from .base import BasePlugin, PluginCapability, result
 
 
 def _run(cmd: List[str], cwd: Optional[str] = None, timeout_s: float = 2.0) -> Dict[str, Any]:
@@ -43,6 +43,8 @@ class EnvPlugin(BasePlugin):
       - returns standard {status,message,bucket,evidence,meta}
       - offline by default (no network/DNS)
     """
+
+    capability = PluginCapability.LOCAL_ONLY
     name = "env"
     version = "1.0.0"
 

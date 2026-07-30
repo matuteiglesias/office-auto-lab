@@ -1,0 +1,13 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src
+
+RUN groupadd --system office && useradd --system --gid office --home /app office
+WORKDIR /app
+COPY requirements-repo-health.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY src /app/src
+USER office
+ENTRYPOINT ["python", "-m", "office_runtime.ops.repo_health.cloud.run_job"]
