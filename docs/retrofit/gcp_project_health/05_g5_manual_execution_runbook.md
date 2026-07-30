@@ -1,5 +1,10 @@
 # G5 Terraform and First Manual Execution Runbook
 
+> **Status: supporting retrofit record; superseded as a procedure.** Use the
+> canonical [deployment/manual runbook](../../operations/repo-health-gcp.md) and
+> [cost/teardown runbook](../../operations/repo-health-gcp-cost-and-teardown.md).
+> This page records the retrofit execution contract and does not evidence a run.
+
 ## Current state
 
 The Terraform and execution protocol are complete. A temporary Terraform 1.9.8 binary completed `init` and `validate`, but planning reproducibly stops because ADC is absent. This workspace also has no `gcloud`, Docker/Podman, GCP project, billing account, or runtime IAM. G5 is therefore `BLOCKED_EXTERNAL`: code review can proceed, but plan/apply/image publication/manual execution evidence cannot be fabricated here.

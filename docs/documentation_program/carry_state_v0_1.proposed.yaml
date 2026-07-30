@@ -2,14 +2,14 @@ program: office_auto_lab_documentation
 version: 0.1
 status: REVIEW_REQUIRED
 repository: matuteiglesias/office-auto-lab
-next_pr: PR-OD5
-accepted_through: PR-OD3
+next_pr: PR-OD6
+accepted_through: PR-OD4
 human_acceptance_required: true
-completed_candidate: PR-OD4
-inspected_commit: 8b4c9b7
-closure_note: docs/documentation_program/context/closures/PR-OD4.md
+completed_candidate: PR-OD5
+inspected_commit: 8fbf76a
+closure_note: docs/documentation_program/context/closures/PR-OD5.md
 known_blockers:
   - "make smoke references missing top-level scripts paths; implementations moved under src/office_runtime/scripts"
 known_claim_boundary:
   gcp_repo_health: "implemented, locally validated, merged, deployment-ready; not yet deployed or operated"
-proposal_note: "Human review must accept PR-OD4 before accepted_through changes."
+proposal_note: "Human review must accept PR-OD5 before accepted_through changes."

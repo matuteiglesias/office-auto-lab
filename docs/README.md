@@ -83,11 +83,12 @@ inventory instead of duplicating operational procedures.
 | Run Repo Health locally | [Repo Health local](operations/repo-health-local.md) | Distinguishes sheet-backed writes from frozen local persistence. |
 | Recover a failed workflow | [Failure and recovery](operations/failure-recovery.md) | Preserve evidence and reconcile completion markers. |
 | Understand capture processing before running it | [Capture processing layer](capture_processing_layer.md) | Supporting design; some “proposed” labels and artifact names have drifted from source. |
-| Inspect GCP environment/deployment inputs | [GCP environment and deployment record](retrofit/gcp_project_health/04_g4_environment_and_deployment.md) | Supporting retrofit material; deployment-ready is not deployed. |
-| Inspect the first GCP manual execution procedure | [GCP manual execution runbook](retrofit/gcp_project_health/05_g5_manual_execution_runbook.md) | Supporting retrofit material; verify against current IaC/source before use. |
+| Understand the GCP profile | [GCP architecture](architecture/repo-health-gcp.md) | Deployment-ready is not deployed. |
+| Deploy and execute manually | [GCP deployment/manual run](operations/repo-health-gcp.md) | Provider commands are unexecuted and require authorized context. |
+| Control cost or tear down | [GCP cost and teardown](operations/repo-health-gcp-cost-and-teardown.md) | Destruction requires explicit evidence export and approval. |
 
-GCP canonical operation remains PR-OD5 scope. Do not use legacy commands under
-`notes/` as golden paths.
+The GCP runbook is canonical but unexecuted; it does not establish provider
+state. Do not use legacy commands under `notes/` as golden paths.
 
 ## Reference
 
@@ -96,9 +97,17 @@ GCP canonical operation remains PR-OD5 scope. Do not use legacy commands under
 - [Artifacts and manifests](reference/artifacts-and-manifests.md)
 - [Schemas and contracts](reference/schemas-and-contracts.md)
 - [Repo Health plugins](reference/repo-health-plugins.md)
+- [Repo Health GCP security/IAM](reference/repo-health-gcp-security.md)
+- [Repo Health GCP data model](reference/repo-health-gcp-data-model.md)
 
 Reference pages own exact lookup facts; runbooks own safe sequencing, expected
 results, denial checks, recovery, and stop rules.
+
+## Case studies
+
+- [Bounded GCP Repo Health retrofit](case-studies/gcp-project-health-retrofit.md)
+  — before/after architecture, decisions, rejected alternatives, evidence, and
+  the exact designed-through-operated claim boundary.
 
 ## Contributors
 
@@ -144,8 +153,9 @@ canonical page affected.
 - PR-OD2 adds the four canonical system architecture pages linked above.
 - PR-OD3 adds the five canonical component owner guides linked above.
 - PR-OD4 consolidates canonical local operations and reference pages.
-- The GCP case study and automated documentation checks remain planned for
-  PR-OD5 through PR-OD6; they
+- PR-OD5 distills canonical GCP architecture, operations, security, data, cost,
+  and case-study documentation from the retrofit record.
+- Automated documentation checks remain planned for PR-OD6; they
   are not silently supplied by retrofit or note files.
 
 Historical retrofit prompts and closure notes remain available for evidence but
