@@ -1,4 +1,4 @@
-.PHONY: imports audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
+.PHONY: imports docs-check audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -48,7 +48,10 @@ plugins = load_plugins_from_folder('src/office_runtime/ops/repo_health/plugins')
 print('plugins:', sorted(plugins)); \
 print('imports ok')"
 
-audit:
+docs-check:
+	python3 src/office_runtime/scripts/check_docs.py
+
+audit: docs-check
 	python3 -m compileall src
 	$(MAKE) imports
 	git diff --check

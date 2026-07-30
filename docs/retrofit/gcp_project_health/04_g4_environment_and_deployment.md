@@ -1,5 +1,11 @@
 # G4 Environment and Deployment Contract
 
+> **Status: supporting retrofit record.** Canonical current documentation:
+> [GCP architecture](../../architecture/repo-health-gcp.md),
+> [security/IAM](../../reference/repo-health-gcp-security.md), and
+> [deployment/manual runbook](../../operations/repo-health-gcp.md). Preserve this
+> page as implementation history; do not maintain a second canonical procedure.
+
 ## Profiles
 
 - `local` is the default. It uses the same read-only GitHub source but writes the accepted run bundle through local evidence/history adapters.

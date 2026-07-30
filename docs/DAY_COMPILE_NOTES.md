@@ -1,3 +1,9 @@
+# Compiled day notes
+
+> **Status: generated historical work product.** This file is not system
+> documentation or a canonical procedure. It is retained as a point-in-time
+> compiled artifact.
+
 ## Full compiled block pack
 
 ### 1. 61 - Job Search Management (Coderhub)
