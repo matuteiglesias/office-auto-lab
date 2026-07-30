@@ -1,5 +1,9 @@
 # office-auto-lab
 
+> **Documentation frontend:** the review-ready public site package lives in
+> [`docs-site/`](docs-site/README.md). Until a separate Vercel project is linked,
+> its honest status is **deployment-ready, not publicly deployed**.
+
 `office-auto-lab` compiles operational data into reviewable Office artifacts and
 provides bounded tools for staff briefs, capture processing, evidence collection,
 and repository health. The runtime keeps these surfaces separate: each has its
