@@ -3,3 +3,6 @@ dist/
 node_modules/
 review-evidence/
 .vercel/
+
+test-results/
+playwright-report/

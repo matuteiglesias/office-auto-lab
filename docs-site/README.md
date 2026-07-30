@@ -14,6 +14,7 @@ npm run sync      # regenerate the public tree and public-routes.json
 npm run check     # policy, routes, navigation, and secret-pattern checks
 npm run build     # check plus strict static production build
 npm run preview   # serve dist locally
+npm run test:browser # Chromium navigation, CSP, deep-link, and Mermaid smoke
 ```
 
 `scripts/sync-content.mjs` is the central allow/exclude policy. It admits the
@@ -26,7 +27,10 @@ private, draft, or `search: false`. The generated manifest is reviewable at
 
 Mermaid is rendered with pinned `vitepress-plugin-mermaid`, a small, maintained
 VitePress integration that transforms Mermaid fences without introducing an
-application framework. `npm run build` exercises its SSR/static rendering path.
+application framework. `npm run build` exercises its SSR/static rendering path;
+the browser smoke verifies the rendered SVGs and client navigation under the
+same CSP used by Vercel. Set `DOCS_PREVIEW_URL` to run that smoke against a
+deployed preview instead of starting the local production preview.
 
 ## Separate Vercel project handoff
 

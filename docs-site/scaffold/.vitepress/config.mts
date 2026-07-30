@@ -22,10 +22,15 @@ export default withMermaid(defineConfig({
   outDir: path.resolve(process.cwd(), 'dist'),
   title: 'Office Auto Lab', description: 'Governed operational compilation and repository health', cleanUrls: true,
   lastUpdated: true, sitemap: siteUrl ? { hostname: siteUrl } : undefined, head: [['link',{rel:'icon',href:'/mark.svg'}]],
+  // Mirror Vercel's policy in production preview so browser tests exercise the
+  // same hydration constraints as deployment.
+  vite: { preview: { headers: { 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'" } } },
   markdown: { theme: { light: 'github-light', dark: 'github-dark' } },
   themeConfig: { logo: '/mark.svg', nav, sidebar, search: { provider: 'local', options: { miniSearch: { searchOptions: { fuzzy: 0.2, prefix: true } } } },
     outline: { level: [2,3], label: 'On this page' }, lastUpdated: { text: 'Source updated' },
-    editLink: { pattern: ({filePath}) => `https://github.com/matuteiglesias/office-auto-lab/edit/main/${filePath === 'start-here.md' ? 'docs/README.md' : `docs/${filePath}`}`, text: 'Edit canonical source' },
+    // Function-valued config is deserialized with `new Function`, which the
+    // production Content Security Policy correctly blocks.
+    editLink: { pattern: 'https://github.com/matuteiglesias/office-auto-lab/edit/main/docs/:path', text: 'Edit canonical source' },
     socialLinks: [{ icon: 'github', link: 'https://github.com/matuteiglesias/office-auto-lab' }], footer: { message: 'Evidence-constrained documentation', copyright: 'Office Auto Lab' }
   }
 }))

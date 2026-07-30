@@ -7,11 +7,14 @@
     "sync": "node scripts/sync-content.mjs",
     "check": "node scripts/check-content.mjs",
     "build": "npm run check && vitepress build .generated/site",
-    "preview": "vitepress preview .generated/site"
+    "preview": "vitepress preview .generated/site",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "vitepress": "1.6.4",
     "vitepress-plugin-mermaid": "2.0.17"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@playwright/test": "1.54.1"
+  }
 }
