@@ -1,0 +1,44 @@
+# This file declares the repository boundary and its place in the GitHub estate.
+schema_version: 1
+id: ops.office.runtime
+repository:
+  id: repo.office-auto-lab
+  github: matuteiglesias/office-auto-lab
+domain: operations
+system: ops.office
+role: automation-runtime
+lifecycle: active
+authority:
+  status: proposed
+  owns:
+  - office capability execution
+  - run records, repository-health outputs, and bounded mutation commands
+  does_not_own:
+  - human review decisions
+  - estate authority
+  - accounting document intake
+interfaces:
+  consumes:
+  - artifact:ops.weekly-plan@1
+  - artifact:ops.capture-record@1
+  produces:
+  - artifact:ops.office-run-record@1
+  - artifact:ops.repo-health@1
+upstream:
+- repo.capture-site
+- repo.weekly-ops-governance
+downstream:
+- repo.office-window
+canonical_commands: []
+generated_paths:
+- artifacts/
+- runs/
+verification:
+  status: metadata-only
+  last_verified: '2026-08-04'
+  command: null
+  unknowns:
+  - canonical capability smoke command requires local confirmation
+maintenance:
+  cadence: quarterly
+  next_review: '2026-11-01'
