@@ -1,27 +1,59 @@
 name: Documentation frontend
+
 on:
   pull_request:
-    paths: ['docs/**', 'docs-site/**', '.github/workflows/docs-site.yml']
+    paths:
+      - docs/**
+      - docs-site/**
+      - .github/workflows/docs-site.yml
   push:
-    branches: [main]
-    paths: ['docs/**', 'docs-site/**', '.github/workflows/docs-site.yml']
+    branches:
+      - main
+    paths:
+      - docs/**
+      - docs-site/**
+      - .github/workflows/docs-site.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: office-docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Check, build, and browser-test documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: docs-site
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@8f152de45cc393bb48ce5d89d36b731f54556e65 # v4.0.0
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: docs-site/package-lock.json
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run documentation checks
+        run: npm run check
+
+      - name: Build documentation
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: npm run test:browser
