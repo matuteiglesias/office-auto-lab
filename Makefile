@@ -89,8 +89,8 @@ logs-tail:
 	@tail -n 30 artifacts/logs/daily/*.ledger.log
 
 repo-scans:
-	bash scripts/repo_contract_scan.sh "$$PWD" >/tmp/office_auto_lab_prereqs.tsv
-	bash scripts/repo_snapshot_protocol.sh "$$PWD" >/tmp/office_auto_lab_srp.txt
+	bash src/office_runtime/scripts/repo_contract_scan.sh "$$PWD" >/tmp/office_auto_lab_prereqs.tsv
+	bash src/office_runtime/scripts/repo_snapshot_protocol.sh "$$PWD" >/tmp/office_auto_lab_srp.txt
 	test -s /tmp/office_auto_lab_prereqs.tsv
 	test -s /tmp/office_auto_lab_srp.txt
 	@echo "repo scans ok"
@@ -98,7 +98,7 @@ repo-scans:
 compile-blocks:
 	mkdir -p out/frontier
 	cp fixtures/frontier_sample_v2.csv out/frontier/latest.csv 2>/dev/null || cp fixtures/frontier_sample.csv out/frontier/latest.csv
-	PYTHONPATH=src python3 scripts/compile_blocks.py --frontier out/frontier/latest.csv --date "$$(date +%F)"
+	PYTHONPATH=src python3 src/office_runtime/scripts/legacy/compile_blocks.py --frontier out/frontier/latest.csv --date "$$(date +%F)"
 	test -s out/compiler/$$(date +%F)/prepared_blocks.jsonl
 	@echo "compile blocks ok"
 
