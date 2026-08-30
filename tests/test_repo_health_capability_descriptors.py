@@ -44,10 +44,8 @@ def test_descriptor_exposes_execution_boundary_metadata():
 
 
 def test_discovery_boundary_rejects_incomplete_descriptor():
-    plugin = MalformedPlugin()
-
     with pytest.raises(ValueError, match="side_effects"):
-        BasePlugin.validate_capability_descriptor(plugin.capability_descriptor())
+        validate_discovered_plugin(MalformedPlugin())
 
 
 def test_discovery_boundary_accepts_complete_descriptor():
