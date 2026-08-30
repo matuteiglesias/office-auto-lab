@@ -55,6 +55,9 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
                 try:
                     if isinstance(obj, type) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
                         inst = obj()
+                        # Discovery is an execution boundary: incomplete metadata is
+                        # rejected rather than silently becoming an executable plugin.
+                        inst.capability_descriptor()
                         plugins[inst.name] = inst
                 except Exception:
                     continue
