@@ -32,7 +32,8 @@ GCP_REMOTE_READ_ALLOWLIST = frozenset({"activity_remote", "runbook_remote"})
 
 def validate_discovered_plugin(plugin: BasePlugin) -> BasePlugin:
     """Fail closed before a discovered plugin becomes executable."""
-    plugin.capability_descriptor()
+    descriptor = plugin.capability_descriptor()
+    BasePlugin.validate_capability_descriptor(descriptor)
     return plugin
 
 
