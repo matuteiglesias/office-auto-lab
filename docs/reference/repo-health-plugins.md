@@ -3,9 +3,9 @@
 **Status:** canonical
 **Audience:** Repo Health operators and plugin contributors
 **Owner:** `src/office_runtime/ops/repo_health/plugins/`
-**Verified against:** `8b4c9b7`
+**Verified:** 2026-08-30 against the capability-descriptor contract
 
-Dynamic discovery was executed in PR-OD4 and found seven plugins.
+Dynamic discovery exposes seven plugins.
 
 | Name | Class | Capability | Boundary |
 |---|---|---|---|
@@ -16,6 +16,20 @@ Dynamic discovery was executed in PR-OD4 and found seven plugins.
 | `runbook` | `RunbookPlugin` | `local_only` | Local runbook discovery/content signals |
 | `runbook_remote` | `RemoteRunbookPlugin` | `remote_read` | Bounded GitHub tree/content signals; GCP allowlisted |
 | `smoke` | `SmokeRunPlugin` | `remote_execute` | Executes local repository smoke; never GCP-selected |
+
+## Capability descriptor
+
+Every discovered plugin exposes a compact repo-local execution descriptor through
+`BasePlugin.capability_descriptor()`. The descriptor identifies the capability
+(`repo_health.<name>@<version>`), input and output contracts, the side-effect
+class implied by the plugin capability, failure behavior, and where evidence is
+reported.
+
+Discovery validates this descriptor before registering the plugin. Incomplete
+metadata therefore fails closed rather than silently becoming executable. The
+contract is intentionally local to Repo Health: it does not create a universal
+workflow, tool, or orchestration schema, and plugins only override the common
+contracts when their real boundary differs.
 
 ## Result contract
 
@@ -29,9 +43,10 @@ than trusting arbitrary vocabulary.
 Local policy selects discovered plugins subject to prerequisites. GCP selection
 requires both the explicit name allowlist (`activity_remote`, `runbook_remote`)
 and capability `remote_read`; unknown capabilities fail closed. To extend, add a
-`*_plugin.py` subclass of `BasePlugin`, unique name/version/capability, bounded
-result vocabulary, and discovery/normalization tests. Remote support additionally
-requires the repository-source abstraction and explicit cloud allowlist review.
+`*_plugin.py` subclass of `BasePlugin`, unique name/version/capability, a complete
+capability descriptor, bounded result vocabulary, and discovery/normalization
+tests. Remote support additionally requires the repository-source abstraction
+and explicit cloud allowlist review.
 
 Do not mark filesystem/subprocess behavior `remote_read`, expose credentials in
 evidence/meta, or broaden remote access after a rate-limit/tree-size denial.
