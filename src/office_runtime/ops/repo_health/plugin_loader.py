@@ -29,6 +29,13 @@ from office_runtime.ops.repo_health.plugins.base import BasePlugin, PluginCapabi
 
 GCP_REMOTE_READ_ALLOWLIST = frozenset({"activity_remote", "runbook_remote"})
 
+
+def validate_discovered_plugin(plugin: BasePlugin) -> BasePlugin:
+    """Fail closed before a discovered plugin becomes executable."""
+    plugin.capability_descriptor()
+    return plugin
+
+
 # plugin loader (plugins folder must exist, each plugin module should define a class subclassing plugins.base.BasePlugin)
 def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins") -> Dict[str, Any]:
     plugins = {}
@@ -54,10 +61,7 @@ def load_plugins_from_folder(folder="src/office_runtime/ops/repo_health/plugins"
                 obj = getattr(mod, attr)
                 try:
                     if isinstance(obj, type) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
-                        inst = obj()
-                        # Discovery is an execution boundary: incomplete metadata is
-                        # rejected rather than silently becoming an executable plugin.
-                        inst.capability_descriptor()
+                        inst = validate_discovered_plugin(obj())
                         plugins[inst.name] = inst
                 except Exception:
                     continue
