@@ -18,6 +18,7 @@ UNIT_NAMES = (
     "evidence-daily.timer",
 )
 TIMER_NAMES = tuple(name for name in UNIT_NAMES if name.endswith(".timer"))
+RUNTIME_ENV_PATH = Path.home() / ".config/office-auto-lab/runtime.env"
 
 
 class InstallError(ValueError):
@@ -108,20 +109,19 @@ def _systemctl(*args: str, check: bool = True) -> None:
 
 def install(args: argparse.Namespace) -> int:
     unit_dir = args.unit_dir or (Path.home() / ".config/systemd/user")
-    env_path = args.env_path or (Path.home() / ".config/office-auto-lab/runtime.env")
     render(
         repo_root=args.repo_root,
         python_bin=args.python_bin,
         evidence_roots=args.evidence_root,
         unit_dir=unit_dir,
-        env_path=env_path,
+        env_path=RUNTIME_ENV_PATH,
         evidence_out_root=args.evidence_out_root,
     )
     _systemctl("daemon-reload")
     if args.enable:
         _systemctl("enable", "--now", *TIMER_NAMES)
     print(f"installed units: {unit_dir}")
-    print(f"runtime environment: {env_path}")
+    print(f"runtime environment: {RUNTIME_ENV_PATH}")
     return 0
 
 
@@ -141,13 +141,12 @@ def render_only(args: argparse.Namespace) -> int:
 
 def uninstall(args: argparse.Namespace) -> int:
     unit_dir = args.unit_dir or (Path.home() / ".config/systemd/user")
-    env_path = args.env_path or (Path.home() / ".config/office-auto-lab/runtime.env")
     _systemctl("disable", "--now", *TIMER_NAMES, check=False)
     for name in UNIT_NAMES:
         (unit_dir / name).unlink(missing_ok=True)
     _systemctl("daemon-reload", check=False)
     if args.purge_config:
-        env_path.unlink(missing_ok=True)
+        RUNTIME_ENV_PATH.unlink(missing_ok=True)
     print(f"removed Office Runtime units from {unit_dir}")
     return 0
 
@@ -171,13 +170,11 @@ def main() -> int:
     install_parser = sub.add_parser("install", help="Install units for the current user.")
     _add_runtime_args(install_parser)
     install_parser.add_argument("--unit-dir", type=Path, default=None)
-    install_parser.add_argument("--env-path", type=Path, default=None)
     install_parser.add_argument("--enable", action="store_true", help="Enable and start all tracked timers after install.")
     install_parser.set_defaults(handler=install)
 
     uninstall_parser = sub.add_parser("uninstall", help="Disable and remove installed Office Runtime user units.")
     uninstall_parser.add_argument("--unit-dir", type=Path, default=None)
-    uninstall_parser.add_argument("--env-path", type=Path, default=None)
     uninstall_parser.add_argument("--purge-config", action="store_true")
     uninstall_parser.set_defaults(handler=uninstall)
 
