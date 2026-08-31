@@ -3,62 +3,122 @@
 **Status:** canonical
 **Audience:** local contributors and operators
 **Owner:** office-auto-lab maintainers
-**Verified against:** `8b4c9b7`
+**Verified against:** pre-editorial parent-runtime hardening round
 
 ## Scope
 
 Use this page to prepare Python and run non-network validation. It does not
-configure Google Sheets, OpenAI, or GCP credentials.
+configure Google Sheets, OpenAI, GCP, or other provider credentials.
+
+The supported active Python runtime versions are **3.11 and 3.12**. Clean CI
+verifies the complete active runtime on both versions and each narrower
+capability profile on Python 3.12.
+
+## Dependency authority
+
+Do not choose among the old root `requirements*.txt` files by intuition.
+Dependency authority is now explicit:
+
+- `requirements/constraints.txt` — one source of truth for direct dependency
+  versions used by supported profiles;
+- `requirements/profiles/office.txt` — Office compile, staff, and evidence
+  dependencies;
+- `requirements/profiles/capture.txt` — Capture's model-client dependency;
+- `requirements/profiles/repo-health.txt` — Repo Health local/cloud dependency
+  surface;
+- `requirements/profiles/full.txt` — exact union of the active profiles;
+- `requirements/profiles/legacy-auto-checker.txt` — compatibility-only historical
+  checker environment; it is not part of the active full runtime.
+
+The root files `requirements.txt`, `requirements-repo-health.txt`, and
+`requirements-auto-checker.txt` are compatibility shims only. They no longer own
+versions.
+
+Validate the contract without installing anything:
+
+```bash
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --list
+```
 
 ## Setup
 
-The following setup is **illustrative / not re-executed in PR-OD4** because it
-creates an environment and may download packages:
+For normal development, install the active full profile:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -r requirements.txt
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py full
 ```
 
-`requirements.txt` is the broad runtime set. `requirements-repo-health.txt` is
-the narrow container/cloud set. `requirements-auto-checker.txt` belongs to the
-legacy checker workflow; do not install all three indiscriminately.
+For bounded work, install only the owning capability profile instead:
 
-## Verified preflight
+```bash
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py office
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py capture
+PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py repo-health
+```
 
-Executed on 2026-07-30:
+`make install-profile PROFILE=<name>` is an equivalent contributor convenience.
+Unsupported profile names fail with an explicit list rather than composing an
+untested environment.
+
+The constraints file pins the repository's declared/direct dependency surface
+(and the numeric dependency constrained by pandas). It is not a claim that every
+transitive wheel is content-addressed. Provider/runtime upgrades must therefore
+change the constraints authority deliberately and pass clean-environment CI.
+
+## Parent-runtime preflight
+
+After installing `full`:
 
 ```bash
 PYTHONPATH=src python3 -m office_runtime.cli --help
+make runtime-contracts
 make imports
 make audit
 ```
 
-Expected: the CLI lists six top-level surfaces, imports prints the seven plugin
-names and `imports ok`, and audit completes compile/import/diff checks.
+`make runtime-contracts` validates dependency profiles and portable systemd
+rendering. `make audit` includes those contracts plus docs, byte-compilation,
+imports, and diff hygiene.
+
+The CLI remains the canonical execution surface. It intentionally keeps sibling
+capabilities separate (`office`, `staff`, `ops`, `capture`, `evidence`) rather
+than introducing another workflow framework.
 
 ## Optional bounded checks
 
-These commands were executed with output under `/tmp`:
+These commands write only caller-selected/local artifacts unless their provider
+credentials are configured:
 
 ```bash
 PYTHONPATH=src python3 -m office_runtime.cli capture lifecycle \
-  --inbox-root inbox --out /tmp/office-od4-capture
+  --inbox-root inbox --out /tmp/office-capture
+
 PYTHONPATH=src python3 -m office_runtime.cli evidence files \
-  --roots docs --start 2026-07-30 --end 2026-07-30 \
-  --out /tmp/office-od4-evidence/files.jsonl --max-depth 1
+  --roots docs --start 2026-08-31 --end 2026-08-31 \
+  --out /tmp/office-evidence/files.jsonl --max-depth 1
+
 PYTHONPATH=src python3 -m office_runtime.ops.repo_health.cloud.run_job \
   --profile local --policy fixtures/gcp_policy_snapshot.json --validate-only
 ```
 
-Observed: six captures and seven capture artifact files; 13 evidence rows with
-zero errors; and `{"profile":"local","projects":1,"status":"valid"}`.
-Counts are date/repository dependent; validate status, errors, and output paths.
+`make smoke` is now a valid tracked-path smoke target, but it does more work than
+the first-contact checks above and may generate local compiler artifacts. Use it
+when that wider acceptance is intended.
+
+## Known semantic boundary
+
+Capture lifecycle/transcription are part of the stable parent-runtime acceptance.
+The capture-processing ontology failure tracked in issue #21 remains separate and
+must not be hidden by infrastructure hardening. Do not interpret green dependency
+or scheduler CI as scientific/ontology approval of that processing path.
 
 ## Stop rules
 
 Stop before networked commands if credentials or target identifiers are unclear.
-Do not use `make smoke`: its tracked recipes still reference missing top-level
-`scripts/` paths. Do not interpret imports as behavioral validation. See
-[failure recovery](../operations/failure-recovery.md) for known failures.
+Use explicit `--dry-run` where a capability exposes it. Do not interpret imports,
+dependency resolution, or systemd syntax verification as behavioral validation of
+an external provider. See [failure recovery](../operations/failure-recovery.md)
+for known failures.
