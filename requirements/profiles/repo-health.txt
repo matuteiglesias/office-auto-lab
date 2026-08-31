@@ -1,5 +1,6 @@
 pandas
 requests
 google-auth
+gspread
 google-cloud-bigquery
 google-cloud-storage
