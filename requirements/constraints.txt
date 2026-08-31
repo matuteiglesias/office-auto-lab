@@ -1,0 +1,17 @@
+# Canonical direct dependency constraints for supported Office Runtime profiles.
+#
+# Update versions here; profile files declare capability membership only.
+# Python support for active profiles: 3.11 and 3.12.
+
+numpy==2.4.6
+pandas==3.0.5
+requests==2.34.2
+google-api-python-client==2.199.0
+google-auth==2.57.0
+google-auth-oauthlib==1.4.1
+gspread==6.2.1
+google-cloud-bigquery==3.44.0
+google-cloud-storage==3.13.1
+openai==3.6.0
+requests-oauthlib==2.0.0
+oauthlib==3.3.1
