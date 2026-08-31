@@ -1,6 +1,3 @@
-gspread==6.2.0
-google-auth==2.21.0
-google-auth-oauthlib
-requests-oauthlib
-oauthlib
-pandas
+# Compatibility-only shim for the historical auto-checker surface.
+-c requirements/constraints.txt
+-r requirements/profiles/legacy-auto-checker.txt
