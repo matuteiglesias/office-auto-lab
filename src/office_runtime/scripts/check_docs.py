@@ -2,8 +2,8 @@
 """Validate canonical Markdown metadata and repository-relative links."""
 from __future__ import annotations
 
+import argparse
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -16,9 +16,10 @@ LINK_RE = re.compile(r"(?<!!)\[[^]]*\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*$", re.MULTILINE)
 
 
-def markdown_files() -> list[Path]:
+def markdown_files(exclude: set[Path] | None = None) -> list[Path]:
+    excluded = exclude or set()
     files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
-    return [path for path in files if path.is_file()]
+    return [path for path in files if path.is_file() and path.resolve() not in excluded]
 
 
 def slug(text: str) -> str:
@@ -60,19 +61,46 @@ def check_links(path: Path, text: str) -> list[str]:
     return errors
 
 
-def main() -> int:
+def _resolve_excludes(values: list[str]) -> set[Path]:
+    excludes: set[Path] = set()
+    for value in values:
+        candidate = (ROOT / value).resolve()
+        try:
+            candidate.relative_to(ROOT)
+        except ValueError as exc:
+            raise ValueError(f"excluded documentation path escapes repository: {value}") from exc
+        if not candidate.is_file():
+            raise ValueError(f"excluded documentation path does not exist: {value}")
+        excludes.add(candidate)
+    return excludes
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Repository-relative Markdown path to omit from this scoped validation run.",
+    )
+    args = parser.parse_args(argv)
+    try:
+        excludes = _resolve_excludes(args.exclude)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     errors: list[str] = []
-    files = markdown_files()
+    files = markdown_files(excludes)
     for path in files:
         text = path.read_text(encoding="utf-8")
         errors.extend(check_metadata(path, text))
         errors.extend(check_links(path, text))
     if errors:
-        print("documentation validation failed", file=sys.stderr)
+        print("documentation validation failed")
         for error in errors:
-            print(f"- {error}", file=sys.stderr)
+            print(f"- {error}")
         return 1
-    print(f"documentation validation ok: {len(files)} Markdown files")
+    print(f"documentation validation ok: {len(files)} Markdown files; excluded={len(excludes)}")
     return 0
 
 
