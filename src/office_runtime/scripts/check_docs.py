@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -96,9 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         errors.extend(check_metadata(path, text))
         errors.extend(check_links(path, text))
     if errors:
-        print("documentation validation failed")
+        print("documentation validation failed", file=sys.stderr)
         for error in errors:
-            print(f"- {error}")
+            print(f"- {error}", file=sys.stderr)
         return 1
     print(f"documentation validation ok: {len(files)} Markdown files; excluded={len(excludes)}")
     return 0
