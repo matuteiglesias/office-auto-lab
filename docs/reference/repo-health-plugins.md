@@ -3,7 +3,7 @@
 **Status:** canonical
 **Audience:** Repo Health operators and plugin contributors
 **Owner:** `src/office_runtime/ops/repo_health/plugins/`
-**Verified:** 2026-08-30 against the capability-descriptor contract
+**Verified against:** 2026-08-30 capability-descriptor contract
 
 Dynamic discovery exposes seven plugins.
 
@@ -22,31 +22,38 @@ Dynamic discovery exposes seven plugins.
 Every discovered plugin exposes a compact repo-local execution descriptor through
 `BasePlugin.capability_descriptor()`. The descriptor identifies the capability
 (`repo_health.<name>@<version>`), input and output contracts, the side-effect
-class implied by the plugin capability, failure behavior, and where evidence is
-reported.
+boundary, failure behavior, and evidence fields.
 
-Discovery validates this descriptor before registering the plugin. Incomplete
-metadata therefore fails closed rather than silently becoming executable. The
-contract is intentionally local to Repo Health: it does not create a universal
-workflow, tool, or orchestration schema, and plugins only override the common
-contracts when their real boundary differs.
+The descriptor is deliberately **not** a universal workflow/plugin schema. It
+makes Repo Health discovery and execution boundaries inspectable without making
+this repository a generic agent framework.
 
-## Result contract
+Discovery validates the descriptor before the plugin becomes executable. A
+missing or malformed descriptor fails discovery rather than silently widening a
+plugin's capability surface.
 
-A plugin returns uppercase status `PASS`, `FAIL`, `WARN`, `NA`, or `ERROR` and a
-short message. Bucket, compact evidence pointers, and structured metadata are
-optional. Runners normalize unknown/malformed results to `system_error` rather
-than trusting arbitrary vocabulary.
+## Capability classes
 
-## Selection and extension
+- `local_only`: local repository observation/execution only; no remote mutation
+  authority.
+- `remote_read`: bounded remote read-only access; no remote mutation authority.
+- `remote_execute`: bounded execution permitted only where the owning runner's
+  explicit policy and dry-run/apply controls authorize it.
 
-Local policy selects discovered plugins subject to prerequisites. GCP selection
-requires both the explicit name allowlist (`activity_remote`, `runbook_remote`)
-and capability `remote_read`; unknown capabilities fail closed. To extend, add a
-`*_plugin.py` subclass of `BasePlugin`, unique name/version/capability, a complete
-capability descriptor, bounded result vocabulary, and discovery/normalization
-tests. Remote support additionally requires the repository-source abstraction
-and explicit cloud allowlist review.
+The capability class is not itself authorization. The runner policy, target
+allowlist, dry-run mode, prerequisites, and stop conditions remain authoritative.
 
-Do not mark filesystem/subprocess behavior `remote_read`, expose credentials in
-evidence/meta, or broaden remote access after a rate-limit/tree-size denial.
+## GCP profile boundary
+
+The GCP remote profile allowlists only `activity_remote` and `runbook_remote`.
+Local executable plugins such as `smoke` are never selected by the cloud adapter.
+The cloud runtime validates the frozen policy snapshot, repository allowlist,
+plugin set, and image/source identity before execution.
+
+## Evidence
+
+Each plugin result must normalize into Repo Health's result contract and retain
+structured evidence/meta fields. Malformed results are system errors. Run-level
+identity, policy hash, results, exceptions, and prepared blocks are then bound by
+`repo_health.run_bundle.v1`; plugin descriptors do not replace that evidence
+contract.
