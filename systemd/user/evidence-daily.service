@@ -1,7 +1,8 @@
 [Unit]
 Description=Office Runtime - Evidence Daily
+ConditionPathExists=%h/.config/office-auto-lab/runtime.env
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/matias/repos/office-auto-lab
-ExecStart=/usr/bin/bash -lc 'TODAY=$$(/usr/bin/date +%%F); echo "TODAY=$$TODAY"; /usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh evidence git --roots /home/matias/repos /home/matias/Documents --start "$$TODAY" --end "$$TODAY" --out "artifacts/evidence/git_trace/$${TODAY}_$${TODAY}.jsonl"; /usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh evidence files --roots /home/matias/repos /home/matias/Documents --start "$$TODAY" --end "$$TODAY" --out "artifacts/evidence/fs_trace/$${TODAY}_$${TODAY}.jsonl" --max-depth 8'
+EnvironmentFile=%h/.config/office-auto-lab/runtime.env
+ExecStart=/usr/bin/bash -lc 'exec /usr/bin/bash "$OFFICE_ROOT/src/office_runtime/scripts/systemd_entrypoint.sh" evidence-daily'
