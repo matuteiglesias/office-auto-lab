@@ -1,0 +1,8 @@
+# Compatibility-only profile for the historical auto-checker surface.
+# No active parent-runtime capability should depend on this profile.
+gspread
+google-auth
+google-auth-oauthlib
+requests-oauthlib
+oauthlib
+pandas
