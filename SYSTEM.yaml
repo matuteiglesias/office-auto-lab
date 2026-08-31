@@ -13,32 +13,46 @@ authority:
   owns:
   - office capability execution
   - run records, repository-health outputs, and bounded mutation commands
+  - bounded editorial projection execution after explicit capability promotion
   does_not_own:
   - human review decisions
   - estate authority
   - accounting document intake
+  - durable editorial constitution or Matias-authentic idea authority
+  - upstream media, economic, or scientific source semantics
 interfaces:
   consumes:
   - artifact:ops.weekly-plan@1
   - artifact:ops.capture-record@1
+  - artifact:media.monitored-item@1
+  - artifact:econ.public-evidence@1
+  - artifact:ops.editorial-policy@1
   produces:
   - artifact:ops.office-run-record@1
   - artifact:ops.repo-health@1
+  - artifact:ops.editorial-run@1
+  - artifact:ops.editorial-week-review@1
 upstream:
 - repo.capture-site
 - repo.weekly-ops-governance
+- repo.media-monitor
+- repo.atlas-economico-ar
 downstream:
 - repo.office-window
-canonical_commands: []
+- external:x
+canonical_commands:
+- make editorial-contracts
 generated_paths:
 - artifacts/
 - runs/
 verification:
-  status: metadata-only
-  last_verified: '2026-08-04'
-  command: null
+  status: editorial-w0-contract-seed
+  last_verified: '2026-08-31'
+  command: make editorial-contracts
   unknowns:
-  - canonical capability smoke command requires local confirmation
+  - repository-wide reproducible dependency profile remains open in issue #20
+  - core Python CI remains absent; only docs-site CI exists
+  - live X account identity, metrics, and publication adapters are not yet implemented
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
