@@ -1,0 +1,2 @@
+# Test/developer tooling. This is not part of any runtime capability profile.
+pytest
