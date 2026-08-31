@@ -1,5 +1,3 @@
-pandas
-requests
-google-auth
-google-cloud-bigquery
-google-cloud-storage
+# Compatibility shim. Canonical dependency authority lives under requirements/.
+-c requirements/constraints.txt
+-r requirements/profiles/repo-health.txt
