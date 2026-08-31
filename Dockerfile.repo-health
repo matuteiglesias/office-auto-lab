@@ -6,8 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN groupadd --system office && useradd --system --gid office --home /app office
 WORKDIR /app
-COPY requirements-repo-health.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements /app/requirements
+RUN pip install --no-cache-dir \
+    -c /app/requirements/constraints.txt \
+    -r /app/requirements/profiles/repo-health.txt
 COPY src /app/src
 USER office
 ENTRYPOINT ["python", "-m", "office_runtime.ops.repo_health.cloud.run_job"]
