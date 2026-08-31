@@ -2,6 +2,7 @@ pandas
 requests
 google-api-python-client
 google-auth
+gspread
 google-cloud-bigquery
 google-cloud-storage
 openai
