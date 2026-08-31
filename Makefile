@@ -1,4 +1,4 @@
-.PHONY: imports docs-check audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke repo-scans compile-blocks office evidence-today logs-tail
+.PHONY: imports docs-check audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke editorial-contracts repo-scans compile-blocks office evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -7,13 +7,15 @@ OUT_DIR ?= artifacts/evidence
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
-smoke: imports repo-scans compile-blocks
+smoke: imports editorial-contracts repo-scans compile-blocks
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
 import office_runtime.cli; \
 import office_runtime.capture; \
 import office_runtime.capture.lifecycle; \
+import office_runtime.editorial; \
+import office_runtime.editorial.contracts; \
 import office_runtime.office.compile; \
 import office_runtime.office.config; \
 import office_runtime.office.io; \
@@ -47,6 +49,9 @@ from office_runtime.ops.repo_health.plugin_loader import load_plugins_from_folde
 plugins = load_plugins_from_folder('src/office_runtime/ops/repo_health/plugins'); \
 print('plugins:', sorted(plugins)); \
 print('imports ok')"
+
+editorial-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts
 
 docs-check:
 	python3 src/office_runtime/scripts/check_docs.py
