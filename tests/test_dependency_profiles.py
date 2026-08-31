@@ -8,9 +8,11 @@ from office_runtime.dependencies import (
     ACTIVE_PROFILES,
     CONSTRAINTS_PATH,
     PROFILE_PATHS,
+    TEST_TOOLING_PATH,
     install_command,
     load_constraints,
     load_profile,
+    load_test_tooling,
     validate_profiles,
 )
 
@@ -26,12 +28,21 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertEqual(loaded["full"], expected)
         self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "repo-health", "full"))
 
-    def test_constraints_are_exact_and_cover_every_profile(self) -> None:
+    def test_constraints_are_exact_and_cover_every_declared_surface(self) -> None:
         constraints = load_constraints(ROOT)
         self.assertIn("pandas", constraints)
         self.assertIn("openai", constraints)
+        self.assertIn("pytest", constraints)
         for profile in PROFILE_PATHS:
             self.assertTrue(set(load_profile(ROOT, profile)).issubset(constraints))
+        self.assertTrue(set(load_test_tooling(ROOT)).issubset(constraints))
+
+    def test_test_tooling_is_not_runtime_profile_membership(self) -> None:
+        tooling = set(load_test_tooling(ROOT))
+        self.assertEqual(tooling, {"pytest"})
+        runtime_packages = set().union(*(set(load_profile(ROOT, name)) for name in ACTIVE_PROFILES))
+        self.assertTrue(tooling.isdisjoint(runtime_packages))
+        self.assertEqual(TEST_TOOLING_PATH, Path("requirements/test.txt"))
 
     def test_install_command_always_uses_constraints_and_one_profile(self) -> None:
         command = install_command(ROOT, "repo-health")
