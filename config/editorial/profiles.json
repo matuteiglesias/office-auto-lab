@@ -1,0 +1,55 @@
+{
+  "schema_version": "office_runtime.editorial.profiles.v1",
+  "profiles": [
+    {
+      "schema_version": "office_runtime.editorial.profile.v1",
+      "profile_id": "dev",
+      "account_key": "x_dev",
+      "strategy": "dev_projection",
+      "public_identity": {
+        "role": "software/data/research engineering projection",
+        "x_handle_env": "X_DEV_ACCOUNT_HANDLE"
+      },
+      "sources": [
+        "github_estate"
+      ],
+      "fallback": "historical_dev_work",
+      "publication": {
+        "default_mode": "dry_run",
+        "max_posts_per_day": 1,
+        "auto_publish_max_risk": "low"
+      }
+    },
+    {
+      "schema_version": "office_runtime.editorial.profile.v1",
+      "profile_id": "argentina_econ",
+      "account_key": "x_argentina_econ",
+      "strategy": "argentina_econ",
+      "public_identity": {
+        "role": "Argentina economics and owned-evidence commentary",
+        "x_handle": "matuteiglesias"
+      },
+      "sources": [
+        "media_monitor",
+        "atlas_economico_ar",
+        "owned_economic_artifacts",
+        "approved_idea_bank",
+        "public_web_context"
+      ],
+      "fallback": "skip",
+      "allowed_relations": [
+        "supports",
+        "contextualizes",
+        "complicates",
+        "contradicts",
+        "historicizes",
+        "cannot_adjudicate"
+      ],
+      "publication": {
+        "default_mode": "dry_run",
+        "max_posts_per_day": 1,
+        "auto_publish_max_risk": "low"
+      }
+    }
+  ]
+}
