@@ -19,8 +19,8 @@ capability profile on Python 3.12.
 Do not choose among the old root `requirements*.txt` files by intuition.
 Dependency authority is now explicit:
 
-- `requirements/constraints.txt` — one source of truth for direct dependency
-  versions used by supported profiles;
+- `requirements/constraints.txt` — one source of truth for declared/direct
+  dependency versions used by supported profiles and test tooling;
 - `requirements/profiles/office.txt` — Office compile, staff, and evidence
   dependencies;
 - `requirements/profiles/capture.txt` — Capture's model-client dependency;
@@ -28,7 +28,9 @@ Dependency authority is now explicit:
   surface;
 - `requirements/profiles/full.txt` — exact union of the active profiles;
 - `requirements/profiles/legacy-auto-checker.txt` — compatibility-only historical
-  checker environment; it is not part of the active full runtime.
+  checker environment; it is not part of the active full runtime;
+- `requirements/test.txt` — constrained CI/developer tooling only, deliberately
+  excluded from runtime capability membership.
 
 The root files `requirements.txt`, `requirements-repo-health.txt`, and
 `requirements-auto-checker.txt` are compatibility shims only. They no longer own
@@ -59,14 +61,22 @@ PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py capture
 PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py repo-health
 ```
 
+When running suites that import test-only packages:
+
+```bash
+python3 -m pip install -c requirements/constraints.txt -r requirements/test.txt
+```
+
 `make install-profile PROFILE=<name>` is an equivalent contributor convenience.
 Unsupported profile names fail with an explicit list rather than composing an
 untested environment.
 
-The constraints file pins the repository's declared/direct dependency surface
-(and the numeric dependency constrained by pandas). It is not a claim that every
-transitive wheel is content-addressed. Provider/runtime upgrades must therefore
-change the constraints authority deliberately and pass clean-environment CI.
+The constraints file pins the repository's declared/direct dependency surface.
+Clean CI proves that those constraints resolve consistently enough for supported
+profiles on Python 3.11/3.12, but this is **not yet a committed transitive lock**.
+Issue #20 retains that stronger reproducibility question; do not describe it as
+closed until the resolver graph is intentionally frozen or the requirement is
+explicitly revised.
 
 ## Parent-runtime preflight
 
@@ -75,13 +85,18 @@ After installing `full`:
 ```bash
 PYTHONPATH=src python3 -m office_runtime.cli --help
 make runtime-contracts
-make imports
-make audit
+make parent-audit
 ```
 
 `make runtime-contracts` validates dependency profiles and portable systemd
-rendering. `make audit` includes those contracts plus docs, byte-compilation,
-imports, and diff hygiene.
+rendering. `make parent-audit` validates the non-Editorial parent runtime:
+non-Editorial canonical docs, byte-compilation excluding Editorial, full-profile
+imports, dependency/scheduler contracts, and diff hygiene.
+
+`make audit` remains the whole-repository gate. It also validates Editorial and
+therefore may expose debt owned by that slice; the pre-Editorial hardening round
+does not weaken or silently repair Editorial contracts to make the parent gate
+pass.
 
 The CLI remains the canonical execution surface. It intentionally keeps sibling
 capabilities separate (`office`, `staff`, `ops`, `capture`, `evidence`) rather
