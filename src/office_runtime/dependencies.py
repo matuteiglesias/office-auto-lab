@@ -14,6 +14,7 @@ PROFILE_PATHS = {
     "full": Path("requirements/profiles/full.txt"),
     "legacy-auto-checker": Path("requirements/profiles/legacy-auto-checker.txt"),
 }
+TEST_TOOLING_PATH = Path("requirements/test.txt")
 ACTIVE_PROFILES = ("office", "capture", "repo-health", "full")
 COMPATIBILITY_PROFILES = ("legacy-auto-checker",)
 _EXACT_PIN = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
@@ -34,6 +35,26 @@ def _iter_lines(path: Path) -> Iterable[str]:
         if not line or line.startswith("#"):
             continue
         yield line
+
+
+def _load_bare_requirements(path: Path, label: str) -> list[str]:
+    if not path.is_file():
+        raise DependencyProfileError(f"missing {label}: {path}")
+    packages: list[str] = []
+    seen: set[str] = set()
+    for line in _iter_lines(path):
+        if not _BARE_NAME.fullmatch(line):
+            raise DependencyProfileError(
+                f"{label} entries must be bare package names; versions belong in constraints: {line!r}"
+            )
+        name = normalize_name(line)
+        if name in seen:
+            raise DependencyProfileError(f"duplicate package {name!r} in {label}")
+        seen.add(name)
+        packages.append(name)
+    if not packages:
+        raise DependencyProfileError(f"{label} is empty")
+    return packages
 
 
 def load_constraints(repo_root: Path) -> dict[str, str]:
@@ -60,34 +81,22 @@ def load_profile(repo_root: Path, profile: str) -> list[str]:
     except KeyError as exc:
         choices = ", ".join(PROFILE_PATHS)
         raise DependencyProfileError(f"unsupported dependency profile {profile!r}; choose one of: {choices}") from exc
-    path = repo_root / relative
-    if not path.is_file():
-        raise DependencyProfileError(f"missing dependency profile: {path}")
-    packages: list[str] = []
-    seen: set[str] = set()
-    for line in _iter_lines(path):
-        if not _BARE_NAME.fullmatch(line):
-            raise DependencyProfileError(
-                f"profile entries must be bare package names; versions belong in constraints: {line!r}"
-            )
-        name = normalize_name(line)
-        if name in seen:
-            raise DependencyProfileError(f"duplicate package {name!r} in profile {profile!r}")
-        seen.add(name)
-        packages.append(name)
-    if not packages:
-        raise DependencyProfileError(f"dependency profile {profile!r} is empty")
-    return packages
+    return _load_bare_requirements(repo_root / relative, f"dependency profile {profile!r}")
+
+
+def load_test_tooling(repo_root: Path) -> list[str]:
+    return _load_bare_requirements(repo_root / TEST_TOOLING_PATH, "test tooling")
 
 
 def validate_profiles(repo_root: Path) -> None:
     constraints = load_constraints(repo_root)
     loaded = {name: load_profile(repo_root, name) for name in PROFILE_PATHS}
-    for profile, packages in loaded.items():
+    declared_sets = {**loaded, "test-tooling": load_test_tooling(repo_root)}
+    for profile, packages in declared_sets.items():
         unconstrained = sorted(set(packages) - set(constraints))
         if unconstrained:
             raise DependencyProfileError(
-                f"profile {profile!r} has packages without canonical constraints: {unconstrained}"
+                f"{profile!r} has packages without canonical constraints: {unconstrained}"
             )
 
     expected_full = set(loaded["office"]) | set(loaded["capture"]) | set(loaded["repo-health"])
@@ -96,6 +105,13 @@ def validate_profiles(repo_root: Path) -> None:
         raise DependencyProfileError(
             "full profile must equal the union of office + capture + repo-health; "
             f"missing={sorted(expected_full - actual_full)} extra={sorted(actual_full - expected_full)}"
+        )
+
+    runtime_packages = set().union(*(set(loaded[name]) for name in ACTIVE_PROFILES))
+    overlap = runtime_packages & set(load_test_tooling(repo_root))
+    if overlap:
+        raise DependencyProfileError(
+            f"test-only tooling must stay outside active runtime profiles; overlap={sorted(overlap)}"
         )
 
 
