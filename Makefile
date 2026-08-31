@@ -1,4 +1,4 @@
-.PHONY: imports docs-check audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -69,9 +69,17 @@ install-profile:
 docs-check:
 	python3 src/office_runtime/scripts/check_docs.py
 
+parent-docs-check:
+	python3 src/office_runtime/scripts/check_docs.py --exclude docs/architecture/editorial-projection.md
+
 audit: docs-check runtime-contracts
 	python3 -m compileall src
 	$(MAKE) imports
+	git diff --check
+
+parent-audit: parent-docs-check runtime-contracts
+	python3 -m compileall -q -x '/editorial/' src/office_runtime
+	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
 
 daily:
