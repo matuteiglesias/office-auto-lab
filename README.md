@@ -5,9 +5,9 @@
 > its honest status is **deployment-ready, not publicly deployed**.
 
 `office-auto-lab` compiles operational data into reviewable Office artifacts and
-provides bounded tools for staff briefs, capture processing, evidence collection,
-and repository health. The runtime keeps these surfaces separate: each has its
-own commands, artifacts, and mutation boundaries.
+provides bounded tools for staff briefs, capture processing, and evidence
+collection. Repository-estate health/readiness semantics and safe sensing belong
+to the `projects` control plane; Office may consume its optional repo-keyed context.
 
 ## Capabilities and status
 
@@ -22,9 +22,37 @@ runbook exist. It does not mean deployed.
 | Staff | Builds project bundles and decision, health-check, unlocker, or execution briefs from compiled Office state. | Implemented |
 | Capture | Compiles append-only capture lifecycles and supports reviewable transcription, routing, artifact, and reingest proposals. | Implemented; lifecycle/transcription are in stable parent-runtime acceptance, while processing ontology issue #21 remains open |
 | Evidence | Traces Git commits and filesystem changes into caller-selected JSONL evidence. | Implemented |
-| Repo Health, local | Evaluates repository policy/plugins and produces versioned run bundles and compiler inputs. | Implemented; core semantics locally tested |
-| Repo Health, GCP | Runs a bounded, read-only remote profile and persists immutable evidence to Cloud Storage and idempotent history to BigQuery. | Implemented, locally validated, deployment-ready; **not evidenced as deployed or operated** |
 | systemd automation | Defines user timers for Office compilation, staff briefs, and daily evidence. | Portable install/render contract implemented; installed runtime paths are operator configuration rather than tracked source |
+
+## Repository context
+
+GitHub repository identity, lifecycle, health/readiness semantics, and safe
+metadata-only sensing are owned by `projects`. Office can optionally consume
+`context:github-repositories@1` through `OFFICE_REPO_CONTEXT_JSON` and associate a
+front with zero or more repositories through its own `repo_ids` metadata.
+
+Repository context is advisory. It does not automatically change Carry State,
+horizon, priority, Principal posture, escalation, or block eligibility.
+
+## Legacy Repo Health compatibility
+
+The historical Repo Health implementation remains in-tree temporarily for known
+and unknown compatibility consumers. It is **not an active Office product surface
+or semantic authority**. The implementation includes broader plugin, local,
+Sheet-backed, and GCP machinery that is intentionally not copied wholesale into
+the GitHub-estate control plane.
+
+Compatibility entry points remain available as:
+
+```bash
+make compat-repo-health-policy
+make compat-repo-health-run
+```
+
+and through the legacy `office_runtime.cli ops repo-health ...` path. New Office
+workflows should use the `projects` sensing/projection seam instead. See
+[`docs/components/repo-health.md`](docs/components/repo-health.md) for the
+compatibility/removal boundary.
 
 ## Dependency profiles
 
@@ -35,14 +63,14 @@ requirements/constraints.txt
 requirements/profiles/
     office.txt
     capture.txt
-    repo-health.txt
+    repo-health.txt          # compatibility
     full.txt
-    legacy-auto-checker.txt
+    legacy-auto-checker.txt  # compatibility
 ```
 
 The root `requirements*.txt` files are compatibility shims, not separate version
-authorities. `legacy-auto-checker` is compatibility-only and is not included in
-the active `full` profile.
+authorities. `repo-health` and `legacy-auto-checker` remain compatibility profiles;
+their presence does not make them active Office capabilities.
 
 Inspect/validate the dependency contract without installing packages:
 
@@ -62,9 +90,9 @@ make runtime-contracts
 make imports
 ```
 
-Expected result: CLI help lists the current top-level runtime surfaces;
+Expected result: CLI help lists the current runtime surfaces;
 `runtime-contracts` validates dependency and scheduler contracts; `make imports`
-ends with `imports ok` and prints discovered Repo Health plugins.
+ends with `imports ok` for the active Office surface.
 
 Office compilation is not an offline quickstart: it reads configured Google
 Sheets using read-only Sheets scope and requires valid local credentials. Use
@@ -77,9 +105,11 @@ services.
 clean environments. It:
 
 - checks dependency and portable-systemd contracts without network mutation;
-- installs every declared capability profile independently;
+- installs every declared capability/compatibility profile independently;
 - verifies the active `full` profile on Python 3.11 and 3.12;
-- runs stable Capture and Repo Health offline suites;
+- runs stable Capture tests;
+- keeps a separate Repo Health compatibility profile/test slice until legacy
+  consumers are audited and removed;
 - deliberately leaves capture-processing ontology repair to issue #21 rather
   than hiding it behind infrastructure success.
 
@@ -104,8 +134,8 @@ for install, enable, verification, upgrade, and uninstall procedures.
 - **New reader or evaluator:** start with the [documentation map](docs/README.md),
   then review capability status and current evidence boundaries.
 - **Operator:** use the current local environment and systemd pages linked from
-  the [operations route](docs/README.md#operators). GCP material remains a
-  deployment-ready retrofit record, not evidence of a live service.
+  the [operations route](docs/README.md#operators). GCP compatibility material is
+  not evidence of a live Office Repo Health product.
 - **Contributor:** use [local development](docs/getting-started/local-development.md)
   and the [component/source-truth route](docs/README.md#contributors).
 - **Agent:** start with the root [`AGENTS.md`](AGENTS.md), then follow the
