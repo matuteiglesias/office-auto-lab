@@ -43,3 +43,7 @@ Repository context does **not** affect scoring, carry, horizon, principal requir
 ## Authority invariant
 
 Office owns the front-to-repository association and all operational consequences. `projects` owns the semantics and observations attached to each `repo_id`.
+
+## Rollout
+
+No repository-context file is configured by default. Existing Office deployments therefore retain their prior behavior until an operator intentionally supplies `OFFICE_REPO_CONTEXT_JSON`.
