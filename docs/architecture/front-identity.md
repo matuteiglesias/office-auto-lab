@@ -1,8 +1,9 @@
 # Operational front identity
 
-## Status
-
-Canonical Office identity contract. Storage migration is intentionally deferred.
+**Status:** canonical
+**Audience:** operators, contributors, maintainers, and agents
+**Owner:** office-auto-lab maintainers
+**Verified against:** `7bdb02b1eff0c3a3aadaea74a88253a347c1afe7`
 
 ## Purpose
 
@@ -46,7 +47,7 @@ Compiled tabular artifacts expose both fields for compatibility. The run manifes
 
 Repository association is optional context. It is not part of the identity key and is intentionally not required by the compiler.
 
-A future optional repository-context interface may attach `repo_id` values and repository-readiness observations to a front. That interface must remain advisory unless an explicit Office rule converts repository context into an operational consequence.
+An optional repository-context interface may attach `repo_id` values and repository-readiness observations to a front. That interface remains advisory unless an explicit Office rule converts repository context into an operational consequence.
 
 ## Migration rule
 
