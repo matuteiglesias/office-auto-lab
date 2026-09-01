@@ -4,6 +4,7 @@ import pandas as pd
 from .config import OfficeConfig
 from .io import coerce_bool, read_sheet_values, normalize, write_text, write_json, utc_ts, promote_latest
 from .validate import validate_required, validate_rows
+from .repo_context import enrich_with_repo_context, load_repo_context
 from office_runtime.run_logging import RunLogger
 from .render import (
     render_principal_brief,
@@ -187,6 +188,23 @@ def run_compile(cfg: OfficeConfig) -> dict:
     df, unmatched_front, unmatched_carry = _merge(front, carry)
     issues += validate_rows(df, strict=cfg.strict)
 
+    try:
+        repo_context = load_repo_context(cfg.repo_context_json)
+        df, repo_context_summary = enrich_with_repo_context(df, repo_context)
+        logger.event(
+            "repo_context.enrich",
+            status="ok",
+            configured=cfg.repo_context_json is not None,
+            available=repo_context is not None,
+            repo_refs=repo_context_summary["repo_refs"],
+            unknown_repo_refs=repo_context_summary["unknown_repo_refs"],
+        )
+    except (ValueError, OSError) as exc:
+        issues.append({"severity": "error", "code": "repo_context_invalid", "message": str(exc)})
+        write_json(run_dir / "manifest.json", {"run_id": run_id, "status": "error", "issues": issues})
+        logger.event("run.end", level="ERROR", status="error")
+        return {"run_id": run_id, "status": "error", "issues": issues}
+
     principal_week, principal_today, support, escal, blocks, active_exec = _bucket(df)
     routes = _attention_routes(df)
     logger.event("route.done", status="ok", merged=len(df), expressed=len(routes["expressed_state"]))
@@ -231,6 +249,7 @@ def run_compile(cfg: OfficeConfig) -> dict:
             "canonical_field": FRONT_ID_PRIMARY,
             "legacy_alias": FRONT_ID_LEGACY,
         },
+        "repository_context": repo_context_summary,
         "row_counts": {
             "front_registry": int(len(front)),
             "carry_state": int(len(carry)),
