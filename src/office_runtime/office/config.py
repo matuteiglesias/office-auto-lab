@@ -18,6 +18,7 @@ class OfficeConfig:
     out_root: Path
     scripts_dir: Path
     strict: bool
+    repo_context_json: Path | None = None
 
     @property
     def latest_dir(self) -> Path:
@@ -30,6 +31,7 @@ class OfficeConfig:
 def load_config() -> OfficeConfig:
     root = Path(_env("OFFICE_ROOT", ".")).resolve()
     out_root = Path(_env("OFFICE_OUT_ROOT", str(root / "artifacts"))).resolve()
+    repo_context_raw = _env("OFFICE_REPO_CONTEXT_JSON")
     return OfficeConfig(
         service_account_json=_env("GOOGLE_APPLICATION_CREDENTIALS", str(root / "newgsheets-349817-cdd6efdaa76f.json")),
         spreadsheet_id=_env("OFFICE_SPREADSHEET_ID", "1mImijqIwcbBqcO05xKzPWMITo-53ypjd1BEGicTp3jE"),
@@ -40,4 +42,5 @@ def load_config() -> OfficeConfig:
         out_root=out_root,
         scripts_dir=Path(_env("OFFICE_SCRIPTS_DIR", str(root / "src" / "office_runtime" / "scripts"))).resolve(),
         strict=_env("OFFICE_STRICT", "false").lower() == "true",
+        repo_context_json=Path(repo_context_raw).expanduser().resolve() if repo_context_raw else None,
     )

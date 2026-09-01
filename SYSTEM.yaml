@@ -12,24 +12,24 @@ authority:
   status: proposed
   owns:
   - office capability execution
-  - run records, repository-health outputs, and bounded mutation commands
+  - operational Front Registry / Carry State compilation and bounded Office outputs
+  - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
   - human review decisions
-  - estate authority
+  - GitHub estate authority or repository readiness semantics
   - accounting document intake
   - durable editorial constitution or Matias-authentic idea authority
   - upstream media, economic, or scientific source semantics
 interfaces:
   consumes:
-  - artifact:ops.weekly-plan@1
   - artifact:ops.capture-record@1
+  - context:github-repositories@1 (optional advisory context)
   produces:
   - artifact:ops.office-run-record@1
-  - artifact:ops.repo-health@1
+  - artifact:ops.repo-health@1 (compatibility producer pending semantic migration)
 upstream:
 - repo.capture-site
-- repo.weekly-ops-governance
 - repo.media-monitor
 - repo.atlas-economico-ar
 downstream:
@@ -44,19 +44,21 @@ generated_paths:
 - runs/
 verification:
   status: parent-runtime-clean-profile-ci-plus-editorial-w0
-  last_verified: '2026-08-31'
+  last_verified: '2026-09-01'
   command: make parent-audit
   evidence:
   - github-actions:33365350261
   notes:
+  - Front identity is canonicalized as front_id while project_id remains a compatibility alias
+  - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - parent runtime profiles resolve and import-smoke in clean CI; full profile is proven on Python 3.11 and 3.12
   - systemd user units have a portable render/install contract and no tracked machine-local checkout paths
-  - Editorial W0 remains a separate contract slice and was not modified by the parent-runtime hardening round
   unknowns:
   - issue #20 still owns the stronger question of a committed transitive dependency lock; direct/profile authority and clean resolution are proven
   - capture processing ontology issue #21 remains separate from infrastructure hardening
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
+  - Repo Health remains physically implemented here during compatibility migration even though repository-health semantic authority is moving toward projects
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
