@@ -1,96 +1,86 @@
-# Repo Health owner guide
+# Repo Health compatibility implementation guide
 
-**Status:** canonical
-**Audience:** contributors and agents changing Repo Health semantics or adapters
-**Owner:** `src/office_runtime/ops/repo_health/`
-**Verified against:** `cda8b286cc5db3c840d7f4dad143d62497f18a63`
+**Status:** compatibility
+**Audience:** maintainers and agents supporting or migrating legacy Repo Health consumers
+**Owner:** office-auto-lab maintainers (implementation only)
+**Verified against:** `governance/m7-demote-repo-health-surface`
 
-## Purpose and non-goals
+## Authority status
 
-Repo Health schedules policy intents, runs capability-declared plugins,
-normalizes repository observations, builds frontier issues and prepared blocks,
-and publishes a versioned producer-owned run bundle. It owns domain meaning;
-local files and GCP infrastructure only transport or persist it. It does not own
-Office compile, source-repository mutation in the cloud profile, or automatic
-application of prepared blocks.
+Repository-health semantics and safe GitHub-estate sensing are no longer owned by Office. The canonical semantic owner is the `projects` GitHub-estate control plane, which defines repository health/readiness and produces the repo-keyed `context:github-repositories@1` projection.
 
-## Source paths
+The code under `src/office_runtime/ops/repo_health/` remains in this repository as a **compatibility implementation** because it contains broader historical execution machinery—sheet-backed policy, plugins, local/environment inspection, cloud orchestration, compiler outputs, and persistence adapters—that cannot be safely or honestly moved into the metadata-only estate control plane as one block.
 
-| Path | Responsibility |
+Do not add new repository-health semantic vocabulary here independently. If compatibility code requires a new durable repository-health concept, define/standardize that concept in `projects` first and then adapt this implementation if still needed.
+
+## What remains here
+
+| Path | Compatibility responsibility |
 |---|---|
-| `policy.py`, `runner.py`, `sheets.py` | Sheet-backed policy planning/execution and optional writes |
-| `plugins/`, `plugin_loader.py` | Plugin contract, capabilities, discovery, cloud selection |
-| `remote/` | Allowlisted read-only repository-source abstraction/GitHub adapter |
-| `compiler/` | Frontier parsing, IR rollup, candidate and prepared-block generation |
-| `run_bundle/`, `spec/run_bundle.schema.json` | Versioned bundle model, validation, local sinks |
-| `cloud/run_job.py` | Frozen-snapshot validation, profile orchestration and provenance |
-| `adapters/gcp/` | Immutable GCS evidence and idempotent BigQuery history |
-| `infra/gcp/`, `Dockerfile.repo-health` | Deployment-ready transport/runtime definition |
+| `policy.py`, `runner.py`, `sheets.py` | Historical sheet-backed planning/execution and optional writes |
+| `plugins/`, `plugin_loader.py` | Legacy plugin discovery and execution capabilities |
+| `remote/` | Read-only repository-source abstraction used by the compatibility runner |
+| `compiler/` | Historical frontier/prepared-block compilation |
+| `run_bundle/`, `spec/run_bundle.schema.json` | Versioned legacy run-bundle model and validation |
+| `cloud/run_job.py` | Frozen-snapshot compatibility orchestration |
+| `adapters/gcp/` | GCS/BigQuery persistence for legacy run bundles |
+| `infra/gcp/`, `Dockerfile.repo-health` | Compatibility deployment assets |
 
-## Inputs and outputs
+These paths are not part of the active Office product surface merely because they remain tracked and tested.
 
-The sheet-backed runner reads project, capability, policy, and prerequisite tabs;
-it may write an effective run set, append results, export frontier CSV, and apply
-summary fields according to flags. The frozen-snapshot runner accepts the same
-policy concepts as JSON, a repository allowlist, and producer provenance. Its
-canonical output is `repo_health.run_bundle.v1`, containing run/source/policy,
-intents, results, frontier, prepared blocks, exceptions, and counters.
+## Active replacement seam
 
-Local sinks publish a run-id packet plus JSONL history. GCP sinks publish a
-create-only GCS packet and stable-row BigQuery history. Prepared blocks conform
-to the compiler v0 schema; they remain proposals rather than Office mutations.
+For ordinary Office use, repository context should arrive through:
 
-## Canonical command surface
+```text
+projects
+  authenticated GitHub observations + estate policy
+        ↓
+context:github-repositories@1
+        ↓
+Office optional repo-context enrichment
+```
 
-The sheet-backed entry point is
-`python -m office_runtime.ops.repo_health.runner`; the primary CLI wrappers and
-Make aliases cannot currently deliver their required arguments. Frozen-snapshot
-execution uses `python -m office_runtime.ops.repo_health.cloud.run_job --profile
-local|gcp`. Use the [local runbook](../operations/repo-health-local.md); GCP
-procedures remain PR-OD5 scope.
+Office owns the front-to-repository association (`repo_ids`) and all operational consequences. Repository context remains advisory and cannot directly change Carry State, horizon, priority, Principal posture, escalation, or block eligibility.
 
-## Invariants
+## Compatibility commands
 
-- Policy scheduling is explicit: disabled, not-due, or prerequisite-failing
-  intents do not execute and remain auditable.
-- Plugin output normalizes to a bounded classification while retaining evidence
-  and metadata in the run bundle.
-- A plugin declares `local_only`, `remote_read`, or `remote_execute` capability;
-  GCP selection requires both explicit name allowlisting and `remote_read`.
-- Cloud policy rejects local paths, unsupported plugins, unallowlisted identity,
-  and more than three projects before execution.
-- Run bundle links/counters validate and a run id owns one canonical byte payload.
-- Exact replay is idempotent; identity/content conflict fails closed.
-- Detail history is persisted before its run completion marker.
-- GCP uses assigned identity and rejects service-account key-file configuration.
+The legacy CLI path remains temporarily available:
 
-## Dependencies and tests
+```text
+python -m office_runtime.cli ops repo-health policy ...
+python -m office_runtime.cli ops repo-health run ...
+```
 
-Local sheet execution depends on Google Sheets access and may depend on Git,
-Make, repository files, and project environments according to selected plugins.
-Frozen remote execution depends on GitHub reads; GCP persistence depends on ADC,
-Storage, and BigQuery. The four `test_repo_health_*` modules cover policy/plugin
-semantics, remote boundaries, bundle validation/replay, cloud persistence,
-container, and Terraform constraints. At the inspected environment, one GCP
-adapter test cannot import `google.cloud.bigquery`; record that limitation rather
-than treating the complete suite as passing.
+The Make aliases are intentionally named as compatibility surfaces:
 
-## Failure modes
+```text
+make compat-repo-health-policy
+make compat-repo-health-run
+```
 
-Missing sheets, credentials, paths, prerequisites, or plugins can make an intent
-ineligible or fail execution depending on the boundary. Malformed plugin output
-normalizes to system error. Remote rate limits and oversized trees are classified
-bounded failures, not permission to broaden reads. Invalid bundle links/counters,
-provenance mismatch, missing assigned configuration, immutable-object conflict,
-or stable-row digest conflict fail closed. `--no-write` is the mutation denial
-for the sheet-backed runner; `--policy-only` plans without executing intents.
+New Office workflows should not adopt these as their repository-health authority. Prefer the `projects` sensing/projection path.
 
-## Extension points
+## Safety boundary
 
-Add a plugin by subclassing `BasePlugin`, choosing a capability, returning the
-documented result vocabulary, and adding discovery/normalization tests. Remote
-support also requires source-abstraction compatibility and explicit cloud
-allowlisting. Compiler vocabulary belongs in versioned spec JSON. Bundle field
-changes require a schema/version decision and compatibility tests. Storage
-adapters implement evidence/history ports and must preserve canonical bytes,
-stable identities, ordering, and conflict rejection.
+The compatibility implementation is broader than the safe sensing boundary in `projects`. Depending on flags/plugins it may read Sheets, inspect local repository environments, invoke repository-specific machinery, write result summaries, or use GCP persistence. Those behaviors are precisely why the code is not being copied wholesale into `projects`.
+
+`projects` must remain limited to GitHub-remote/committed metadata observations and deterministic projections; it must not import or run these plugins to claim repository health.
+
+## Tests and dependency profile
+
+The `repo-health` dependency profile and dedicated `test_repo_health_*` suites remain to prevent accidental breakage while compatibility consumers exist. Their continued presence is not evidence that Repo Health remains an active Office product.
+
+The active Office import smoke no longer imports or discovers the Repo Health plugin surface. Compatibility tests continue to run separately in CI.
+
+## Removal condition
+
+Physical deletion of this compatibility implementation is a later cleanup step, not part of M7. Before deleting code, profiles, cloud assets, or schemas:
+
+1. audit known CLI/Make/module consumers;
+2. confirm no scheduled or external runtime still depends on the legacy runner;
+3. preserve any historical run-bundle evidence that still matters;
+4. remove compatibility dependencies and CI slices together;
+5. verify Office still receives all required repository context through `context:github-repositories@1`.
+
+Until then, keep this implementation stable and clearly subordinate to the `projects` semantic authority.
