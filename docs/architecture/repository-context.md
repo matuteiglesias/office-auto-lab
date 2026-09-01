@@ -1,5 +1,10 @@
 # Optional repository context in Office
 
+**Status:** canonical
+**Audience:** operators, contributors, maintainers, and agents
+**Owner:** office-auto-lab maintainers
+**Verified against:** `7bdb02b1eff0c3a3aadaea74a88253a347c1afe7`
+
 ## Purpose
 
 Office may enrich an operational front with repository-estate context supplied by `projects` without transferring front or carry authority to the GitHub estate.
