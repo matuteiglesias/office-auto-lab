@@ -13,6 +13,7 @@ on:
       - "tests/test_makefile_entrypoints.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
+      - "tests/test_office_identity_repo_context.py"
       - "tests/test_repo_health_*.py"
       - "Dockerfile.repo-health"
       - "Makefile"
@@ -22,6 +23,8 @@ on:
       - "docs/operations/systemd-automation.md"
       - "docs/reference/repo-health-plugins.md"
       - "docs/environment.md"
+      - "docs/architecture/front-identity.md"
+      - "docs/architecture/repository-context.md"
       - "SYSTEM.yaml"
   workflow_dispatch:
 
@@ -89,6 +92,9 @@ jobs:
         run: python -m pip check
       - name: Import-smoke declared capability surface
         run: python src/office_runtime/scripts/profile_smoke.py ${{ matrix.profile }}
+      - name: Office identity and repository-context tests
+        if: matrix.profile == 'office'
+        run: python -m unittest tests.test_office_identity_repo_context
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
@@ -111,6 +117,7 @@ jobs:
             tests.test_makefile_entrypoints \
             tests.test_capture_lifecycle \
             tests.test_capture_transcription \
+            tests.test_office_identity_repo_context \
             tests.test_repo_health_capability_descriptors \
             tests.test_repo_health_gcp \
             tests.test_repo_health_remote \
