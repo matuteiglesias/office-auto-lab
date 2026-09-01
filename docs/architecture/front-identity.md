@@ -1,8 +1,9 @@
 # Operational front identity
 
-## Status
-
-Canonical Office identity contract. Storage migration is intentionally deferred.
+**Status:** canonical
+**Audience:** operators, contributors, maintainers, and agents
+**Owner:** office-auto-lab maintainers
+**Verified against:** `a346e151d9c4ee21eeb084c75aea44d39bce29c9`
 
 ## Purpose
 
