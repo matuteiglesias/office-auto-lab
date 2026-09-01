@@ -14,24 +14,64 @@ from .render import (
     render_clock_compile,
 )
 
+FRONT_ID_PRIMARY = "front_id"
+FRONT_ID_LEGACY = "project_id"
+
+
+def canonicalize_front_identity(df: pd.DataFrame) -> pd.DataFrame:
+    """Expose canonical ``front_id`` while preserving legacy ``project_id`` compatibility.
+
+    Existing Office sheets historically use ``project_id``. During the migration to an
+    explicit operational-front model, callers may provide either field. If both are
+    present they must agree row-by-row whenever both values are non-empty.
+    """
+    out = df.copy()
+    has_front = FRONT_ID_PRIMARY in out.columns
+    has_legacy = FRONT_ID_LEGACY in out.columns
+
+    if not has_front and not has_legacy:
+        return out
+
+    if has_front and has_legacy:
+        front = out[FRONT_ID_PRIMARY].replace("", np.nan)
+        legacy = out[FRONT_ID_LEGACY].replace("", np.nan)
+        conflict = front.notna() & legacy.notna() & (front.astype(str) != legacy.astype(str))
+        if conflict.any():
+            rows = out.index[conflict].tolist()
+            raise ValueError(f"front_id/project_id conflict at rows: {rows}")
+        out[FRONT_ID_PRIMARY] = front.combine_first(legacy)
+        out[FRONT_ID_LEGACY] = legacy.combine_first(front)
+    elif has_legacy:
+        out[FRONT_ID_PRIMARY] = out[FRONT_ID_LEGACY]
+    else:
+        out[FRONT_ID_LEGACY] = out[FRONT_ID_PRIMARY]
+
+    return out
+
+
 def _prep(df: pd.DataFrame) -> pd.DataFrame:
-    return df.replace("", np.nan).dropna(subset=["project_id"]).copy()
+    df = canonicalize_front_identity(df)
+    return df.replace("", np.nan).dropna(subset=[FRONT_ID_PRIMARY]).copy()
+
 
 def _merge(front: pd.DataFrame, carry: pd.DataFrame):
     front2 = _prep(front)
     carry2 = _prep(carry)
 
-    front_ids = set(front2["project_id"].astype(str))
-    carry_ids = set(carry2["project_id"].astype(str))
+    front_ids = set(front2[FRONT_ID_PRIMARY].astype(str))
+    carry_ids = set(carry2[FRONT_ID_PRIMARY].astype(str))
+    unmatched_front = front2[~front2[FRONT_ID_PRIMARY].astype(str).isin(carry_ids)].copy()
+    unmatched_carry = carry2[~carry2[FRONT_ID_PRIMARY].astype(str).isin(front_ids)].copy()
 
-    unmatched_front = front2[~front2["project_id"].astype(str).isin(carry_ids)].copy()
-    unmatched_carry = carry2[~carry2["project_id"].astype(str).isin(front_ids)].copy()
-
-    df = front2.merge(carry2, on="project_id", how="inner", suffixes=("", "_carry"))
+    # ``front_id`` is the canonical operational identity. ``project_id`` remains as a
+    # compatibility alias in both inputs and is projected from the canonical value.
+    front2 = front2.drop(columns=[FRONT_ID_LEGACY], errors="ignore")
+    carry2 = carry2.drop(columns=[FRONT_ID_LEGACY], errors="ignore")
+    df = front2.merge(carry2, on=FRONT_ID_PRIMARY, how="inner", suffixes=("", "_carry"))
+    df[FRONT_ID_LEGACY] = df[FRONT_ID_PRIMARY]
     if "Title_carry" in df.columns and "Title" not in df.columns:
         df["Title"] = df["Title_carry"]
     return df, unmatched_front, unmatched_carry
-
 
 
 def _b(df: pd.DataFrame, col: str) -> pd.Series:
@@ -85,8 +125,6 @@ def _attention_routes(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     }
 
 
-
-
 def _score(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     s = pd.Series(0, index=df.index, dtype="int64")
@@ -97,53 +135,7 @@ def _score(df: pd.DataFrame) -> pd.DataFrame:
     s += df.get("needs", pd.Series("", index=df.index)).astype(str).str.contains("Execution", case=False, na=False).astype(int) * 1
     s -= (df.get("horizon", "") == "Later").astype(int) * 2
     df["_score"] = s
-    return df.sort_values(["_score", "project_id"], ascending=[False, True])
-
-
-
-# 9. “Nullified if not expressed”
-
-# This is the core compile rule.
-
-# I would not literally delete rows. I would create two dataframes:
-
-# watch queue: expected=0 and staff_watch=1
-# expressed_df = df[expected | forced].copy()
-# latent_df = df[~(expected | forced)].copy()
-# forced = (
-#     (df["carry"].isin(["Support-needed", "Escalate"])) |
-#     ((df["principal"] == "Required") & df["horizon"].isin(["Today", "This week"]))
-# )
-# Then run the existing principal/block bucket mostly on expressed_df, not on df.
-
-# But support should still catch unexpressed support rows if they are explicitly Support-needed.
-
-# So:
-# principal buckets: expressed or forced principal
-# support buckets: carry=Support-needed, even if expected=0
-# block candidates: expected=1 only
-# watch queue: expected=0 and staff_watch=1
-
-# def _attention_routes(df: pd.DataFrame):
-#     expected = b(df, "expected")
-#     human_maint = b(df, "human_maint")
-#     human_focus = b(df, "human_focus")
-#     staff_get = b(df, "staff_get")
-#     staff_watch = b(df, "staff_watch")
-#     staff_post = b(df, "staff_post")
-
-#     expressed = df[expected].copy()
-
-#     maint_get = df[expected & human_maint & ~human_focus & staff_get].copy()
-#     focus_get = df[expected & human_focus & staff_get].copy()
-
-#     watch_only = df[~expected & staff_watch].copy()
-
-#     staff_get_dormant = df[~expected & staff_get & staff_watch].copy()
-
-#     post_eligible = df[staff_post].copy()
-
-#     return expressed, maint_get, focus_get, watch_only, staff_get_dormant, post_eligible
+    return df.sort_values(["_score", FRONT_ID_PRIMARY], ascending=[False, True])
 
 
 def _bucket(df: pd.DataFrame):
@@ -155,6 +147,15 @@ def _bucket(df: pd.DataFrame):
     active_exec = df[df["carry"] == "Active"]
     return tuple(map(_score, [principal_week, principal_today, support, escal, blocks, active_exec]))
 
+
+def _selected_front_ids(df: pd.DataFrame) -> list[str]:
+    if FRONT_ID_PRIMARY in df.columns:
+        return df[FRONT_ID_PRIMARY].astype(str).tolist()
+    if FRONT_ID_LEGACY in df.columns:
+        return df[FRONT_ID_LEGACY].astype(str).tolist()
+    return []
+
+
 def run_compile(cfg: OfficeConfig) -> dict:
     run_id = utc_ts()
     run_dir = cfg.runs_dir / run_id
@@ -165,6 +166,15 @@ def run_compile(cfg: OfficeConfig) -> dict:
     front = normalize(read_sheet_values(cfg.service_account_json, cfg.spreadsheet_id, cfg.front_gid))
     carry = normalize(read_sheet_values(cfg.service_account_json, cfg.spreadsheet_id, cfg.carry_gid))
     logger.event("sheet.read", status="ok", front_rows=len(front), carry_rows=len(carry))
+
+    try:
+        front = canonicalize_front_identity(front)
+        carry = canonicalize_front_identity(carry)
+    except ValueError as exc:
+        issues = [{"severity": "error", "code": "front_identity_conflict", "message": str(exc)}]
+        write_json(run_dir / "manifest.json", {"run_id": run_id, "status": "error", "issues": issues})
+        logger.event("run.end", level="ERROR", status="error")
+        return {"run_id": run_id, "status": "error", "issues": issues}
 
     issues = validate_required(front, carry)
     logger.event("validate.done", status="ok", issues=len(issues))
@@ -195,7 +205,6 @@ def run_compile(cfg: OfficeConfig) -> dict:
         route_df.to_csv(out_path, index=False)
         logger.event("artifact.write", status="ok", path=str(out_path))
 
-
     write_text(run_dir / "principal_brief_week.md", render_principal_brief(principal_week, "Principal Brief - Week"))
     logger.event("artifact.write", status="ok", path=str(run_dir / "principal_brief_week.md"))
     write_text(run_dir / "principal_brief_today.md", render_principal_brief(principal_today, "Principal Brief - Today"))
@@ -218,6 +227,10 @@ def run_compile(cfg: OfficeConfig) -> dict:
     manifest = {
         "run_id": run_id,
         "status": "ok",
+        "identity": {
+            "canonical_field": FRONT_ID_PRIMARY,
+            "legacy_alias": FRONT_ID_LEGACY,
+        },
         "row_counts": {
             "front_registry": int(len(front)),
             "carry_state": int(len(carry)),
@@ -237,15 +250,26 @@ def run_compile(cfg: OfficeConfig) -> dict:
             "latent_staff_get_queue": int(len(routes["latent_staff_get_queue"])),
             "post_eligible_queue": int(len(routes["post_eligible_queue"])),
         },
+        "selected_front_ids": {
+            "principal_brief_week": _selected_front_ids(principal_week),
+            "principal_brief_today": _selected_front_ids(principal_today),
+            "support_queue": _selected_front_ids(support),
+            "escalations": _selected_front_ids(escal),
+            "block_candidates": _selected_front_ids(blocks),
+            "maint_get_queue": _selected_front_ids(routes["maint_get_queue"]),
+            "focus_get_queue": _selected_front_ids(routes["focus_get_queue"]),
+            "watch_queue": _selected_front_ids(routes["watch_queue"]),
+        },
+        # Compatibility field for existing consumers. New consumers should use selected_front_ids.
         "selected_ids": {
-            "principal_brief_week": principal_week["project_id"].tolist() if "project_id" in principal_week.columns else [],
-            "principal_brief_today": principal_today["project_id"].tolist() if "project_id" in principal_today.columns else [],
-            "support_queue": support["project_id"].tolist() if "project_id" in support.columns else [],
-            "escalations": escal["project_id"].tolist() if "project_id" in escal.columns else [],
-            "block_candidates": blocks["project_id"].tolist() if "project_id" in blocks.columns else [],
-            "maint_get_queue": routes["maint_get_queue"]["project_id"].tolist() if "project_id" in routes["maint_get_queue"].columns else [],
-            "focus_get_queue": routes["focus_get_queue"]["project_id"].tolist() if "project_id" in routes["focus_get_queue"].columns else [],
-            "watch_queue": routes["watch_queue"]["project_id"].tolist() if "project_id" in routes["watch_queue"].columns else [],
+            "principal_brief_week": _selected_front_ids(principal_week),
+            "principal_brief_today": _selected_front_ids(principal_today),
+            "support_queue": _selected_front_ids(support),
+            "escalations": _selected_front_ids(escal),
+            "block_candidates": _selected_front_ids(blocks),
+            "maint_get_queue": _selected_front_ids(routes["maint_get_queue"]),
+            "focus_get_queue": _selected_front_ids(routes["focus_get_queue"]),
+            "watch_queue": _selected_front_ids(routes["watch_queue"]),
         },
         "warnings": [i for i in issues if i.get("severity") != "error"],
         "file_outputs": sorted([p.name for p in run_dir.iterdir() if p.is_file()]),
