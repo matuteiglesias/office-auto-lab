@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+PYTHON_BIN="${OFFICE_PYTHON:-python3}"
 cd "${REPO_ROOT}"
 
 mkdir -p artifacts/logs/wrapper artifacts/logs/daily
@@ -17,12 +18,13 @@ export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
 {
   echo "ts=${TS}"
   echo "repo=${REPO_ROOT}"
-  echo "cmd=python3 -m office_runtime.cli $*"
+  echo "python=${PYTHON_BIN}"
+  echo "cmd=${PYTHON_BIN} -m office_runtime.cli $*"
   echo
 } > "${LOG_PATH}"
 
 set +e
-python3 -m office_runtime.cli "$@" >> "${LOG_PATH}" 2>&1
+"${PYTHON_BIN}" -m office_runtime.cli "$@" >> "${LOG_PATH}" 2>&1
 CODE=$?
 set -e
 

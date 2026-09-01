@@ -1,4 +1,4 @@
-.PHONY: imports docs-check audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke editorial-contracts repo-scans compile-blocks office evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile staff-bundles staff-briefs capture-lifecycle repo-health-policy repo-health-run evidence-git evidence-files smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -7,7 +7,7 @@ OUT_DIR ?= artifacts/evidence
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
-smoke: imports editorial-contracts repo-scans compile-blocks
+smoke: imports editorial-contracts runtime-contracts repo-scans compile-blocks
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
@@ -53,12 +53,33 @@ print('imports ok')"
 editorial-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts
 
+dependency-contracts:
+	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check
+	PYTHONPATH=src python3 -m unittest tests.test_dependency_profiles
+
+systemd-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_systemd_install
+
+runtime-contracts: dependency-contracts systemd-contracts
+
+install-profile:
+	@test -n "$(PROFILE)" || (echo "PROFILE is required; use office, capture, repo-health, full, or legacy-auto-checker" >&2; exit 2)
+	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py "$(PROFILE)"
+
 docs-check:
 	python3 src/office_runtime/scripts/check_docs.py
 
-audit: docs-check
+parent-docs-check:
+	python3 src/office_runtime/scripts/check_docs.py --exclude docs/architecture/editorial-projection.md
+
+audit: docs-check runtime-contracts
 	python3 -m compileall src
 	$(MAKE) imports
+	git diff --check
+
+parent-audit: parent-docs-check runtime-contracts
+	python3 -m compileall -q -x '/editorial/' src/office_runtime
+	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
 
 daily:

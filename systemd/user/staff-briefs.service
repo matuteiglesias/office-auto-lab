@@ -1,7 +1,8 @@
 [Unit]
 Description=Office Runtime - Staff Briefs
+ConditionPathExists=%h/.config/office-auto-lab/runtime.env
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/matias/repos/office-auto-lab
-ExecStart=/usr/bin/bash /home/matias/repos/office-auto-lab/src/office_runtime/scripts/office_run.sh daily --scan-mode existing
+EnvironmentFile=%h/.config/office-auto-lab/runtime.env
+ExecStart=/usr/bin/bash -lc 'exec /usr/bin/bash "$OFFICE_ROOT/src/office_runtime/scripts/systemd_entrypoint.sh" staff-briefs'

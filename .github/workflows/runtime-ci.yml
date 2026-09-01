@@ -1,0 +1,118 @@
+name: Parent runtime CI
+
+on:
+  pull_request:
+    paths:
+      - "src/office_runtime/**"
+      - "!src/office_runtime/editorial/**"
+      - "requirements/**"
+      - "requirements*.txt"
+      - "systemd/**"
+      - "tests/test_dependency_profiles.py"
+      - "tests/test_systemd_install.py"
+      - "tests/test_makefile_entrypoints.py"
+      - "tests/test_capture_lifecycle.py"
+      - "tests/test_capture_transcription.py"
+      - "tests/test_repo_health_*.py"
+      - "Dockerfile.repo-health"
+      - "Makefile"
+      - ".github/workflows/runtime-ci.yml"
+      - "README.md"
+      - "docs/getting-started/local-development.md"
+      - "docs/operations/systemd-automation.md"
+      - "docs/reference/repo-health-plugins.md"
+      - "docs/environment.md"
+      - "SYSTEM.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  contracts:
+    name: parent contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile parent runtime without Editorial
+        run: python -m compileall -q -x '/editorial/' src/office_runtime
+      - name: Validate dependency authority
+        run: python src/office_runtime/scripts/install_profile.py --check
+      - name: Validate dependency and scheduler contracts
+        run: python -m unittest tests.test_dependency_profiles tests.test_systemd_install tests.test_makefile_entrypoints
+      - name: Validate parent documentation scope
+        run: make parent-docs-check
+
+  profiles:
+    name: ${{ matrix.profile }} / py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: office
+            python-version: "3.12"
+          - profile: capture
+            python-version: "3.12"
+          - profile: repo-health
+            python-version: "3.12"
+            test-tooling: true
+          - profile: legacy-auto-checker
+            python-version: "3.12"
+          - profile: full
+            python-version: "3.11"
+          - profile: full
+            python-version: "3.12"
+            test-tooling: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements/constraints.txt
+            requirements/profiles/${{ matrix.profile }}.txt
+            requirements/test.txt
+      - name: Install declared runtime profile
+        run: python src/office_runtime/scripts/install_profile.py ${{ matrix.profile }}
+      - name: Install constrained test tooling
+        if: matrix.test-tooling == true
+        run: python -m pip install -c requirements/constraints.txt -r requirements/test.txt
+      - name: Check resolved environment
+        run: python -m pip check
+      - name: Import-smoke declared capability surface
+        run: python src/office_runtime/scripts/profile_smoke.py ${{ matrix.profile }}
+      - name: Capture stable offline tests
+        if: matrix.profile == 'capture'
+        run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
+      - name: Repo Health stable offline tests
+        if: matrix.profile == 'repo-health'
+        run: >-
+          python -m unittest
+          tests.test_repo_health_capability_descriptors
+          tests.test_repo_health_gcp
+          tests.test_repo_health_remote
+          tests.test_repo_health_run_bundle
+          tests.test_repo_health_semantics
+      - name: Full parent-runtime acceptance
+        if: matrix.profile == 'full' && matrix.python-version == '3.12'
+        run: |
+          make parent-audit
+          python -m unittest \
+            tests.test_dependency_profiles \
+            tests.test_systemd_install \
+            tests.test_makefile_entrypoints \
+            tests.test_capture_lifecycle \
+            tests.test_capture_transcription \
+            tests.test_repo_health_capability_descriptors \
+            tests.test_repo_health_gcp \
+            tests.test_repo_health_remote \
+            tests.test_repo_health_run_bundle \
+            tests.test_repo_health_semantics

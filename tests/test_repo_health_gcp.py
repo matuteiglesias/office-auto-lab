@@ -138,10 +138,12 @@ class RepoHealthGCPTests(unittest.TestCase):
         for view in ("latest_plugin_health", "unresolved_issue_signatures", "prepared_blocks_weekly"):
             self.assertIn(f"repo_health.{view}", ddl)
 
-    def test_container_is_non_root_and_uses_narrow_requirements(self):
+    def test_container_is_non_root_and_uses_canonical_repo_health_profile(self):
         dockerfile = Path("Dockerfile.repo-health").read_text()
         self.assertIn("USER office", dockerfile)
-        self.assertIn("requirements-repo-health.txt", dockerfile)
+        self.assertIn("requirements/constraints.txt", dockerfile)
+        self.assertIn("requirements/profiles/repo-health.txt", dockerfile)
+        self.assertNotIn("requirements-repo-health.txt", dockerfile)
         self.assertIn("office_runtime.ops.repo_health.cloud.run_job", dockerfile)
 
     def test_entrypoint_accepts_environment_delivered_frozen_policy(self):
