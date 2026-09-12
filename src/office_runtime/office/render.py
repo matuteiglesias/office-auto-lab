@@ -10,7 +10,6 @@ def _row_note(r: dict) -> str:
     return ""
 
 
-
 def _render_rows(df: pd.DataFrame, limit: int = 8) -> list[str]:
     if df.empty:
         return ["(none)", ""]
@@ -77,9 +76,6 @@ def render_clock_compile(
     out += _render_rows(post_eligible, limit=12)
 
     return "\n".join(out) + "\n"
-
-
-    
 
 
 def render_principal_brief(df: pd.DataFrame, title: str = "Principal Brief") -> str:
@@ -195,6 +191,29 @@ def render_office_summary(manifest: dict, principal_today: pd.DataFrame, support
         for _, r in escal_df.iterrows():
             out.append(f"- {r.get('project_id','')} - {r.get('Title','')}")
         out.append("")
+
+    sc = manifest.get("surface_context", {})
+    out += ["## Estate Surface Context", ""]
+    if not sc.get("configured"):
+        out += ["- status: not configured (advisory context unavailable)", ""]
+    else:
+        out += [
+            f"- total_surfaces: {sc.get('surface_count', 0)}",
+            f"- active_surfaces: {sc.get('active_count', 0)}",
+            f"- promoted_surfaces: {sc.get('promoted_count', 0)}",
+            f"- candidate_surfaces: {sc.get('candidate_count', 0)}",
+            f"- remediation_surfaces: {sc.get('remediation_count', 0)}",
+            f"- canonical_surfaces: {sc.get('canonical_count', 0)}",
+            f"- projection_surfaces: {sc.get('projection_count', 0)}",
+        ]
+        if sc.get("candidate_ids"):
+            out.append("- candidates: " + ", ".join(sc["candidate_ids"]))
+        if sc.get("remediation_ids"):
+            out.append("- remediation: " + ", ".join(sc["remediation_ids"]))
+        out += [
+            "- policy: advisory only; these counts do not alter carry, horizon, priority or selection.",
+            "",
+        ]
 
     out += [
         "## Drift Note",
