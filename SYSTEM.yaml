@@ -18,6 +18,7 @@ authority:
   does_not_own:
   - human review decisions
   - GitHub estate authority or repository health/readiness semantics
+  - estate surface authority, promotion, lifecycle, or semantic ownership declarations
   - accounting document intake
   - durable editorial constitution or Matias-authentic idea authority
   - upstream media, economic, or scientific source semantics
@@ -25,12 +26,14 @@ interfaces:
   consumes:
   - artifact:ops.capture-record@1
   - context:github-repositories@1 (optional advisory context from projects)
+  - registry:estate-surfaces@1 (optional advisory governance context from projects)
   produces:
   - artifact:ops.office-run-record@1
 upstream:
 - repo.capture-site
 - repo.media-monitor
 - repo.atlas-economico-ar
+- repo.projects
 downstream:
 - repo.office-window
 - external:x
@@ -43,14 +46,15 @@ generated_paths:
 - runs/
 verification:
   status: parent-runtime-clean-profile-ci-plus-editorial-w0
-  last_verified: '2026-09-01'
+  last_verified: '2026-09-12'
   command: make parent-audit
   evidence:
   - github-actions:33465604726
   notes:
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
-  - repository-health semantics and safe estate sensing are owned by projects after M5/M6
+  - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
+  - repository-health semantics, safe estate sensing, and operational surface declarations are owned by projects
   - legacy Repo Health implementation remains in-tree as compatibility code, not an Office-owned semantic or product surface
   - parent runtime profiles resolve and import-smoke in clean CI; full profile is proven on Python 3.11 and 3.12
   - systemd user units have a portable render/install contract and no tracked machine-local checkout paths
@@ -60,6 +64,7 @@ verification:
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M7
+  - estate surface context remains optional until projects registry:estate-surfaces@1 is merged and an operator configures OFFICE_SURFACE_CONTEXT_JSON
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
