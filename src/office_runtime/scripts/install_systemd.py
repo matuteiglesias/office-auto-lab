@@ -29,19 +29,34 @@ def repo_root_from_script() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def _absolute_existing(path: Path, label: str, *, executable: bool = False) -> Path:
+def _absolute_existing(path: Path, label: str, *, executable: bool = False, file_only: bool = False) -> Path:
     path = path.expanduser()
     if not path.is_absolute():
         raise InstallError(f"{label} must be an absolute path: {path}")
     resolved = path.resolve()
     if not resolved.exists():
         raise InstallError(f"{label} does not exist: {resolved}")
+    if file_only and not resolved.is_file():
+        raise InstallError(f"{label} must be a file: {resolved}")
     if executable and (not resolved.is_file() or not os.access(resolved, os.X_OK)):
         raise InstallError(f"{label} must be an executable file: {resolved}")
     return resolved
 
 
-def validate_configuration(repo_root: Path, python_bin: Path, evidence_roots: list[Path]) -> tuple[Path, Path, list[Path]]:
+def _optional_context(path: Path | None, label: str) -> Path | None:
+    if path is None:
+        return None
+    return _absolute_existing(path, label, file_only=True)
+
+
+def validate_configuration(
+    repo_root: Path,
+    python_bin: Path,
+    evidence_roots: list[Path],
+    *,
+    repo_context_json: Path | None = None,
+    surface_context_json: Path | None = None,
+) -> tuple[Path, Path, list[Path], Path | None, Path | None]:
     root = _absolute_existing(repo_root, "repo root")
     python = _absolute_existing(python_bin, "Python executable", executable=True)
     required = (
@@ -60,7 +75,9 @@ def validate_configuration(repo_root: Path, python_bin: Path, evidence_roots: li
         if ":" in str(resolved):
             raise InstallError(f"evidence roots may not contain ':' because it is the runtime separator: {resolved}")
         roots.append(resolved)
-    return root, python, roots
+    repo_context = _optional_context(repo_context_json, "repository context JSON")
+    surface_context = _optional_context(surface_context_json, "surface context JSON")
+    return root, python, roots, repo_context, surface_context
 
 
 def _env_quote(value: str) -> str:
@@ -69,13 +86,25 @@ def _env_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def runtime_env(repo_root: Path, python_bin: Path, evidence_roots: list[Path], evidence_out_root: str) -> str:
+def runtime_env(
+    repo_root: Path,
+    python_bin: Path,
+    evidence_roots: list[Path],
+    evidence_out_root: str,
+    *,
+    repo_context_json: Path | None = None,
+    surface_context_json: Path | None = None,
+) -> str:
     values = {
         "OFFICE_ROOT": str(repo_root),
         "OFFICE_PYTHON": str(python_bin),
         "OFFICE_EVIDENCE_ROOTS": ":".join(str(path) for path in evidence_roots),
         "OFFICE_EVIDENCE_OUT_ROOT": evidence_out_root,
     }
+    if repo_context_json is not None:
+        values["OFFICE_REPO_CONTEXT_JSON"] = str(repo_context_json)
+    if surface_context_json is not None:
+        values["OFFICE_SURFACE_CONTEXT_JSON"] = str(surface_context_json)
     return "\n".join(f"{key}={_env_quote(value)}" for key, value in values.items()) + "\n"
 
 
@@ -91,16 +120,41 @@ def validate_tracked_units(source_dir: Path) -> None:
             raise InstallError(f"tracked unit contains unresolved template marker: {path}")
 
 
-def render(*, repo_root: Path, python_bin: Path, evidence_roots: list[Path], unit_dir: Path, env_path: Path,
-           evidence_out_root: str = "artifacts/evidence") -> None:
-    root, python, roots = validate_configuration(repo_root, python_bin, evidence_roots)
+def render(
+    *,
+    repo_root: Path,
+    python_bin: Path,
+    evidence_roots: list[Path],
+    unit_dir: Path,
+    env_path: Path,
+    evidence_out_root: str = "artifacts/evidence",
+    repo_context_json: Path | None = None,
+    surface_context_json: Path | None = None,
+) -> None:
+    root, python, roots, repo_context, surface_context = validate_configuration(
+        repo_root,
+        python_bin,
+        evidence_roots,
+        repo_context_json=repo_context_json,
+        surface_context_json=surface_context_json,
+    )
     source_dir = root / "systemd/user"
     validate_tracked_units(source_dir)
     unit_dir.mkdir(parents=True, exist_ok=True)
     env_path.parent.mkdir(parents=True, exist_ok=True)
     for name in UNIT_NAMES:
         shutil.copyfile(source_dir / name, unit_dir / name)
-    env_path.write_text(runtime_env(root, python, roots, evidence_out_root), encoding="utf-8")
+    env_path.write_text(
+        runtime_env(
+            root,
+            python,
+            roots,
+            evidence_out_root,
+            repo_context_json=repo_context,
+            surface_context_json=surface_context,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _systemctl(*args: str, check: bool = True) -> None:
@@ -116,6 +170,8 @@ def install(args: argparse.Namespace) -> int:
         unit_dir=unit_dir,
         env_path=RUNTIME_ENV_PATH,
         evidence_out_root=args.evidence_out_root,
+        repo_context_json=args.repo_context_json,
+        surface_context_json=args.surface_context_json,
     )
     _systemctl("daemon-reload")
     if args.enable:
@@ -134,6 +190,8 @@ def render_only(args: argparse.Namespace) -> int:
         unit_dir=out / "units",
         env_path=out / "runtime.env",
         evidence_out_root=args.evidence_out_root,
+        repo_context_json=args.repo_context_json,
+        surface_context_json=args.surface_context_json,
     )
     print(out)
     return 0
@@ -156,6 +214,18 @@ def _add_runtime_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--python-bin", type=Path, default=Path(sys.executable))
     parser.add_argument("--evidence-root", action="append", type=Path, required=True)
     parser.add_argument("--evidence-out-root", default="artifacts/evidence")
+    parser.add_argument(
+        "--repo-context-json",
+        type=Path,
+        default=None,
+        help="Optional absolute path to context:github-repositories@1 generated by projects.",
+    )
+    parser.add_argument(
+        "--surface-context-json",
+        type=Path,
+        default=None,
+        help="Optional absolute path to registry:estate-surfaces@1 owned by projects.",
+    )
 
 
 def main() -> int:
