@@ -2,6 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
+from office_runtime.office.render import render_office_summary
 from office_runtime.office.surface_context import load_surface_context, summarize_surface_context
 
 
@@ -82,6 +85,29 @@ class OfficeSurfaceContextTests(unittest.TestCase):
             path.write_text('{"contract":"wrong","surfaces":[]}', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "unexpected surface context contract"):
                 load_surface_context(path)
+
+    def test_office_summary_renders_candidates_and_remediation_without_routing(self):
+        manifest = {
+            "row_counts": {},
+            "surface_context": {
+                "configured": True,
+                "surface_count": 4,
+                "active_count": 3,
+                "promoted_count": 2,
+                "candidate_count": 1,
+                "remediation_count": 1,
+                "canonical_count": 1,
+                "projection_count": 1,
+                "candidate_ids": ["surface.candidate"],
+                "remediation_ids": ["surface.remediation"],
+            },
+        }
+        empty = pd.DataFrame()
+        text = render_office_summary(manifest, empty, empty, empty, empty, empty, empty, [])
+        self.assertIn("## Estate Surface Context", text)
+        self.assertIn("surface.candidate", text)
+        self.assertIn("surface.remediation", text)
+        self.assertIn("advisory only", text)
 
 
 if __name__ == "__main__":
