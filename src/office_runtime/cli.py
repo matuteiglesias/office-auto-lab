@@ -74,6 +74,21 @@ def _log_evidence_files(summary: dict) -> None:
         artifacts={"out": str(summary.get("out"))},
     )
 
+
+def _log_estate_movement(summary: dict) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger(
+        "estate.movement",
+        "ok" if summary.get("status") == "ok" else "error",
+        metrics={
+            "repos": summary.get("repositories_observed"),
+            "evidence": summary.get("evidence_count"),
+            "delta": summary.get("new_evidence_count"),
+        },
+        artifacts={"digest": str(summary.get("digest")), "manifest": str(summary.get("manifest"))},
+    )
+
 def _cmd_daily(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
     from office_runtime.office.compile import run_compile
@@ -207,6 +222,31 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
     _log_evidence_files(summary)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
+
+
+def _cmd_estate_movement(args: argparse.Namespace) -> int:
+    from office_runtime.estate_movement import produce
+    from office_runtime.run_logging import RunLogger
+
+    run_id = _new_run_id()
+    logger = RunLogger("estate.movement", run_id)
+    logger.event("run.start", status="ok", digest_id=args.digest_id, start=args.start, end=args.end)
+    logger.event("roots.scan", status="ok", roots=[root.name for root in args.roots], max_depth=args.max_depth)
+    result = produce(
+        digest_id=args.digest_id,
+        roots=args.roots,
+        start=args.start,
+        end=args.end,
+        out_root=args.out_root,
+        previous_manifest=args.previous_manifest,
+        control_plane=args.control_plane,
+        max_depth=args.max_depth,
+    )
+    logger.event("digest.written", status=result.get("status"), digest=result.get("digest"), manifest=result.get("manifest"), evidence=result.get("evidence_count"), delta=result.get("new_evidence_count"))
+    logger.event("run.end", status=result.get("status"))
+    _log_estate_movement(result)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
 
 
 
@@ -392,6 +432,19 @@ def build_parser() -> argparse.ArgumentParser:
     ev_files.add_argument("--include-hidden", action="store_true")
     ev_files.add_argument("--limit", type=int, default=None)
     ev_files.set_defaults(handler=_cmd_evidence_files)
+
+    estate = subparsers.add_parser("estate", help="Read-only estate evidence projections.")
+    estate_sub = estate.add_subparsers(dest="estate_cmd", required=True)
+    movement = estate_sub.add_parser("movement", help="Produce a delta-oriented Estate Movement Digest.")
+    movement.add_argument("--digest-id", required=True, help="Stable output name, for example 2026-09-13-evening.")
+    movement.add_argument("--roots", nargs="+", required=True, type=Path, help="Explicit local repository roots; never inferred broadly.")
+    movement.add_argument("--start", required=True, help="Inclusive ISO date/datetime.")
+    movement.add_argument("--end", required=True, help="Inclusive ISO date/datetime.")
+    movement.add_argument("--out-root", type=Path, default=Path("artifacts/estate-movement"))
+    movement.add_argument("--previous-manifest", type=Path, default=None, help="Prior digest manifest used solely for evidence-ID delta accounting.")
+    movement.add_argument("--control-plane", type=Path, default=None, help="Optional projects checkout; observed only for authority-file changes.")
+    movement.add_argument("--max-depth", type=int, default=4)
+    movement.set_defaults(handler=_cmd_estate_movement)
 
     parser.set_defaults(handler=_cmd_daily)
     return parser

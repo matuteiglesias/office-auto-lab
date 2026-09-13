@@ -1,9 +1,10 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail compat-repo-health-policy compat-repo-health-run
 
 ROOTS ?= .
 START ?= $(shell date +%F)
 END ?= $(shell date +%F)
 OUT_DIR ?= artifacts/evidence
+ESTATE_OUT_DIR ?= artifacts/estate-movement
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
@@ -88,6 +89,15 @@ evidence-files:
 	PYTHONPATH=src python3 -m office_runtime.cli evidence files --roots $(ROOTS) --start $(START) --end $(END) --out $(FILES_OUT)
 
 evidence-today: evidence-git evidence-files
+
+# Read-only delta producer. ROOTS, START, END, and DIGEST_ID are explicit to
+# prevent accidental broad estate scans; PREVIOUS_MANIFEST is optional.
+estate-movement:
+	@test -n "$(ROOTS)" || (echo "ROOTS is required" >&2; exit 2)
+	@test -n "$(START)" || (echo "START is required" >&2; exit 2)
+	@test -n "$(END)" || (echo "END is required" >&2; exit 2)
+	@test -n "$(DIGEST_ID)" || (echo "DIGEST_ID is required" >&2; exit 2)
+	PYTHONPATH=src python3 -m office_runtime.cli estate movement --digest-id "$(DIGEST_ID)" --roots $(ROOTS) --start "$(START)" --end "$(END)" --out-root "$(ESTATE_OUT_DIR)" $(if $(PREVIOUS_MANIFEST),--previous-manifest "$(PREVIOUS_MANIFEST)") $(if $(CONTROL_PLANE),--control-plane "$(CONTROL_PLANE)")
 
 logs-tail:
 	@tail -n 30 artifacts/logs/daily/*.ledger.log
