@@ -5,6 +5,7 @@ from .config import OfficeConfig
 from .io import coerce_bool, read_sheet_values, normalize, write_text, write_json, utc_ts, promote_latest
 from .validate import validate_required, validate_rows
 from .repo_context import enrich_with_repo_context, load_repo_context
+from .surface_context import load_surface_context, summarize_surface_context
 from office_runtime.run_logging import RunLogger
 from .render import (
     render_principal_brief,
@@ -205,6 +206,24 @@ def run_compile(cfg: OfficeConfig) -> dict:
         logger.event("run.end", level="ERROR", status="error")
         return {"run_id": run_id, "status": "error", "issues": issues}
 
+    try:
+        surface_context = load_surface_context(cfg.surface_context_json)
+        surface_context_summary = summarize_surface_context(surface_context)
+        logger.event(
+            "surface_context.load",
+            status="ok",
+            configured=cfg.surface_context_json is not None,
+            available=surface_context is not None,
+            surface_count=surface_context_summary["surface_count"],
+            candidate_count=surface_context_summary["candidate_count"],
+            remediation_count=surface_context_summary["remediation_count"],
+        )
+    except (ValueError, OSError) as exc:
+        issues.append({"severity": "error", "code": "surface_context_invalid", "message": str(exc)})
+        write_json(run_dir / "manifest.json", {"run_id": run_id, "status": "error", "issues": issues})
+        logger.event("run.end", level="ERROR", status="error")
+        return {"run_id": run_id, "status": "error", "issues": issues}
+
     principal_week, principal_today, support, escal, blocks, active_exec = _bucket(df)
     routes = _attention_routes(df)
     logger.event("route.done", status="ok", merged=len(df), expressed=len(routes["expressed_state"]))
@@ -250,6 +269,7 @@ def run_compile(cfg: OfficeConfig) -> dict:
             "legacy_alias": FRONT_ID_LEGACY,
         },
         "repository_context": repo_context_summary,
+        "surface_context": surface_context_summary,
         "row_counts": {
             "front_registry": int(len(front)),
             "carry_state": int(len(carry)),

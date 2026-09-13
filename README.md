@@ -7,7 +7,8 @@
 `office-auto-lab` compiles operational data into reviewable Office artifacts and
 provides bounded tools for staff briefs, capture processing, and evidence
 collection. Repository-estate health/readiness semantics and safe sensing belong
-to the `projects` control plane; Office may consume its optional repo-keyed context.
+to the `projects` control plane; Office may consume its optional repo-keyed and
+surface-governance context.
 
 ## Capabilities and status
 
@@ -33,6 +34,29 @@ front with zero or more repositories through its own `repo_ids` metadata.
 
 Repository context is advisory. It does not automatically change Carry State,
 horizon, priority, Principal posture, escalation, or block eligibility.
+
+## Estate surface context
+
+Operational-surface identity, semantic authority, lifecycle and promotion are also
+owned by `projects`. Office can optionally consume `registry:estate-surfaces@1`
+through `OFFICE_SURFACE_CONTEXT_JSON`.
+
+The surface registry is governance context, not routing input. Office summarizes:
+
+- total and active governed surfaces;
+- promoted and candidate surfaces;
+- remediation surfaces that should converge toward empty;
+- canonical and projection counts;
+- candidate/remediation surface IDs for operator visibility.
+
+This context **cannot** change Carry State, horizon, priority, Principal posture,
+selection, escalation, or canonical human state. Its purpose is to make estate
+drift visible next to operational output without creating another authority.
+
+If the environment variable is absent, Office continues normally and reports the
+surface context as unconfigured. If a configured file has the wrong contract or
+malformed identity, compilation fails explicitly rather than accepting ambiguous
+governance state.
 
 ## Legacy Repo Health compatibility
 
@@ -108,6 +132,7 @@ clean environments. It:
 - installs every declared capability/compatibility profile independently;
 - verifies the active `full` profile on Python 3.11 and 3.12;
 - runs stable Capture tests;
+- validates repository and estate-surface advisory context in the Office profile;
 - keeps a separate Repo Health compatibility profile/test slice until legacy
   consumers are audited and removed;
 - deliberately leaves capture-processing ontology repair to issue #21 rather
