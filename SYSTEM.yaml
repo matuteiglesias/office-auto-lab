@@ -25,10 +25,12 @@ authority:
 interfaces:
   consumes:
   - artifact:ops.capture-record@1
+  - artifact:ops.closure@1 (read-only Ops execution evidence; optional)
   - context:github-repositories@1 (optional advisory context from projects)
   - registry:estate-surfaces@1 (optional advisory governance context from projects)
   produces:
   - artifact:ops.office-run-record@1
+  - artifact:ops.office-reentry-proposal@1 (producer-local review projection; never Carry approval)
 upstream:
 - repo.capture-site
 - repo.media-monitor
@@ -54,6 +56,7 @@ verification:
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
+  - Ops closure intake preserves execution facts and produces reviewable reentry proposals only; it never approves or mutates Carry State, horizon, priority, escalation, or follow-up work
   - repository-health semantics, safe estate sensing, and operational surface declarations are owned by projects
   - legacy Repo Health implementation remains in-tree as compatibility code, not an Office-owned semantic or product surface
   - parent runtime profiles resolve and import-smoke in clean CI; full profile is proven on Python 3.11 and 3.12

@@ -14,6 +14,7 @@ Prefix primary commands with `PYTHONPATH=src python3 -m office_runtime.cli`.
 |---|---|---|
 | `daily` | `--scan-mode {none,existing,refresh}`; `existing` | Office then staff bundles/briefs after success |
 | `office compile` | none | Network read; local artifact writes |
+| `office reentry compile` | required closures, front-registry and out paths | Explicit local read; deterministic proposal/review artifacts; no Office state mutation |
 | `staff bundles` | scan mode; CLI default `refresh` | Network read/local writes; refresh executes scans |
 | `staff briefs` | none | Local reads/writes |
 | `ops repo-health policy` | intended remainder pass-through | Currently unusable with required runner options; see below |

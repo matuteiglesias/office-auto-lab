@@ -11,6 +11,7 @@
 |---|---|---|---|
 | Office run | `artifacts/runs/<run-id>/`: manifest, routed CSVs, briefs/queues/validation Markdown | Office compile | `manifest.json`; run-specific directory |
 | Office latest | `artifacts/latest/` copy of successful run | Office promotion | Mutable clear-and-copy snapshot |
+| Closure reentry | selected output: normalized closure JSONL, proposal JSONL, `reentry_review.md`, manifest and QA | `office.closure_reentry` | Read-only deterministic projection; proposals are not state mutations |
 | Staff | latest `bundles/*.json`, `scans/*`, `ai_jobs.csv`, `briefs/*.md`, `brief_index.csv` | Staff | Index + referenced files; subdirs can retain stale files |
 | Capture lifecycle | selected out: lifecycle JSON/CSV/MD, candidates JSON/MD, block stubs CSV/MD | Capture lifecycle | Successful JSON summary plus all reported files; recompiled snapshot |
 | Capture events | dated inbox raw/processing JSONL and audio | External raw producer; capture derived writers | Append-only event streams; no global manifest |

@@ -1,8 +1,10 @@
 # Estate Movement Digest
 
-**Status:** canonical producer guide  
-**Owner:** `src/office_runtime/estate_movement.py`  
+**Status:** canonical producer guide
+**Audience:** operators, maintainers, and agents
+**Owner:** `src/office_runtime/estate_movement.py`
 **Producer:** `ops.estate-movement@1`
+**Verified against:** `tests/test_estate_movement.py`
 
 ## Purpose
 

@@ -82,6 +82,7 @@ inventory instead of duplicating operational procedures.
 | Install/inspect user timers | [systemd automation](operations/systemd-automation.md) | Units contain `/home/matias/...` and must be adapted to the host. |
 | Run Repo Health locally | [Repo Health local](operations/repo-health-local.md) | Distinguishes sheet-backed writes from frozen local persistence. |
 | Recover a failed workflow | [Failure and recovery](operations/failure-recovery.md) | Preserve evidence and reconcile completion markers. |
+| Reingest an Ops closure | [Closure → Office reentry](operations/closure-reentry.md) | Read-only proposal/restart-seed surface; never an automatic Carry update. |
 | Understand capture processing before running it | [Capture processing layer](capture_processing_layer.md) | Supporting design; some “proposed” labels and artifact names have drifted from source. |
 | Understand the GCP profile | [GCP architecture](architecture/repo-health-gcp.md) | Deployment-ready is not deployed. |
 | Deploy and execute manually | [GCP deployment/manual run](operations/repo-health-gcp.md) | Provider commands are unexecuted and require authorized context. |

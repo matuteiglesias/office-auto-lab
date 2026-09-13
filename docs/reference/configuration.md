@@ -18,6 +18,7 @@ Do not commit credentials. Defaults below are code defaults, not recommendations
 | `OFFICE_FRONT_GID`, `OFFICE_CARRY_GID`, `OFFICE_RUNTIME_GID`, `OFFICE_SUPPORT_GID` | Code contains sheet-specific defaults |
 | `OFFICE_SCRIPTS_DIR` | `<OFFICE_ROOT>/src/office_runtime/scripts` |
 | `OFFICE_STRICT` | `false`; only literal case-insensitive `true` enables |
+| `OFFICE_CLOSURE_SOURCE` | Optional explicit JSON/JSONL file or non-recursive directory of `artifact:ops.closure@1` packets; invalid configured input fails compilation visibly and never mutates Office state |
 
 Office/staff authenticate locally and read Sheets with read-only scope. Their key
 file must not be confused with the GCP Repo Health assigned-identity profile.

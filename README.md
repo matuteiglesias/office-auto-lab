@@ -23,6 +23,7 @@ runbook exist. It does not mean deployed.
 | Staff | Builds project bundles and decision, health-check, unlocker, or execution briefs from compiled Office state. | Implemented |
 | Capture | Compiles append-only capture lifecycles and supports reviewable transcription, routing, artifact, and reingest proposals. | Implemented; lifecycle/transcription are in stable parent-runtime acceptance, while processing ontology issue #21 remains open |
 | Evidence | Traces Git commits and filesystem changes into caller-selected JSONL evidence. | Implemented |
+| Closure → Office reentry | Validates explicit Ops closures, reconciles canonical fronts, and renders restart seeds/proposals for review without changing Office state. | Implemented; fixture-tested and local acceptance materialized |
 | systemd automation | Defines user timers for Office compilation, staff briefs, and daily evidence. | Portable install/render contract implemented; installed runtime paths are operator configuration rather than tracked source |
 
 ## Repository context
@@ -57,6 +58,24 @@ If the environment variable is absent, Office continues normally and reports the
 surface context as unconfigured. If a configured file has the wrong contract or
 malformed identity, compilation fails explicitly rather than accepting ambiguous
 governance state.
+
+## Closure → Office reentry
+
+Office can optionally consume read-only `artifact:ops.closure@1` files through
+`OFFICE_CLOSURE_SOURCE`, or compile an explicit bounded input using:
+
+```bash
+PYTHONPATH=src python3 -m office_runtime.cli office reentry compile \
+  --closures /explicit/closures.jsonl \
+  --front-registry artifacts/latest/merged_state.csv \
+  --out artifacts/closure-reentry/review
+```
+
+The bridge validates source facts, reconciles only exact canonical `front_id`
+matches, and emits normalized closures, reentry proposals, restart seeds, a
+review Markdown surface, manifest, and QA. It never treats an Ops recommendation
+as an accepted Carry State or makes any state mutation. See
+[`docs/operations/closure-reentry.md`](docs/operations/closure-reentry.md).
 
 ## Legacy Repo Health compatibility
 

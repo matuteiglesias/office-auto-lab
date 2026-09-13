@@ -120,6 +120,20 @@ def _cmd_office_compile(_: argparse.Namespace) -> int:
     return 0 if manifest.get("status") == "ok" else 1
 
 
+def _cmd_office_reentry_compile(args: argparse.Namespace) -> int:
+    import pandas as pd
+    from office_runtime.office.closure_reentry import ClosureValidationError, compile_reentry
+
+    try:
+        fronts = pd.read_csv(args.front_registry, dtype=str).fillna("")
+        result = compile_reentry(args.closures, fronts, args.out)
+    except (ClosureValidationError, OSError, ValueError) as exc:
+        print(json.dumps({"status": "error", "error": str(exc), "mutation_performed": False}, indent=2, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
 def _cmd_staff_bundles(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
     from office_runtime.staff.bundles import build_bundles
@@ -333,6 +347,13 @@ def build_parser() -> argparse.ArgumentParser:
     office = subparsers.add_parser("office", help="Office surfaces.")
     office_sub = office.add_subparsers(dest="office_cmd", required=True)
     office_sub.add_parser("compile", help="Run office compile only.").set_defaults(handler=_cmd_office_compile)
+    reentry = office_sub.add_parser("reentry", help="Read-only Ops closure reentry surfaces.")
+    reentry_sub = reentry.add_subparsers(dest="reentry_cmd", required=True)
+    reentry_compile = reentry_sub.add_parser("compile", help="Validate, reconcile, and render explicit Ops closure inputs.")
+    reentry_compile.add_argument("--closures", required=True, type=Path, help="One JSON/JSONL closure file or non-recursive directory.")
+    reentry_compile.add_argument("--front-registry", required=True, type=Path, help="Read-only CSV Front Registry snapshot.")
+    reentry_compile.add_argument("--out", required=True, type=Path, help="Local output directory for proposal/review artifacts.")
+    reentry_compile.set_defaults(handler=_cmd_office_reentry_compile)
 
     staff = subparsers.add_parser("staff", help="Staff surfaces.")
     staff_sub = staff.add_subparsers(dest="staff_cmd", required=True)

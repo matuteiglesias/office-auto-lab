@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import numpy as np
 import pandas as pd
 from .config import OfficeConfig
@@ -6,6 +7,7 @@ from .io import coerce_bool, read_sheet_values, normalize, write_text, write_jso
 from .validate import validate_required, validate_rows
 from .repo_context import enrich_with_repo_context, load_repo_context
 from .surface_context import load_surface_context, summarize_surface_context
+from .closure_reentry import ClosureValidationError, compile_reentry, render_reentry_review
 from office_runtime.run_logging import RunLogger
 from .render import (
     render_principal_brief,
@@ -228,6 +230,29 @@ def run_compile(cfg: OfficeConfig) -> dict:
     routes = _attention_routes(df)
     logger.event("route.done", status="ok", merged=len(df), expressed=len(routes["expressed_state"]))
 
+    # Explicitly configured closure intake is fail-visible but never mutates
+    # Front Registry or Carry State.  Its outputs are review context only.
+    reentry_result = {"status": "unconfigured", "mutation_performed": False}
+    reentry_review = None
+    if cfg.closure_source is not None:
+        try:
+            reentry_result = compile_reentry(cfg.closure_source, front, run_dir / "closure_reentry")
+            proposal_rows = [
+                json.loads(line)
+                for line in (run_dir / "closure_reentry" / "reentry_proposals.jsonl").read_text(encoding="utf-8").splitlines()
+                if line
+            ]
+            reentry_review = render_reentry_review(proposal_rows)
+            logger.event(
+                "closure_reentry.compile", status="ok",
+                **{key: reentry_result[key] for key in ("closures_read", "reconciled", "unresolved", "restart_seeds")},
+            )
+        except ClosureValidationError as exc:
+            issues.append({"severity": "error", "code": "closure_reentry_invalid", "message": str(exc)})
+            write_json(run_dir / "manifest.json", {"run_id": run_id, "status": "error", "issues": issues, "closure_reentry": {"status": "error", "mutation_performed": False}})
+            logger.event("run.end", level="ERROR", status="error")
+            return {"run_id": run_id, "status": "error", "issues": issues}
+
     principal_week.to_csv(run_dir / "principal_brief_week.csv", index=False)
     principal_today.to_csv(run_dir / "principal_brief_today.csv", index=False)
     support.to_csv(run_dir / "support_queue.csv", index=False)
@@ -270,6 +295,7 @@ def run_compile(cfg: OfficeConfig) -> dict:
         },
         "repository_context": repo_context_summary,
         "surface_context": surface_context_summary,
+        "closure_reentry": reentry_result,
         "row_counts": {
             "front_registry": int(len(front)),
             "carry_state": int(len(carry)),
@@ -316,7 +342,7 @@ def run_compile(cfg: OfficeConfig) -> dict:
 
     write_text(
         run_dir / "office_summary.md",
-        render_office_summary(manifest, principal_today, support, active_exec, escal, unmatched_front, unmatched_carry, issues),
+        render_office_summary(manifest, principal_today, support, active_exec, escal, unmatched_front, unmatched_carry, issues, reentry_review),
     )
     write_json(run_dir / "manifest.json", manifest)
     logger.event("manifest.write", status="ok", path=str(run_dir / "manifest.json"))

@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail compat-repo-health-policy compat-repo-health-run
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -24,6 +24,7 @@ import office_runtime.office.config; \
 import office_runtime.office.io; \
 import office_runtime.office.render; \
 import office_runtime.office.validate; \
+import office_runtime.office.closure_reentry; \
 import office_runtime.staff.bundles; \
 import office_runtime.staff.briefs; \
 print('imports ok')"
@@ -65,6 +66,14 @@ daily:
 
 office-compile:
 	PYTHONPATH=src python3 -m office_runtime.cli office compile
+
+# Read-only closure intake. Inputs are explicit; this target never writes
+# Office sheets or applies Ops recommendations.
+office-reentry:
+	@test -n "$(CLOSURES)" || (echo "CLOSURES is required" >&2; exit 2)
+	@test -n "$(FRONT_REGISTRY)" || (echo "FRONT_REGISTRY is required" >&2; exit 2)
+	@test -n "$(REENTRY_OUT)" || (echo "REENTRY_OUT is required" >&2; exit 2)
+	PYTHONPATH=src python3 -m office_runtime.cli office reentry compile --closures "$(CLOSURES)" --front-registry "$(FRONT_REGISTRY)" --out "$(REENTRY_OUT)"
 
 staff-bundles:
 	PYTHONPATH=src python3 -m office_runtime.cli staff bundles --scan-mode existing

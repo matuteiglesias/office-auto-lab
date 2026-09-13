@@ -1,6 +1,9 @@
 # Editorial projection subsystem
 
-Status: W0 contract seed. No live X mutation is authorized by this document.
+**Status:** W0 contract seed
+**Audience:** editorial projection maintainers and agents
+**Owner:** office-auto-lab maintainers
+**Verified against:** contract seed only; no live X mutation is authorized by this document
 
 ## Purpose
 

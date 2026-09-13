@@ -142,7 +142,7 @@ def render_today_compile(principal_today: pd.DataFrame, support_df: pd.DataFrame
         out.append("")
     return "\n".join(out) + "\n"
 
-def render_office_summary(manifest: dict, principal_today: pd.DataFrame, support_df: pd.DataFrame, active_df: pd.DataFrame, escal_df: pd.DataFrame, unmatched_front: pd.DataFrame, unmatched_carry: pd.DataFrame, issues: list[dict]) -> str:
+def render_office_summary(manifest: dict, principal_today: pd.DataFrame, support_df: pd.DataFrame, active_df: pd.DataFrame, escal_df: pd.DataFrame, unmatched_front: pd.DataFrame, unmatched_carry: pd.DataFrame, issues: list[dict], reentry_review: str | None = None) -> str:
     rc = manifest.get("row_counts", {})
     out = [
         "# Office Summary",
@@ -223,4 +223,6 @@ def render_office_summary(manifest: dict, principal_today: pd.DataFrame, support
         f"- validation_warnings_or_errors: {len(issues)}",
         "",
     ]
+    if reentry_review:
+        out += [reentry_review.rstrip(), ""]
     return "\n".join(out) + "\n"
