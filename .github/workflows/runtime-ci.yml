@@ -12,6 +12,7 @@ on:
       - "tests/test_systemd_install.py"
       - "tests/test_makefile_entrypoints.py"
       - "tests/test_control_snapshot_v2.py"
+      - "tests/test_identity_resolution_v2.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
       - "tests/test_office_identity_repo_context.py"
@@ -29,6 +30,7 @@ on:
       - "docs/architecture/repository-context.md"
       - "docs/architecture/component-lifecycle.md"
       - "docs/architecture/control-state-v2.md"
+      - "docs/architecture/identity-resolution-v2.md"
       - "SYSTEM.yaml"
   workflow_dispatch:
 
@@ -98,7 +100,7 @@ jobs:
         run: python src/office_runtime/scripts/profile_smoke.py ${{ matrix.profile }}
       - name: Office control-state, identity, and advisory context tests
         if: matrix.profile == 'office'
-        run: python -m unittest tests.test_control_snapshot_v2 tests.test_office_identity_repo_context tests.test_office_surface_context
+        run: python -m unittest tests.test_control_snapshot_v2 tests.test_identity_resolution_v2 tests.test_office_identity_repo_context tests.test_office_surface_context
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
@@ -120,6 +122,7 @@ jobs:
             tests.test_systemd_install \
             tests.test_makefile_entrypoints \
             tests.test_control_snapshot_v2 \
+            tests.test_identity_resolution_v2 \
             tests.test_capture_lifecycle \
             tests.test_capture_transcription \
             tests.test_office_identity_repo_context \
