@@ -8,6 +8,35 @@ domain: operations
 system: ops.office
 role: automation-runtime
 lifecycle: active
+lifecycle_classes:
+  core:
+    class: core
+    paths:
+    - src/office_runtime/office
+    - src/office_runtime/staff
+    - src/office_runtime/ledger.py
+    - src/office_runtime/scripts/office_run.sh
+    - systemd/user
+    rule: supported Office runtime; eligible for active smoke and Office v2 product work
+  sidecar:
+    class: sidecar
+    paths:
+    - src/office_runtime/capture
+    - src/office_runtime/evidence
+    - src/office_runtime/editorial
+    - src/office_runtime/estate_movement.py
+    rule: adjacent producer/consumer with explicit interfaces; cannot redefine Office governance semantics
+  compat:
+    class: compat
+    paths:
+    - src/office_runtime/ops/repo_health
+    - src/office_runtime/scripts/legacy
+    - requirements/profiles/repo-health.txt
+    - requirements/profiles/legacy-auto-checker.txt
+    - infra/gcp
+    - Dockerfile.repo-health
+    rule: migration-only surface; no new Office product dependencies and excluded from active smoke
+  canonical_reference: docs/architecture/component-lifecycle.md
 authority:
   status: proposed
   owns:
@@ -40,6 +69,7 @@ downstream:
 - repo.office-window
 - external:x
 canonical_commands:
+- make smoke
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -53,6 +83,8 @@ verification:
   evidence:
   - github-actions:33465604726
   notes:
+  - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
+  - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
@@ -66,7 +98,7 @@ verification:
   - capture processing ontology issue #21 remains separate from infrastructure hardening
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
-  - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M7
+  - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
   - estate surface context remains optional until projects registry:estate-surfaces@1 is merged and an operator configures OFFICE_SURFACE_CONTEXT_JSON
 maintenance:
   cadence: quarterly
