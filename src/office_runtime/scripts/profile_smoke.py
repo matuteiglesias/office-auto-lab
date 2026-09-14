@@ -10,6 +10,7 @@ IMPORTS_BY_PROFILE = {
     "office": (
         "office_runtime.office.compile",
         "office_runtime.office.config",
+        "office_runtime.office.control_snapshot",
         "office_runtime.office.io",
         "office_runtime.office.render",
         "office_runtime.office.validate",
