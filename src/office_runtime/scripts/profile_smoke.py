@@ -47,7 +47,7 @@ IMPORTS_BY_PROFILE = {
 IMPORTS_BY_PROFILE["full"] = tuple(
     dict.fromkeys(
         module
-        for profile in ("office", "capture", "repo-health")
+        for profile in ("office", "capture")
         for module in IMPORTS_BY_PROFILE[profile]
     )
 )

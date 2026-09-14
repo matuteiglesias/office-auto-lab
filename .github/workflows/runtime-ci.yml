@@ -26,6 +26,7 @@ on:
       - "docs/environment.md"
       - "docs/architecture/front-identity.md"
       - "docs/architecture/repository-context.md"
+      - "docs/architecture/component-lifecycle.md"
       - "SYSTEM.yaml"
   workflow_dispatch:
 
@@ -99,7 +100,7 @@ jobs:
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
-      - name: Repo Health stable offline tests
+      - name: Repo Health compatibility tests
         if: matrix.profile == 'repo-health'
         run: >-
           python -m unittest
@@ -108,7 +109,7 @@ jobs:
           tests.test_repo_health_remote
           tests.test_repo_health_run_bundle
           tests.test_repo_health_semantics
-      - name: Full parent-runtime acceptance
+      - name: Full supported-runtime acceptance
         if: matrix.profile == 'full' && matrix.python-version == '3.12'
         run: |
           make parent-audit
@@ -119,9 +120,4 @@ jobs:
             tests.test_capture_lifecycle \
             tests.test_capture_transcription \
             tests.test_office_identity_repo_context \
-            tests.test_office_surface_context \
-            tests.test_repo_health_capability_descriptors \
-            tests.test_repo_health_gcp \
-            tests.test_repo_health_remote \
-            tests.test_repo_health_run_bundle \
-            tests.test_repo_health_semantics
+            tests.test_office_surface_context

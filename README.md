@@ -5,10 +5,15 @@
 > its honest status is **deployment-ready, not publicly deployed**.
 
 `office-auto-lab` compiles operational data into reviewable Office artifacts and
-provides bounded tools for staff briefs, capture processing, and evidence
+provides bounded tools for staff preparation, capture processing, and evidence
 collection. Repository-estate health/readiness semantics and safe sensing belong
 to the `projects` control plane; Office may consume its optional repo-keyed and
 surface-governance context.
+
+The active product boundary is explicit: Office/Staff/runtime plumbing are CORE;
+Capture, Evidence, estate movement, and Editorial are SIDECAR capabilities; the
+historical Repo Health and legacy compiler surfaces are COMPAT only. See
+[`docs/architecture/component-lifecycle.md`](docs/architecture/component-lifecycle.md).
 
 ## Capabilities and status
 
@@ -20,11 +25,11 @@ runbook exist. It does not mean deployed.
 | Capability | What it does | Evidence-backed status |
 |---|---|---|
 | Office compile | Reads configured spreadsheet views and compiles briefs, queues, summaries, validation, and a manifest under `artifacts/`. | Implemented |
-| Staff | Builds project bundles and decision, health-check, unlocker, or execution briefs from compiled Office state. | Implemented |
-| Capture | Compiles append-only capture lifecycles and supports reviewable transcription, routing, artifact, and reingest proposals. | Implemented; lifecycle/transcription are in stable parent-runtime acceptance, while processing ontology issue #21 remains open |
-| Evidence | Traces Git commits and filesystem changes into caller-selected JSONL evidence. | Implemented |
-| Closure → Office reentry | Validates explicit Ops closures, reconciles canonical fronts, and renders restart seeds/proposals for review without changing Office state. | Implemented; fixture-tested and local acceptance materialized |
-| systemd automation | Defines user timers for Office compilation, staff briefs, and daily evidence. | Portable install/render contract implemented; installed runtime paths are operator configuration rather than tracked source |
+| Staff | Builds preparation bundles and decision, health-check, unlocker, or execution briefs from compiled Office state. | Implemented |
+| Capture | Compiles append-only capture lifecycles and supports reviewable transcription, routing, artifact, and reingest proposals. | SIDECAR; implemented; lifecycle/transcription are in stable parent-runtime acceptance, while processing ontology issue #21 remains open |
+| Evidence | Traces Git commits and filesystem changes into caller-selected JSONL evidence. | SIDECAR; implemented |
+| Closure → Office reentry | Validates explicit Ops closures, reconciles canonical fronts, and renders restart seeds/proposals for review without changing Office state. | CORE; implemented; fixture-tested and local acceptance materialized |
+| systemd automation | Defines user timers for Office compilation, staff briefs, and daily evidence. | CORE runtime substrate; portable install/render contract implemented; installed runtime paths are operator configuration rather than tracked source |
 
 ## Repository context
 
@@ -90,12 +95,13 @@ Compatibility entry points remain available as:
 ```bash
 make compat-repo-health-policy
 make compat-repo-health-run
+make compat-compile-blocks
 ```
 
 and through the legacy `office_runtime.cli ops repo-health ...` path. New Office
-workflows should use the `projects` sensing/projection seam instead. See
-[`docs/components/repo-health.md`](docs/components/repo-health.md) for the
-compatibility/removal boundary.
+workflows must not depend on these surfaces and should use the `projects`
+sensing/projection seam instead. See [`docs/components/repo-health.md`](docs/components/repo-health.md)
+and the [component lifecycle contract](docs/architecture/component-lifecycle.md).
 
 ## Dependency profiles
 
@@ -106,14 +112,15 @@ requirements/constraints.txt
 requirements/profiles/
     office.txt
     capture.txt
-    repo-health.txt          # compatibility
-    full.txt
-    legacy-auto-checker.txt  # compatibility
+    full.txt                 # supported runtime = office + capture
+    repo-health.txt          # compatibility only
+    legacy-auto-checker.txt  # compatibility only
 ```
 
 The root `requirements*.txt` files are compatibility shims, not separate version
-authorities. `repo-health` and `legacy-auto-checker` remain compatibility profiles;
-their presence does not make them active Office capabilities.
+authorities. `full` deliberately excludes Repo Health/GCP compatibility-only
+dependencies. A legacy consumer that still needs Repo Health must install the
+explicit `repo-health` profile instead of relying on `full` transitively.
 
 Inspect/validate the dependency contract without installing packages:
 
@@ -131,11 +138,13 @@ PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py full
 PYTHONPATH=src python3 -m office_runtime.cli --help
 make runtime-contracts
 make imports
+make smoke
 ```
 
 Expected result: CLI help lists the current runtime surfaces;
 `runtime-contracts` validates dependency and scheduler contracts; `make imports`
-ends with `imports ok` for the active Office surface.
+ends with `imports ok`; and `make smoke` exercises the supported CORE acceptance
+surface without invoking compatibility compilers.
 
 Office compilation is not an offline quickstart: it reads configured Google
 Sheets using read-only Sheets scope and requires valid local credentials. Use
@@ -148,8 +157,9 @@ services.
 clean environments. It:
 
 - checks dependency and portable-systemd contracts without network mutation;
-- installs every declared capability/compatibility profile independently;
-- verifies the active `full` profile on Python 3.11 and 3.12;
+- installs declared active and compatibility profiles independently where their
+  dedicated CI slices require them;
+- verifies the active `full` profile (Office + Capture) on Python 3.11 and 3.12;
 - runs stable Capture tests;
 - validates repository and estate-surface advisory context in the Office profile;
 - keeps a separate Repo Health compatibility profile/test slice until legacy
@@ -176,7 +186,8 @@ for install, enable, verification, upgrade, and uninstall procedures.
 ## Choose a route
 
 - **New reader or evaluator:** start with the [documentation map](docs/README.md),
-  then review capability status and current evidence boundaries.
+  then review the [component lifecycle contract](docs/architecture/component-lifecycle.md),
+  capability status, and current evidence boundaries.
 - **Operator:** use the current local environment and systemd pages linked from
   the [operations route](docs/README.md#operators). GCP compatibility material is
   not evidence of a live Office Repo Health product.

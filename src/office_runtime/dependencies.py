@@ -15,8 +15,10 @@ PROFILE_PATHS = {
     "legacy-auto-checker": Path("requirements/profiles/legacy-auto-checker.txt"),
 }
 TEST_TOOLING_PATH = Path("requirements/test.txt")
-ACTIVE_PROFILES = ("office", "capture", "repo-health", "full")
-COMPATIBILITY_PROFILES = ("legacy-auto-checker",)
+CORE_PROFILES = ("office",)
+SIDECAR_PROFILES = ("capture",)
+ACTIVE_PROFILES = CORE_PROFILES + SIDECAR_PROFILES + ("full",)
+COMPATIBILITY_PROFILES = ("repo-health", "legacy-auto-checker")
 _EXACT_PIN = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
 _BARE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -99,11 +101,11 @@ def validate_profiles(repo_root: Path) -> None:
                 f"{profile!r} has packages without canonical constraints: {unconstrained}"
             )
 
-    expected_full = set(loaded["office"]) | set(loaded["capture"]) | set(loaded["repo-health"])
+    expected_full = set(loaded["office"]) | set(loaded["capture"])
     actual_full = set(loaded["full"])
     if actual_full != expected_full:
         raise DependencyProfileError(
-            "full profile must equal the union of office + capture + repo-health; "
+            "full profile must equal the union of active office + capture profiles; "
             f"missing={sorted(expected_full - actual_full)} extra={sorted(actual_full - expected_full)}"
         )
 

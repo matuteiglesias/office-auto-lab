@@ -6,8 +6,11 @@ from pathlib import Path
 
 from office_runtime.dependencies import (
     ACTIVE_PROFILES,
+    COMPATIBILITY_PROFILES,
     CONSTRAINTS_PATH,
+    CORE_PROFILES,
     PROFILE_PATHS,
+    SIDECAR_PROFILES,
     TEST_TOOLING_PATH,
     install_command,
     load_constraints,
@@ -24,9 +27,13 @@ class DependencyProfileTests(unittest.TestCase):
     def test_profiles_validate_and_active_full_is_exact_union(self) -> None:
         validate_profiles(ROOT)
         loaded = {name: set(load_profile(ROOT, name)) for name in PROFILE_PATHS}
-        expected = loaded["office"] | loaded["capture"] | loaded["repo-health"]
+        expected = loaded["office"] | loaded["capture"]
         self.assertEqual(loaded["full"], expected)
-        self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "repo-health", "full"))
+        self.assertEqual(CORE_PROFILES, ("office",))
+        self.assertEqual(SIDECAR_PROFILES, ("capture",))
+        self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "full"))
+        self.assertEqual(COMPATIBILITY_PROFILES, ("repo-health", "legacy-auto-checker"))
+        self.assertTrue(loaded["repo-health"] - loaded["full"])
 
     def test_constraints_are_exact_and_cover_every_declared_surface(self) -> None:
         constraints = load_constraints(ROOT)
@@ -44,7 +51,7 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertTrue(tooling.isdisjoint(runtime_packages))
         self.assertEqual(TEST_TOOLING_PATH, Path("requirements/test.txt"))
 
-    def test_install_command_always_uses_constraints_and_one_profile(self) -> None:
+    def test_compatibility_profiles_remain_explicitly_installable(self) -> None:
         command = install_command(ROOT, "repo-health")
         self.assertEqual(command[:4], [sys.executable, "-m", "pip", "install"])
         self.assertEqual(command[4:6], ["-c", str(ROOT / CONSTRAINTS_PATH)])
