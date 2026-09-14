@@ -19,6 +19,13 @@ def _recipe_paths() -> set[str]:
     )
 
 
+def _target_dependencies(target: str) -> str:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    match = re.search(rf"^{re.escape(target)}:\s*([^\n]*)$", text, flags=re.MULTILINE)
+    assert match is not None, f"missing make target {target}"
+    return match.group(1).strip()
+
+
 def test_all_file_entrypoints_referenced_by_make_exist() -> None:
     paths = _recipe_paths()
 
@@ -27,15 +34,16 @@ def test_all_file_entrypoints_referenced_by_make_exist() -> None:
     assert missing == []
 
 
-def test_smoke_uses_the_tracked_script_locations() -> None:
+def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
+    smoke_deps = _target_dependencies("smoke").split()
 
+    assert smoke_deps == ["imports", "editorial-contracts", "runtime-contracts", "repo-scans"]
     assert "src/office_runtime/scripts/repo_contract_scan.sh" in text
     assert "src/office_runtime/scripts/repo_snapshot_protocol.sh" in text
+    assert "\ncompat-compile-blocks:" in text
     assert "src/office_runtime/scripts/legacy/compile_blocks.py" in text
-    assert "bash scripts/repo_contract_scan.sh" not in text
-    assert "bash scripts/repo_snapshot_protocol.sh" not in text
-    assert "python3 scripts/compile_blocks.py" not in text
+    assert "\ncompile-blocks:" not in text
 
 
 def test_repo_health_is_compatibility_not_active_make_surface() -> None:
@@ -47,9 +55,19 @@ def test_repo_health_is_compatibility_not_active_make_surface() -> None:
     assert "\ncompat-repo-health-run:" in text
 
 
+def test_broken_parallel_office_entrypoint_is_not_exposed() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+
+    assert "office_runtime.office.main" not in text
+    assert "\noffice:" not in text
+    assert "\noffice-compile:" in text
+
+
 def test_office_system_no_longer_produces_repo_health_authority_artifact() -> None:
     text = SYSTEM.read_text(encoding="utf-8")
 
     assert "artifact:ops.repo-health@1" not in text
     assert "repository health/readiness semantics" in text
     assert "context:github-repositories@1" in text
+    assert "lifecycle_classes:" in text
+    assert "class: compat" in text
