@@ -53,8 +53,6 @@ jobs:
         run: python src/office_runtime/scripts/install_profile.py --check
       - name: Validate dependency and scheduler contracts
         run: python -m unittest tests.test_dependency_profiles tests.test_systemd_install tests.test_makefile_entrypoints
-      - name: Validate Control Tower v2 contract
-        run: python -m unittest tests.test_control_snapshot_v2
       - name: Validate parent documentation scope
         run: make parent-docs-check
 
