@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans compile-blocks office evidence-today logs-tail compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -8,7 +8,9 @@ ESTATE_OUT_DIR ?= artifacts/estate-movement
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
-smoke: imports editorial-contracts runtime-contracts repo-scans compile-blocks
+# Supported CORE acceptance only. SIDECAR/COMPAT components retain dedicated
+# contract/test slices and must not become implicit dependencies of this smoke.
+smoke: imports editorial-contracts runtime-contracts repo-scans
 
 # Active Office product surface only. Repo Health remains compatibility code and
 # is validated separately by its dedicated CI profile/tests.
@@ -84,7 +86,7 @@ staff-briefs:
 capture-lifecycle:
 	PYTHONPATH=src python3 -m office_runtime.cli capture lifecycle
 
-# Compatibility-only entrypoints retained during M7 consumer migration.
+# Compatibility-only entrypoints retained during consumer migration.
 compat-repo-health-policy:
 	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health policy
 
@@ -118,12 +120,11 @@ repo-scans:
 	test -s /tmp/office_auto_lab_srp.txt
 	@echo "repo scans ok"
 
-compile-blocks:
+# Compatibility-only legacy prepared-block compiler. This remains callable for
+# migration consumers but is intentionally excluded from active smoke/acceptance.
+compat-compile-blocks:
 	mkdir -p out/frontier
 	cp fixtures/frontier_sample_v2.csv out/frontier/latest.csv 2>/dev/null || cp fixtures/frontier_sample.csv out/frontier/latest.csv
 	PYTHONPATH=src python3 src/office_runtime/scripts/legacy/compile_blocks.py --frontier out/frontier/latest.csv --date "$$(date +%F)"
 	test -s out/compiler/$$(date +%F)/prepared_blocks.jsonl
-	@echo "compile blocks ok"
-
-office:
-	PYTHONPATH=src python3 -m office_runtime.office.main
+	@echo "compat compile blocks ok"
