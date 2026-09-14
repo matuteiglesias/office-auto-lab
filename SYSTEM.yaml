@@ -43,6 +43,7 @@ authority:
   - office capability execution
   - operational Control Tower intake/compilation and bounded Office outputs
   - governed front-to-repository-to-workspace resolution for local Office execution context
+  - deterministic typed work compilation from structured Control Tower state
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -61,6 +62,7 @@ interfaces:
   - registry:estate-surfaces@1 (optional advisory governance context from projects)
   produces:
   - artifact:ops.control-state-snapshot@2
+  - artifact:ops.work-item-set@1
   - artifact:ops.office-run-record@1
   - artifact:ops.office-reentry-proposal@1 (producer-local review projection; never Carry approval)
 upstream:
@@ -75,6 +77,7 @@ canonical_commands:
 - make smoke
 - make control-contracts
 - make identity-contracts
+- make work-contracts
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -86,7 +89,7 @@ verification:
   last_verified: '2026-09-14'
   command: make parent-audit
   evidence:
-  - github-actions:34909939998
+  - github-actions:34910287515
   notes:
   - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
   - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
@@ -95,6 +98,9 @@ verification:
   - Office v2 resolves execution identity only through front_id -> REPO MONITOR_v2 repo_id/binding -> repo_workspaces_v2 workspace/local_path
   - front_registry repo_path/workdir and binding convenience paths are not execution authority and are intentionally ignored by the v2 resolver
   - ambiguous or unavailable workspace identity remains explicit rather than falling back to a legacy direct path
+  - the typed work compiler emits DECIDE/UNBLOCK/VERIFY/EXECUTE/MAINTAIN from structured v2 state and never routes by parsing the free-text needs field
+  - staff_get is a preparation requirement/fallback signal, not a work taxonomy; WATCH/PARKED remain portfolio state rather than active work kinds
+  - portable work items carry repo/workspace identities and resolution states but do not embed machine-local paths
   - the legacy Office compiler remains separately available during migration and is not treated as a semantic adapter for v2 routing
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
@@ -110,7 +116,7 @@ verification:
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
-  - the scheduled Office compiler does not consume the v2 snapshot until typed work semantics replace legacy routing in subsequent milestones
+  - scheduled Office still uses the legacy compiler until Staff/Principal/coherent-run milestones can consume the v2 work contract end to end
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
