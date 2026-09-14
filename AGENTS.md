@@ -6,6 +6,18 @@ Maintain the bounded Office automation runtime that compiles operator inputs, ex
 
 This repository may contain mutation-capable commands. Safety, explicit authorization, dry-run behavior, idempotency, evidence, and repository boundaries take precedence over convenience.
 
+## Component lifecycle
+
+Before changing a component, resolve its lifecycle class in
+`docs/architecture/component-lifecycle.md` and `SYSTEM.yaml`:
+
+- **CORE** may participate in the supported Office v2 runtime and active smoke;
+- **SIDECAR** may integrate through explicit evidence/proposal interfaces but must not redefine Office governance semantics;
+- **COMPAT** exists only for migration consumers and bounded compatibility repairs; new Office product work must not depend on it;
+- **HISTORICAL** material is evidence, not executable authority.
+
+Do not promote a COMPAT component back into active acceptance merely because its tests still pass.
+
 ## Authority boundary
 
 Matías owns:
@@ -20,7 +32,7 @@ Agents may:
 
 - inspect and improve bounded capability implementations;
 - add fixture-driven tests and evidence checks;
-- repair a reproduced compiler, plugin, run-bundle, or repository-health defect;
+- repair a reproduced compiler, plugin, run-bundle, or compatibility defect;
 - prepare an execution packet describing proposed side effects.
 
 Agents must not independently:
@@ -56,11 +68,12 @@ A command that can mutate must make the mode visible in its name, arguments, out
 
 ## Repository and artifact boundaries
 
-This repository owns capability execution, Office compilation, run records, evidence, and repository-health outputs.
+This repository owns supported Office capability execution, Office compilation, run records, evidence, and bounded mutation commands.
 
 It does not own:
 
 - GitHub estate authority, which belongs in `projects`;
+- repository-health/readiness semantics, which belong in `projects` even while the old implementation remains here as COMPAT;
 - read-only Office presentation, which belongs in `office-review`;
 - accounting document intake, which belongs in `accounting-doc-triage`;
 - source repository product semantics.
@@ -80,7 +93,7 @@ Do not commit secrets, tokens, private context, absolute user paths, raw email, 
 
 ## Commands
 
-Safe default checks include:
+Safe supported checks include:
 
 ```bash
 make imports
@@ -88,7 +101,14 @@ make docs-check
 make audit
 make smoke
 make repo-scans
-make compile-blocks
+```
+
+Compatibility checks are explicit and are not part of active smoke:
+
+```bash
+make compat-compile-blocks
+make compat-repo-health-policy
+make compat-repo-health-run
 ```
 
 Review command definitions before running because some checks create bounded local files under temporary or generated-output paths.
@@ -101,10 +121,7 @@ make office-compile
 make staff-bundles
 make staff-briefs
 make capture-lifecycle
-make repo-health-policy
-make repo-health-run
 make evidence-today
-make office
 ```
 
 Do not run operational commands merely to validate documentation or metadata. Confirm inputs, outputs, roots, credentials, network access, and mutation behavior first.
