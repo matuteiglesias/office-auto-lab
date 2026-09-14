@@ -3,6 +3,7 @@
 **Status:** canonical
 **Audience:** maintainers, contributors, operators, and agents
 **Owner:** office-auto-lab maintainers
+**Verified against:** `f5f03c2a6d16853b2e8dbb01b0736c8e941122fe` plus M0 migration branch
 
 ## Purpose
 
