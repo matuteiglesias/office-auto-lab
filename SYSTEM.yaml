@@ -42,6 +42,7 @@ authority:
   owns:
   - office capability execution
   - operational Control Tower intake/compilation and bounded Office outputs
+  - governed front-to-repository-to-workspace resolution for local Office execution context
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -73,6 +74,7 @@ downstream:
 canonical_commands:
 - make smoke
 - make control-contracts
+- make identity-contracts
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -84,13 +86,16 @@ verification:
   last_verified: '2026-09-14'
   command: make parent-audit
   evidence:
-  - github-actions:34909382239
+  - github-actions:34909939998
   notes:
   - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
   - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
   - Control Tower v2 intake has a native snapshot contract over front, carry, capabilities, operator contracts, aliases, support artifacts, repo bindings/workspaces, and runtime health
   - Control Tower v2 snapshot validation preserves native v2 semantics and rejects broken primary/foreign-key structure; declared alias collisions remain explicit observations
-  - the legacy Office compiler remains separately available during M1 and is not treated as a semantic adapter for v2 routing
+  - Office v2 resolves execution identity only through front_id -> REPO MONITOR_v2 repo_id/binding -> repo_workspaces_v2 workspace/local_path
+  - front_registry repo_path/workdir and binding convenience paths are not execution authority and are intentionally ignored by the v2 resolver
+  - ambiguous or unavailable workspace identity remains explicit rather than falling back to a legacy direct path
+  - the legacy Office compiler remains separately available during migration and is not treated as a semantic adapter for v2 routing
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
@@ -105,7 +110,7 @@ verification:
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
-  - the scheduled Office compiler does not consume the v2 snapshot until typed identity/work semantics replace legacy routing in subsequent milestones
+  - the scheduled Office compiler does not consume the v2 snapshot until typed work semantics replace legacy routing in subsequent milestones
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
