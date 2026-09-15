@@ -10,15 +10,12 @@ CONSTRAINTS_PATH = Path("requirements/constraints.txt")
 PROFILE_PATHS = {
     "office": Path("requirements/profiles/office.txt"),
     "capture": Path("requirements/profiles/capture.txt"),
-    "repo-health": Path("requirements/profiles/repo-health.txt"),
     "full": Path("requirements/profiles/full.txt"),
-    "legacy-auto-checker": Path("requirements/profiles/legacy-auto-checker.txt"),
 }
 TEST_TOOLING_PATH = Path("requirements/test.txt")
 CORE_PROFILES = ("office",)
 SIDECAR_PROFILES = ("capture",)
 ACTIVE_PROFILES = CORE_PROFILES + SIDECAR_PROFILES + ("full",)
-COMPATIBILITY_PROFILES = ("repo-health", "legacy-auto-checker")
 _EXACT_PIN = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
 _BARE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 

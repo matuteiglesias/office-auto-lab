@@ -3,83 +3,81 @@
 **Status:** canonical
 **Audience:** maintainers, contributors, operators, and agents
 **Owner:** office-auto-lab maintainers
-**Verified against:** `f5f03c2a6d16853b2e8dbb01b0736c8e941122fe` plus M0 migration branch
+**Verified against:** M9 compatibility-exit branch after M10 hardening
 
 ## Purpose
 
-This page declares which in-tree capabilities belong to the supported Office runtime, which are adjacent sidecars, and which remain only for compatibility during the Office v2 migration.
+This page declares the supported in-tree Office product boundary after the v2 migration.
 
-The classification is operational. It controls active acceptance, dependency profiles, documentation language, and whether new product work may depend on a component.
+The repository now has two runtime lifecycle classes: **CORE** and **SIDECAR**. Superseded Office v1, Staff v1, Repo Health/GCP, and legacy prepared-block implementations were removed in M9 rather than retained as executable compatibility code. Git history is the archive for those implementations.
 
-## Lifecycle classes
+## CORE
 
-### CORE
-
-CORE components define the supported Office control loop. They may participate in the active smoke/acceptance path and may be extended as part of Office v2.
+CORE defines the supported Office control loop and participates in active smoke/acceptance.
 
 Current CORE:
 
-- `src/office_runtime/office/` — control-state compilation, validation, routing, manifests, closure/reentry proposals;
-- `src/office_runtime/staff/` — preparation bundles and deterministic brief rendering;
-- `src/office_runtime/ledger.py` and run/logging primitives used by supported runtime flows;
-- `src/office_runtime/scripts/office_run.sh` plus portable systemd render/install support;
-- repository/surface context adapters consumed by Office as advisory evidence.
+- `src/office_runtime/office/` — Control Tower v2 intake, governed identity, typed work, Principal, execution, reentry, coherent generation, invariants, run records and health projection;
+- `src/office_runtime/staff/` — bounded Staff v2 preparation and freshness evaluation;
+- `src/office_runtime/ledger.py` and `src/office_runtime/run_logging.py` — runtime evidence primitives;
+- `src/office_runtime/scripts/run_generation_v2.py` — canonical coherent-generation entrypoint;
+- `src/office_runtime/scripts/compile_runtime_health_v2.py` — Run Record Owner projection entrypoint;
+- `systemd/user/` and portable render/install support — orchestration boundary.
 
-### SIDECAR
+CORE rules:
 
-SIDECAR components are useful adjacent producers or consumers with explicit interfaces to CORE. They are not allowed to redefine Office carry, priority, identity, or completion semantics.
+1. one Control Tower snapshot per coherent generation;
+2. downstream stages consume artifacts from that generation rather than rereading governance state;
+3. local paths are resolved observations, not semantic identity;
+4. execution cannot silently acquire governance mutation powers;
+5. run evidence and last-known-good publication are part of runtime correctness.
+
+## SIDECAR
+
+SIDECAR components are useful adjacent producers or consumers with explicit interfaces to CORE. They cannot redefine Carry, priority, identity, authorization, or completion semantics.
 
 Current SIDECAR:
 
 - `src/office_runtime/capture/` — append-only capture processing and reviewable reentry candidates;
 - `src/office_runtime/evidence/` — bounded Git/filesystem evidence production;
-- estate-movement/delta producers;
+- `src/office_runtime/estate_movement.py` — read-only estate delta production;
 - `src/office_runtime/editorial/` — bounded editorial contracts and experiments.
 
-A SIDECAR may have its own tests and operational command surface. It does not automatically become part of the CORE smoke path.
+A SIDECAR may have its own tests and commands. It does not automatically become part of the Office semantic DAG.
 
-### COMPAT
+## Historical implementations
 
-COMPAT components are retained because consumers may still exist. They are frozen against new product semantics except for bounded compatibility repairs and migration support.
+The following are no longer repository product surfaces:
 
-Current COMPAT:
+- Office v1 spreadsheet compiler and mutable `latest/` queue/brief contract;
+- Staff v1 bundles, `ai_jobs.csv`, and per-front Markdown brief generator;
+- closure/reentry v1;
+- Repo Health policy/plugin/GCP runtime;
+- legacy prepared-block compiler;
+- legacy compatibility dependency profiles.
 
-- `src/office_runtime/ops/repo_health/`;
-- `requirements/profiles/repo-health.txt`;
-- `requirements/profiles/legacy-auto-checker.txt`;
-- `src/office_runtime/scripts/legacy/` and the legacy prepared-block compiler;
-- Repo Health GCP/container/IaC surfaces whose semantic authority has moved to `projects`.
-
-New Office functionality must not depend on COMPAT components. Compatibility entry points must be visibly prefixed or documented as compatibility-only.
-
-### HISTORICAL
-
-Historical plans, closures, audits, migration bundles, and superseded design records are retained only when they provide unique evidence. They do not define current runtime behavior.
+They are not renamed or hidden behind compatibility flags. They are absent from the runtime tree. Historical commits remain available in Git when archaeology is required.
 
 ## Active acceptance rule
 
-`make smoke` is the supported CORE smoke check. It must not invoke COMPAT implementations or legacy compilers.
+`make smoke` validates the supported CORE plus declared sidecar contract checks. It must fail if a removed compatibility surface becomes an implicit runtime dependency again.
 
-Compatibility code may retain dedicated tests and CI slices until its consumers are audited and migrated. A compatibility test passing proves that the retained compatibility contract still works; it does not promote the component back into CORE.
+`make parent-audit` is the broader supported-runtime acceptance gate.
 
 ## Dependency rule
 
-The `full` dependency profile means the supported local runtime, not every implementation that happens to remain in the repository. It is the union of the active Office and Capture profiles.
+The dependency profiles are intentionally small:
 
-Compatibility consumers install their explicit profile (`repo-health` or `legacy-auto-checker`) rather than relying on `full` to bring compatibility dependencies transitively.
+```text
+office
+capture
+full = office ∪ capture
+```
 
-## Exit rule
+There is no compatibility dependency profile. Adding a new profile requires an active product or sidecar responsibility, not preservation of historical code.
 
-A COMPAT component is removed only after:
+## Removal rule
 
-1. known callers and readers are inventoried;
-2. replacement authority and interface are identified;
-3. consumers are migrated or explicitly retired;
-4. the component is absent from active acceptance and active dependency profiles;
-5. unique evidence is preserved in documentation/history where needed.
+For future removals, preserve evidence through Git history and durable architecture notes where materially useful. Do not retain executable museum code merely because an old consumer has not yet migrated; downstream projections should migrate to the current artifact contract.
 
-Deletion is the last step, not the first.
-
-## Office v2 migration implication
-
-The migration sequence builds the new control-state → identity → work-item → staff-preparation → principal-brief spine only on CORE contracts. SIDECAR producers can attach through explicit evidence/proposal interfaces. COMPAT code must not constrain the new model.
+That rule is why Office Review is upgraded after Office rather than forcing Office to continue producing legacy queues and briefs.

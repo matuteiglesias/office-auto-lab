@@ -1,3 +1,0 @@
-# Compatibility shim. Canonical dependency authority lives under requirements/.
--c requirements/constraints.txt
--r requirements/profiles/repo-health.txt

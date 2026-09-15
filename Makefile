@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry office-v2-generate office-v2-shadow runtime-health-v2 staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -8,12 +8,9 @@ ESTATE_OUT_DIR ?= artifacts/estate-movement
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
-# Supported CORE acceptance only. SIDECAR/COMPAT components retain dedicated
-# contract/test slices and must not become implicit dependencies of this smoke.
+# Supported product acceptance: Office v2 CORE plus declared sidecars only.
 smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts runtime-contracts repo-scans
 
-# Active Office product surface only. Repo Health remains compatibility code and
-# is validated separately by its dedicated CI profile/tests.
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
 import office_runtime.cli; \
@@ -21,7 +18,6 @@ import office_runtime.capture; \
 import office_runtime.capture.lifecycle; \
 import office_runtime.editorial; \
 import office_runtime.editorial.contracts; \
-import office_runtime.office.compile; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
@@ -33,11 +29,6 @@ import office_runtime.office.generation_v2; \
 import office_runtime.office.invariants; \
 import office_runtime.office.run_records; \
 import office_runtime.office.io; \
-import office_runtime.office.render; \
-import office_runtime.office.validate; \
-import office_runtime.office.closure_reentry; \
-import office_runtime.staff.bundles; \
-import office_runtime.staff.briefs; \
 import office_runtime.staff.preparation_v2; \
 import office_runtime.staff.freshness; \
 print('imports ok')"
@@ -64,7 +55,7 @@ reentry-v2-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_reentry_v2
 
 generation-v2-contracts:
-	PYTHONPATH=src python3 -m unittest tests.test_generation_v2
+	PYTHONPATH=src python3 -m unittest tests.test_generation_v2 tests.test_generation_run_records
 
 run-record-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_run_record_health tests.test_generation_invariants
@@ -85,7 +76,7 @@ systemd-contracts:
 runtime-contracts: dependency-contracts systemd-contracts
 
 install-profile:
-	@test -n "$(PROFILE)" || (echo "PROFILE is required; active profiles include office, capture, and full; repo-health and legacy-auto-checker are compatibility profiles" >&2; exit 2)
+	@test -n "$(PROFILE)" || (echo "PROFILE is required; choose office, capture, or full" >&2; exit 2)
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py "$(PROFILE)"
 
 docs-check:
@@ -104,48 +95,19 @@ parent-audit: parent-docs-check runtime-contracts control-contracts identity-con
 	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
 
-daily:
-	PYTHONPATH=src python3 -m office_runtime.cli daily
-
-office-compile:
-	PYTHONPATH=src python3 -m office_runtime.cli office compile
-
-# Manual coherent v2 generation entrypoints. systemd cutover remains a separate
-# explicit scheduler migration; these commands do not enable or modify timers.
+# Canonical Office runtime entrypoints.
 office-v2-generate:
 	PYTHONPATH=src python3 src/office_runtime/scripts/run_generation_v2.py --trigger manual
 
 office-v2-shadow:
 	PYTHONPATH=src python3 src/office_runtime/scripts/run_generation_v2.py --shadow --trigger shadow-check
 
-# Run Record Owner projection. This reads canonical run records and writes a
-# derived local runtime-health artifact; it never mutates Carry/priority state.
+# Run Record Owner projection. This never mutates Carry/priority state.
 runtime-health-v2:
 	PYTHONPATH=src python3 src/office_runtime/scripts/compile_runtime_health_v2.py
 
-# Read-only closure intake. Inputs are explicit; this target never writes
-# Office sheets or applies Ops recommendations.
-office-reentry:
-	@test -n "$(CLOSURES)" || (echo "CLOSURES is required" >&2; exit 2)
-	@test -n "$(FRONT_REGISTRY)" || (echo "FRONT_REGISTRY is required" >&2; exit 2)
-	@test -n "$(REENTRY_OUT)" || (echo "REENTRY_OUT is required" >&2; exit 2)
-	PYTHONPATH=src python3 -m office_runtime.cli office reentry compile --closures "$(CLOSURES)" --front-registry "$(FRONT_REGISTRY)" --out "$(REENTRY_OUT)"
-
-staff-bundles:
-	PYTHONPATH=src python3 -m office_runtime.cli staff bundles --scan-mode existing
-
-staff-briefs:
-	PYTHONPATH=src python3 -m office_runtime.cli staff briefs
-
 capture-lifecycle:
 	PYTHONPATH=src python3 -m office_runtime.cli capture lifecycle
-
-# Compatibility-only entrypoints retained during consumer migration.
-compat-repo-health-policy:
-	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health policy
-
-compat-repo-health-run:
-	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health run
 
 evidence-git:
 	PYTHONPATH=src python3 -m office_runtime.cli evidence git --roots $(ROOTS) --start $(START) --end $(END) --out $(GIT_OUT)
@@ -155,8 +117,7 @@ evidence-files:
 
 evidence-today: evidence-git evidence-files
 
-# Read-only delta producer. ROOTS, START, END, and DIGEST_ID are explicit to
-# prevent accidental broad estate scans; PREVIOUS_MANIFEST is optional.
+# Read-only estate delta producer. Review output never auto-mutates governance.
 estate-movement:
 	@test -n "$(ROOTS)" || (echo "ROOTS is required" >&2; exit 2)
 	@test -n "$(START)" || (echo "START is required" >&2; exit 2)
@@ -173,12 +134,3 @@ repo-scans:
 	test -s /tmp/office_auto_lab_prereqs.tsv
 	test -s /tmp/office_auto_lab_srp.txt
 	@echo "repo scans ok"
-
-# Compatibility-only legacy prepared-block compiler. This remains callable for
-# migration consumers but is intentionally excluded from active smoke/acceptance.
-compat-compile-blocks:
-	mkdir -p out/frontier
-	cp fixtures/frontier_sample_v2.csv out/frontier/latest.csv 2>/dev/null || cp fixtures/frontier_sample.csv out/frontier/latest.csv
-	PYTHONPATH=src python3 src/office_runtime/scripts/legacy/compile_blocks.py --frontier out/frontier/latest.csv --date "$$(date +%F)"
-	test -s out/compiler/$$(date +%F)/prepared_blocks.jsonl
-	@echo "compat compile blocks ok"

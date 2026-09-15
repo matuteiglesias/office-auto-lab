@@ -25,29 +25,10 @@ on:
       - "tests/test_staff_packet_freshness.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
-      - "tests/test_office_identity_repo_context.py"
-      - "tests/test_office_surface_context.py"
-      - "tests/test_repo_health_*.py"
-      - "Dockerfile.repo-health"
       - "Makefile"
       - ".github/workflows/runtime-ci.yml"
       - "README.md"
-      - "docs/getting-started/local-development.md"
-      - "docs/operations/systemd-automation.md"
-      - "docs/reference/repo-health-plugins.md"
-      - "docs/environment.md"
-      - "docs/architecture/front-identity.md"
-      - "docs/architecture/repository-context.md"
-      - "docs/architecture/component-lifecycle.md"
-      - "docs/architecture/control-state-v2.md"
-      - "docs/architecture/identity-resolution-v2.md"
-      - "docs/architecture/work-item-compiler-v1.md"
-      - "docs/architecture/staff-preparation-v2.md"
-      - "docs/architecture/principal-compiler-v2.md"
-      - "docs/architecture/execution-compiler-v2.md"
-      - "docs/architecture/reentry-v2.md"
-      - "docs/architecture/coherent-generation-v2.md"
-      - "docs/architecture/run-record-health-v2.md"
+      - "docs/**"
       - "SYSTEM.yaml"
   workflow_dispatch:
 
@@ -86,11 +67,6 @@ jobs:
             python-version: "3.12"
           - profile: capture
             python-version: "3.12"
-          - profile: repo-health
-            python-version: "3.12"
-            test-tooling: true
-          - profile: legacy-auto-checker
-            python-version: "3.12"
           - profile: full
             python-version: "3.11"
           - profile: full
@@ -115,7 +91,7 @@ jobs:
         run: python -m pip check
       - name: Import-smoke declared capability surface
         run: python src/office_runtime/scripts/profile_smoke.py ${{ matrix.profile }}
-      - name: Office v2 semantic, generation, observability, freshness, and advisory context tests
+      - name: Office v2 semantic, generation, observability, and freshness tests
         if: matrix.profile == 'office'
         run: >-
           python -m unittest
@@ -131,20 +107,9 @@ jobs:
           tests.test_generation_invariants
           tests.test_run_record_health
           tests.test_staff_packet_freshness
-          tests.test_office_identity_repo_context
-          tests.test_office_surface_context
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
-      - name: Repo Health compatibility tests
-        if: matrix.profile == 'repo-health'
-        run: >-
-          python -m unittest
-          tests.test_repo_health_capability_descriptors
-          tests.test_repo_health_gcp
-          tests.test_repo_health_remote
-          tests.test_repo_health_run_bundle
-          tests.test_repo_health_semantics
       - name: Full supported-runtime acceptance
         if: matrix.profile == 'full' && matrix.python-version == '3.12'
         run: |
@@ -166,6 +131,4 @@ jobs:
             tests.test_run_record_health \
             tests.test_staff_packet_freshness \
             tests.test_capture_lifecycle \
-            tests.test_capture_transcription \
-            tests.test_office_identity_repo_context \
-            tests.test_office_surface_context
+            tests.test_capture_transcription

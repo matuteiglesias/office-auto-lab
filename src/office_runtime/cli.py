@@ -12,38 +12,6 @@ def _new_run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-
-def _log_compile_manifest(manifest: dict) -> None:
-    from office_runtime.ledger import append_ledger
-
-    counts = manifest.get("row_counts", {}) or {}
-    metrics = {
-        "merged": counts.get("merged"),
-        "expressed": counts.get("expressed_state"),
-        "focus": counts.get("focus_get_queue"),
-        "support": counts.get("support_queue"),
-        "warnings": len(manifest.get("warnings", [])),
-    }
-    append_ledger("office.compile", "ok", run_id=manifest.get("run_id"), metrics=metrics)
-
-
-def _log_staff_bundles(result: dict, run_id: str | None = None) -> None:
-    from office_runtime.ledger import append_ledger
-
-    append_ledger(
-        "staff.bundles",
-        "ok",
-        run_id=run_id,
-        metrics={"bundles": result.get("bundles_built"), "scan_mode": result.get("scan_mode")},
-    )
-
-
-def _log_staff_briefs(result: dict, run_id: str | None = None) -> None:
-    from office_runtime.ledger import append_ledger
-
-    append_ledger("staff.briefs", "ok", run_id=run_id, metrics={"briefs": result.get("briefs_built")})
-
-
 def _log_evidence_git(summary: dict) -> None:
     from office_runtime.ledger import append_ledger
 
@@ -89,87 +57,6 @@ def _log_estate_movement(summary: dict) -> None:
         artifacts={"digest": str(summary.get("digest")), "manifest": str(summary.get("manifest"))},
     )
 
-def _cmd_daily(args: argparse.Namespace) -> int:
-    from office_runtime.office.config import load_config
-    from office_runtime.office.compile import run_compile
-    from office_runtime.staff.bundles import build_bundles
-    from office_runtime.staff.briefs import build_staff_briefs
-
-    cfg = load_config()
-    manifest = run_compile(cfg)
-    if manifest.get("status") == "ok":
-        _log_compile_manifest(manifest)
-        manifest["bundle_build"] = build_bundles(cfg, scan_mode=args.scan_mode)
-        manifest["bundle_build"]["scan_mode"] = args.scan_mode
-        _log_staff_bundles(manifest["bundle_build"], run_id=manifest.get("run_id"))
-        manifest["brief_build"] = build_staff_briefs(cfg.latest_dir)
-        _log_staff_briefs(manifest["brief_build"], run_id=manifest.get("run_id"))
-    print(json.dumps(manifest, indent=2, ensure_ascii=False))
-    return 0 if manifest.get("status") == "ok" else 1
-
-
-def _cmd_office_compile(_: argparse.Namespace) -> int:
-    from office_runtime.office.config import load_config
-    from office_runtime.office.compile import run_compile
-
-    cfg = load_config()
-    manifest = run_compile(cfg)
-    if manifest.get("status") == "ok":
-        _log_compile_manifest(manifest)
-    print(json.dumps(manifest, indent=2, ensure_ascii=False))
-    return 0 if manifest.get("status") == "ok" else 1
-
-
-def _cmd_office_reentry_compile(args: argparse.Namespace) -> int:
-    import pandas as pd
-    from office_runtime.office.closure_reentry import ClosureValidationError, compile_reentry
-
-    try:
-        fronts = pd.read_csv(args.front_registry, dtype=str).fillna("")
-        result = compile_reentry(args.closures, fronts, args.out)
-    except (ClosureValidationError, OSError, ValueError) as exc:
-        print(json.dumps({"status": "error", "error": str(exc), "mutation_performed": False}, indent=2, ensure_ascii=False))
-        return 1
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    return 0
-
-
-def _cmd_staff_bundles(args: argparse.Namespace) -> int:
-    from office_runtime.office.config import load_config
-    from office_runtime.staff.bundles import build_bundles
-
-    cfg = load_config()
-    result = build_bundles(cfg, scan_mode=args.scan_mode)
-    result["scan_mode"] = args.scan_mode
-    _log_staff_bundles(result)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    return 0
-
-
-def _cmd_staff_briefs(_: argparse.Namespace) -> int:
-    from office_runtime.office.config import load_config
-    from office_runtime.staff.briefs import build_staff_briefs
-
-    cfg = load_config()
-    result = build_staff_briefs(cfg.latest_dir)
-    _log_staff_briefs(result)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    return 0
-
-
-def _cmd_ops_repo_health_policy(args: argparse.Namespace) -> int:
-    from office_runtime.ops.repo_health import runner as repo_health_runner
-
-    repo_health_runner.main(["--policy-only", *args.repo_health_args])
-    return 0
-
-
-def _cmd_ops_repo_health_run(args: argparse.Namespace) -> int:
-    from office_runtime.ops.repo_health import runner as repo_health_runner
-
-    repo_health_runner.main(args.repo_health_args)
-    return 0
-
 
 def _cmd_evidence_git(args: argparse.Namespace) -> int:
     from office_runtime.evidence import git_trace
@@ -182,23 +69,31 @@ def _cmd_evidence_git(args: argparse.Namespace) -> int:
 
     repos = git_trace.discover_repos(args.roots, max_depth=args.max_depth)
     logger.event("repos.discovered", status="ok", repos_found=len(repos))
-    rows = git_trace.iter_commit_rows(
-        repos,
-        start=args.start,
-        end=args.end,
-        limit_per_repo=args.limit_per_repo,
+    rows_list = list(
+        git_trace.iter_commit_rows(
+            repos,
+            start=args.start,
+            end=args.end,
+            limit_per_repo=args.limit_per_repo,
+        )
     )
-    rows_list = list(rows)
     n = git_trace.write_jsonl(args.out, rows_list)
     summary = {
         "status": "ok",
         "repos_found": len(repos),
         "rows_written": n,
-        "commits": sum(1 for r in rows_list if r.get("kind") == "git_commit"),
-        "errors": sum(1 for r in rows_list if str(r.get("kind", "")).endswith("_error")),
+        "commits": sum(1 for row in rows_list if row.get("kind") == "git_commit"),
+        "errors": sum(1 for row in rows_list if str(row.get("kind", "")).endswith("_error")),
         "out": str(args.out),
     }
-    logger.event("commits.trace", status="ok", rows_written=n, commits=summary["commits"], errors=summary["errors"], out=str(args.out))
+    logger.event(
+        "commits.trace",
+        status="ok",
+        rows_written=n,
+        commits=summary["commits"],
+        errors=summary["errors"],
+        out=str(args.out),
+    )
     logger.event("run.end", status="ok")
     _log_evidence_git(summary)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
@@ -214,21 +109,22 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
     logger.event("run.start", status="ok", start=args.start, end=args.end)
     logger.event("roots.scan", status="ok", roots=[str(x) for x in args.roots], max_depth=args.max_depth)
 
-    rows = fs_trace.iter_file_events(
-        args.roots,
-        start=fs_trace._parse_start(args.start),
-        end_exclusive=fs_trace._parse_end_exclusive(args.end),
-        max_depth=args.max_depth,
-        include_hidden=args.include_hidden,
-        limit=args.limit,
+    rows_list = list(
+        fs_trace.iter_file_events(
+            args.roots,
+            start=fs_trace._parse_start(args.start),
+            end_exclusive=fs_trace._parse_end_exclusive(args.end),
+            max_depth=args.max_depth,
+            include_hidden=args.include_hidden,
+            limit=args.limit,
+        )
     )
-    rows_list = list(rows)
     n = fs_trace.write_jsonl(args.out, rows_list)
     summary = {
         "status": "ok",
         "rows_written": n,
         "max_depth": args.max_depth,
-        "errors": sum(1 for r in rows_list if str(r.get("kind", "")).endswith("_error")),
+        "errors": sum(1 for row in rows_list if str(row.get("kind", "")).endswith("_error")),
         "out": str(args.out),
     }
     logger.event("files.trace", status="ok", rows_written=n, errors=summary["errors"], out=str(args.out))
@@ -256,21 +152,37 @@ def _cmd_estate_movement(args: argparse.Namespace) -> int:
         control_plane=args.control_plane,
         max_depth=args.max_depth,
     )
-    logger.event("digest.written", status=result.get("status"), digest=result.get("digest"), manifest=result.get("manifest"), evidence=result.get("evidence_count"), delta=result.get("new_evidence_count"))
+    logger.event(
+        "digest.written",
+        status=result.get("status"),
+        digest=result.get("digest"),
+        manifest=result.get("manifest"),
+        evidence=result.get("evidence_count"),
+        delta=result.get("new_evidence_count"),
+    )
     logger.event("run.end", status=result.get("status"))
     _log_estate_movement(result)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
 
+def _capture_root(args: argparse.Namespace) -> Path:
+    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
+    return args.inbox_root or (root / "inbox")
 
 
 def _cmd_capture_transcribe(args: argparse.Namespace) -> int:
     from office_runtime.capture.transcription import transcribe_event
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = transcribe_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run, audio_root=args.audio_root, max_bytes=args.max_bytes)
+    result = transcribe_event(
+        _capture_root(args),
+        args.event_id,
+        model=args.model,
+        force=args.force,
+        dry_run=args.dry_run,
+        audio_root=args.audio_root,
+        max_bytes=args.max_bytes,
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
@@ -278,18 +190,23 @@ def _cmd_capture_transcribe(args: argparse.Namespace) -> int:
 def _cmd_capture_transcribe_pending(args: argparse.Namespace) -> int:
     from office_runtime.capture.transcription import transcribe_pending
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = transcribe_pending(inbox_root, limit=args.limit, model=args.model, force=args.force, dry_run=args.dry_run)
+    result = transcribe_pending(
+        _capture_root(args),
+        limit=args.limit,
+        model=args.model,
+        force=args.force,
+        dry_run=args.dry_run,
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
+
 
 def _cmd_capture_route(args: argparse.Namespace) -> int:
     from office_runtime.capture.processing import route_event
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = route_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    result = route_event(
+        _capture_root(args), args.event_id, model=args.model, force=args.force, dry_run=args.dry_run
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
@@ -297,9 +214,9 @@ def _cmd_capture_route(args: argparse.Namespace) -> int:
 def _cmd_capture_artifactize(args: argparse.Namespace) -> int:
     from office_runtime.capture.processing import artifactize_event
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = artifactize_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    result = artifactize_event(
+        _capture_root(args), args.event_id, model=args.model, force=args.force, dry_run=args.dry_run
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
@@ -307,9 +224,9 @@ def _cmd_capture_artifactize(args: argparse.Namespace) -> int:
 def _cmd_capture_propose_reingest(args: argparse.Namespace) -> int:
     from office_runtime.capture.processing import propose_reingest_event
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = propose_reingest_event(inbox_root, args.event_id, model=args.model, force=args.force, dry_run=args.dry_run)
+    result = propose_reingest_event(
+        _capture_root(args), args.event_id, model=args.model, force=args.force, dry_run=args.dry_run
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
@@ -317,9 +234,14 @@ def _cmd_capture_propose_reingest(args: argparse.Namespace) -> int:
 def _cmd_capture_process(args: argparse.Namespace) -> int:
     from office_runtime.capture.processing import process_event
 
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
-    result = process_event(inbox_root, args.event_id, transcription_model=args.transcription_model, model=args.model, force=args.force, dry_run=args.dry_run)
+    result = process_event(
+        _capture_root(args),
+        args.event_id,
+        transcription_model=args.transcription_model,
+        model=args.model,
+        force=args.force,
+        dry_run=args.dry_run,
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
@@ -329,109 +251,77 @@ def _cmd_capture_lifecycle(args: argparse.Namespace) -> int:
     from office_runtime.office.config import load_config
 
     cfg = load_config()
-    root = Path(os.environ.get("OFFICE_ROOT", ".")).resolve()
-    inbox_root = args.inbox_root or (root / "inbox")
     out_dir = args.out or cfg.latest_dir
-    result = compile_and_write(inbox_root, out_dir)
+    result = compile_and_write(_capture_root(args), out_dir)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") == "ok" else 1
 
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="office_runtime.cli")
-    subparsers = parser.add_subparsers(dest="command")
-
-    daily = subparsers.add_parser("daily", help="Run office compile + staff bundles + staff briefs.")
-    daily.add_argument("--scan-mode", choices=["none", "existing", "refresh"], default="existing")
-    daily.set_defaults(handler=_cmd_daily)
-
-    office = subparsers.add_parser("office", help="Office surfaces.")
-    office_sub = office.add_subparsers(dest="office_cmd", required=True)
-    office_sub.add_parser("compile", help="Run office compile only.").set_defaults(handler=_cmd_office_compile)
-    reentry = office_sub.add_parser("reentry", help="Read-only Ops closure reentry surfaces.")
-    reentry_sub = reentry.add_subparsers(dest="reentry_cmd", required=True)
-    reentry_compile = reentry_sub.add_parser("compile", help="Validate, reconcile, and render explicit Ops closure inputs.")
-    reentry_compile.add_argument("--closures", required=True, type=Path, help="One JSON/JSONL closure file or non-recursive directory.")
-    reentry_compile.add_argument("--front-registry", required=True, type=Path, help="Read-only CSV Front Registry snapshot.")
-    reentry_compile.add_argument("--out", required=True, type=Path, help="Local output directory for proposal/review artifacts.")
-    reentry_compile.set_defaults(handler=_cmd_office_reentry_compile)
-
-    staff = subparsers.add_parser("staff", help="Staff surfaces.")
-    staff_sub = staff.add_subparsers(dest="staff_cmd", required=True)
-    staff_bundles = staff_sub.add_parser("bundles", help="Build staff bundles only.")
-    staff_bundles.add_argument("--scan-mode", choices=["none", "existing", "refresh"], default="refresh")
-    staff_bundles.set_defaults(handler=_cmd_staff_bundles)
-    staff_sub.add_parser("briefs", help="Build staff briefs only.").set_defaults(handler=_cmd_staff_briefs)
-
-    ops = subparsers.add_parser("ops", help="Ops surfaces.")
-    ops_sub = ops.add_subparsers(dest="ops_cmd", required=True)
-    repo_health = ops_sub.add_parser("repo-health", help="Repo health surfaces.")
-    repo_health_sub = repo_health.add_subparsers(dest="repo_health_cmd", required=True)
-    repo_health_sub.add_parser("policy", help="Run repo-health in policy-only mode.").add_argument(
-        "repo_health_args", nargs=argparse.REMAINDER, help="Arguments passed through to repo-health runner."
+    parser = argparse.ArgumentParser(
+        prog="office_runtime.cli",
+        description="Office sidecar CLI. Canonical Office v2 generation is run_generation_v2.py.",
     )
-    repo_health_sub.choices["policy"].set_defaults(handler=_cmd_ops_repo_health_policy)
-    repo_health_sub.add_parser("run", help="Run repo-health normally.").add_argument(
-        "repo_health_args", nargs=argparse.REMAINDER, help="Arguments passed through to repo-health runner."
-    )
-    repo_health_sub.choices["run"].set_defaults(handler=_cmd_ops_repo_health_run)
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     capture = subparsers.add_parser("capture", help="Capture processing surfaces.")
     capture_sub = capture.add_subparsers(dest="capture_cmd", required=True)
-    cap_lifecycle = capture_sub.add_parser("lifecycle", help="Compile non-mutating capture lifecycle artifacts.")
-    cap_lifecycle.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and capture_processing JSONL streams.")
-    cap_lifecycle.add_argument("--out", type=Path, default=None, help="Output directory for capture_lifecycle artifacts. Defaults to OFFICE_OUT_ROOT/latest.")
-    cap_lifecycle.set_defaults(handler=_cmd_capture_lifecycle)
 
-    cap_transcribe = capture_sub.add_parser("transcribe", help="Transcribe one raw capture audio event into capture_processing.")
-    cap_transcribe.add_argument("--event-id", required=True, help="Raw human_feedback event_id to transcribe.")
-    cap_transcribe.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and human_feedback_audio.")
-    cap_transcribe.add_argument("--model", default=None, help="OpenAI transcription model to use. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
-    cap_transcribe.add_argument("--audio-root", type=Path, default=None, help="Configured audio root. Defaults to OFFICE_FEEDBACK_AUDIO_ROOT, OFFICE_CAPTURE_AUDIO_ROOT, or inbox/human_feedback_audio.")
-    cap_transcribe.add_argument("--max-bytes", type=int, default=None, help="Maximum accepted audio bytes. Defaults to OFFICE_CAPTURE_MAX_AUDIO_BYTES or 25MiB.")
-    cap_transcribe.add_argument("--force", action="store_true", help="Append a new transcription even if one already exists.")
-    cap_transcribe.add_argument("--dry-run", action="store_true", help="Print the derived event without appending it.")
-    cap_transcribe.set_defaults(handler=_cmd_capture_transcribe)
+    lifecycle = capture_sub.add_parser("lifecycle", help="Compile non-mutating capture lifecycle artifacts.")
+    lifecycle.add_argument("--inbox-root", type=Path, default=None)
+    lifecycle.add_argument("--out", type=Path, default=None)
+    lifecycle.set_defaults(handler=_cmd_capture_lifecycle)
 
-    cap_pending = capture_sub.add_parser("transcribe-pending", help="Transcribe pending raw capture audio events.")
-    cap_pending.add_argument("--limit", type=int, default=5, help="Maximum pending captures to transcribe.")
-    cap_pending.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing human_feedback and human_feedback_audio.")
-    cap_pending.add_argument("--model", default=None, help="OpenAI transcription model to use. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
-    cap_pending.add_argument("--force", action="store_true", help="Process captures even if transcription already exists.")
-    cap_pending.add_argument("--dry-run", action="store_true", help="Print derived events without appending them.")
-    cap_pending.set_defaults(handler=_cmd_capture_transcribe_pending)
+    transcribe = capture_sub.add_parser("transcribe", help="Transcribe one raw capture audio event.")
+    transcribe.add_argument("--event-id", required=True)
+    transcribe.add_argument("--inbox-root", type=Path, default=None)
+    transcribe.add_argument("--model", default=None)
+    transcribe.add_argument("--audio-root", type=Path, default=None)
+    transcribe.add_argument("--max-bytes", type=int, default=None)
+    transcribe.add_argument("--force", action="store_true")
+    transcribe.add_argument("--dry-run", action="store_true")
+    transcribe.set_defaults(handler=_cmd_capture_transcribe)
 
-    cap_route = capture_sub.add_parser("route", help="Route one transcribed capture using Structured Outputs.")
-    cap_route.add_argument("--event-id", required=True, help="Capture event_id to route.")
-    cap_route.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
-    cap_route.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
-    cap_route.add_argument("--force", action="store_true", help="Append a new routing event even if one already exists.")
-    cap_route.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
-    cap_route.set_defaults(handler=_cmd_capture_route)
+    pending = capture_sub.add_parser("transcribe-pending", help="Transcribe pending raw capture audio events.")
+    pending.add_argument("--limit", type=int, default=5)
+    pending.add_argument("--inbox-root", type=Path, default=None)
+    pending.add_argument("--model", default=None)
+    pending.add_argument("--force", action="store_true")
+    pending.add_argument("--dry-run", action="store_true")
+    pending.set_defaults(handler=_cmd_capture_transcribe_pending)
 
-    cap_artifactize = capture_sub.add_parser("artifactize", help="Create one artifact candidate from a routed capture.")
-    cap_artifactize.add_argument("--event-id", required=True, help="Capture event_id to artifactize.")
-    cap_artifactize.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
-    cap_artifactize.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
-    cap_artifactize.add_argument("--force", action="store_true", help="Append a new artifact candidate even if one already exists.")
-    cap_artifactize.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
-    cap_artifactize.set_defaults(handler=_cmd_capture_artifactize)
+    route = capture_sub.add_parser("route", help="Route one transcribed capture using Structured Outputs.")
+    route.add_argument("--event-id", required=True)
+    route.add_argument("--inbox-root", type=Path, default=None)
+    route.add_argument("--model", default=None)
+    route.add_argument("--force", action="store_true")
+    route.add_argument("--dry-run", action="store_true")
+    route.set_defaults(handler=_cmd_capture_route)
 
-    cap_reingest = capture_sub.add_parser("propose-reingest", help="Create one pending reingest candidate without applying it.")
-    cap_reingest.add_argument("--event-id", required=True, help="Capture event_id to propose for reingest.")
-    cap_reingest.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
-    cap_reingest.add_argument("--model", default=None, help="OpenAI Responses model to use. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
-    cap_reingest.add_argument("--force", action="store_true", help="Append a new reingest proposal even if one already exists.")
-    cap_reingest.add_argument("--dry-run", action="store_true", help="Print the proposed event without appending it.")
-    cap_reingest.set_defaults(handler=_cmd_capture_propose_reingest)
+    artifactize = capture_sub.add_parser("artifactize", help="Create one artifact candidate from a routed capture.")
+    artifactize.add_argument("--event-id", required=True)
+    artifactize.add_argument("--inbox-root", type=Path, default=None)
+    artifactize.add_argument("--model", default=None)
+    artifactize.add_argument("--force", action="store_true")
+    artifactize.add_argument("--dry-run", action="store_true")
+    artifactize.set_defaults(handler=_cmd_capture_artifactize)
 
-    cap_process = capture_sub.add_parser("process", help="Run missing capture steps: transcribe, route, artifactize, propose reingest.")
-    cap_process.add_argument("--event-id", required=True, help="Capture event_id to process.")
-    cap_process.add_argument("--inbox-root", type=Path, default=None, help="Inbox root containing capture streams.")
-    cap_process.add_argument("--model", default=None, help="OpenAI Responses model to use for structured outputs. Defaults to OFFICE_CAPTURE_PROCESSING_MODEL or gpt-4o-mini.")
-    cap_process.add_argument("--transcription-model", default=None, help="OpenAI transcription model to use if transcription is missing. Defaults to OFFICE_CAPTURE_TRANSCRIPTION_MODEL or gpt-4o-mini-transcribe.")
-    cap_process.add_argument("--force", action="store_true", help="Run all stages even if prior derived events exist.")
-    cap_process.add_argument("--dry-run", action="store_true", help="Print proposed events without appending them.")
-    cap_process.set_defaults(handler=_cmd_capture_process)
+    reingest = capture_sub.add_parser("propose-reingest", help="Create one pending reingest candidate without applying it.")
+    reingest.add_argument("--event-id", required=True)
+    reingest.add_argument("--inbox-root", type=Path, default=None)
+    reingest.add_argument("--model", default=None)
+    reingest.add_argument("--force", action="store_true")
+    reingest.add_argument("--dry-run", action="store_true")
+    reingest.set_defaults(handler=_cmd_capture_propose_reingest)
+
+    process = capture_sub.add_parser("process", help="Run missing capture processing steps.")
+    process.add_argument("--event-id", required=True)
+    process.add_argument("--inbox-root", type=Path, default=None)
+    process.add_argument("--model", default=None)
+    process.add_argument("--transcription-model", default=None)
+    process.add_argument("--force", action="store_true")
+    process.add_argument("--dry-run", action="store_true")
+    process.set_defaults(handler=_cmd_capture_process)
 
     evidence = subparsers.add_parser("evidence", help="Evidence surfaces.")
     evidence_sub = evidence.add_subparsers(dest="evidence_cmd", required=True)
@@ -457,17 +347,16 @@ def build_parser() -> argparse.ArgumentParser:
     estate = subparsers.add_parser("estate", help="Read-only estate evidence projections.")
     estate_sub = estate.add_subparsers(dest="estate_cmd", required=True)
     movement = estate_sub.add_parser("movement", help="Produce a delta-oriented Estate Movement Digest.")
-    movement.add_argument("--digest-id", required=True, help="Stable output name, for example 2026-09-13-evening.")
-    movement.add_argument("--roots", nargs="+", required=True, type=Path, help="Explicit local repository roots; never inferred broadly.")
-    movement.add_argument("--start", required=True, help="Inclusive ISO date/datetime.")
-    movement.add_argument("--end", required=True, help="Inclusive ISO date/datetime.")
+    movement.add_argument("--digest-id", required=True)
+    movement.add_argument("--roots", nargs="+", required=True, type=Path)
+    movement.add_argument("--start", required=True)
+    movement.add_argument("--end", required=True)
     movement.add_argument("--out-root", type=Path, default=Path("artifacts/estate-movement"))
-    movement.add_argument("--previous-manifest", type=Path, default=None, help="Prior digest manifest used solely for evidence-ID delta accounting.")
-    movement.add_argument("--control-plane", type=Path, default=None, help="Optional projects checkout; observed only for authority-file changes.")
+    movement.add_argument("--previous-manifest", type=Path, default=None)
+    movement.add_argument("--control-plane", type=Path, default=None)
     movement.add_argument("--max-depth", type=int, default=4)
     movement.set_defaults(handler=_cmd_estate_movement)
 
-    parser.set_defaults(handler=_cmd_daily)
     return parser
 
 

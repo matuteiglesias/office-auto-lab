@@ -1,3 +1,0 @@
-# Compatibility-only shim for the historical auto-checker surface.
--c requirements/constraints.txt
--r requirements/profiles/legacy-auto-checker.txt

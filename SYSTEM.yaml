@@ -1,4 +1,3 @@
-# This file declares the repository boundary and its place in the GitHub estate.
 schema_version: 1
 id: ops.office.runtime
 repository:
@@ -8,155 +7,126 @@ domain: operations
 system: ops.office
 role: automation-runtime
 lifecycle: active
+
 lifecycle_classes:
   core:
     class: core
     paths:
-    - src/office_runtime/office
-    - src/office_runtime/staff
-    - src/office_runtime/ledger.py
-    - src/office_runtime/scripts/office_run.sh
-    - systemd/user
-    rule: supported Office runtime; eligible for active smoke and Office v2 product work
+      - src/office_runtime/office
+      - src/office_runtime/staff
+      - src/office_runtime/run_logging.py
+      - src/office_runtime/ledger.py
+      - src/office_runtime/scripts/run_generation_v2.py
+      - src/office_runtime/scripts/compile_runtime_health_v2.py
+      - systemd/user
+    rule: supported Office v2 runtime and orchestration boundary
   sidecar:
     class: sidecar
     paths:
-    - src/office_runtime/capture
-    - src/office_runtime/evidence
-    - src/office_runtime/editorial
-    - src/office_runtime/estate_movement.py
-    rule: adjacent producer/consumer with explicit interfaces; cannot redefine Office governance semantics
-  compat:
-    class: compat
-    paths:
-    - src/office_runtime/ops/repo_health
-    - src/office_runtime/scripts/legacy
-    - requirements/profiles/repo-health.txt
-    - requirements/profiles/legacy-auto-checker.txt
-    - infra/gcp
-    - Dockerfile.repo-health
-    rule: migration-only surface; no new Office product dependencies and excluded from active smoke
-  canonical_reference: docs/architecture/component-lifecycle.md
+      - src/office_runtime/capture
+      - src/office_runtime/evidence
+      - src/office_runtime/editorial
+      - src/office_runtime/estate_movement.py
+    rule: adjacent producer or consumer with an explicit interface; cannot redefine Office governance semantics
+
+canonical_reference: docs/architecture/coherent-generation-v2.md
+
 authority:
-  status: proposed
+  status: active
   owns:
-  - office capability execution
-  - operational Control Tower intake/compilation and bounded Office outputs
-  - governed front-to-repository-to-workspace resolution for local Office execution context
-  - deterministic typed work compilation from structured Control Tower state
-  - bounded Staff triage and evidence preparation over frozen v2 inputs
-  - bounded Principal attention compilation from prepared Staff packets
-  - bounded execution-envelope compilation from Principal ready pulls and operator contracts
-  - packet-linked execution receipt validation and non-mutating closure/reentry proposals
-  - coherent run-scoped Office v2 generation and last-known-good publication
-  - run records and bounded mutation commands
-  - bounded editorial projection execution after explicit capability promotion
+    - read-only Control Tower v2 intake and validation
+    - governed front-to-repository-to-workspace resolution for Office execution context
+    - deterministic typed work compilation from structured Control Tower state
+    - bounded Staff triage and evidence preparation over a frozen snapshot
+    - bounded Principal attention compilation from prepared Staff packets
+    - bounded execution-envelope compilation from Principal ready pulls and operator contracts
+    - packet-linked execution receipt validation and non-mutating closure/reentry proposals
+    - coherent run-scoped Office generations and last-known-good publication
+    - canonical Office run records and derived runtime-health projection
+    - Staff packet freshness evaluation
+    - bounded editorial projection execution after explicit capability promotion
   does_not_own:
-  - human review decisions
-  - GitHub estate authority or repository health/readiness semantics
-  - estate surface authority, promotion, lifecycle, or semantic ownership declarations
-  - accounting document intake
-  - durable editorial constitution or Matias-authentic idea authority
-  - upstream media, economic, or scientific source semantics
+    - human review decisions
+    - GitHub estate authority or repository health/readiness semantics
+    - estate surface authority, lifecycle, promotion, or semantic ownership
+    - accounting document intake
+    - durable editorial constitution or Matias-authentic idea authority
+    - upstream media, economic, or scientific source semantics
+    - automatic acceptance of reentry proposals into Control Tower state
+
 interfaces:
   consumes:
-  - control:control-tower-v2@2 (read-only semantic control plane)
-  - artifact:ops.capture-record@1
-  - artifact:ops.closure@1 (read-only legacy Ops execution evidence; optional compatibility input)
-  - context:github-repositories@1 (optional advisory context from projects)
-  - registry:estate-surfaces@1 (optional advisory governance context from projects)
+    - control:control-tower-v2@2 (read-only semantic control plane)
+    - context:github-repositories@1 (advisory identity/estate context from projects)
+    - registry:estate-surfaces@1 (advisory governance context from projects)
+    - artifact:ops.capture-record@1
   produces:
-  - artifact:ops.control-state-snapshot@2
-  - artifact:ops.work-item-set@1
-  - artifact:ops.staff-preparation-set@2
-  - artifact:ops.staff-packet@2
-  - artifact:ops.principal-brief@2
-  - artifact:ops.execution-plan@2
-  - artifact:ops.execution-packet@2
-  - artifact:ops.execution-receipt@2
-  - artifact:ops.closure-set@2
-  - artifact:ops.reentry-proposal@2
-  - artifact:ops.office-generation@2
-  - artifact:ops.office-current-pointer@2
-  - artifact:ops.office-run-record@1
-  - artifact:ops.office-reentry-proposal@1 (legacy producer-local review projection; never Carry approval)
+    - artifact:ops.control-state-snapshot@2
+    - artifact:ops.work-item-set@1
+    - artifact:ops.staff-preparation-set@2
+    - artifact:ops.staff-packet@2
+    - artifact:ops.principal-brief@2
+    - artifact:ops.execution-plan@2
+    - artifact:ops.execution-packet@2
+    - artifact:ops.execution-receipt@2
+    - artifact:ops.closure-set@2
+    - artifact:ops.reentry-proposal@2
+    - artifact:ops.office-generation@2
+    - artifact:ops.office-current-pointer@2
+    - artifact:ops.office-run-record@1
+    - artifact:ops.runtime-health-projection@2
+
 upstream:
-- repo.capture-site
-- repo.media-monitor
-- repo.atlas-economico-ar
-- repo.projects
+  - repo.projects
+  - repo.capture-site
+  - repo.media-monitor
+  - repo.atlas-economico-ar
+
 downstream:
-- repo.office-window
-- external:x
+  - repo.office-review
+  - external:x
+
 canonical_commands:
-- make smoke
-- make control-contracts
-- make identity-contracts
-- make work-contracts
-- make staff-v2-contracts
-- make principal-contracts
-- make execution-contracts
-- make reentry-v2-contracts
-- make generation-v2-contracts
-- make office-v2-shadow
-- make office-v2-generate
-- make runtime-contracts
-- make parent-audit
-- make editorial-contracts
+  - make smoke
+  - make parent-audit
+  - make office-v2-shadow
+  - make office-v2-generate
+  - make runtime-health-v2
+  - make runtime-contracts
+
 generated_paths:
-- artifacts/
-- runs/
+  - artifacts/v2/
+  - artifacts/evidence/
+  - artifacts/estate-movement/
+  - artifacts/logs/
+
+invariants:
+  - one Control Tower snapshot digest per coherent generation
+  - front_id is canonical Office identity
+  - local filesystem paths are resolved observations, never semantic identity
+  - free-text needs is context, never machine routing syntax
+  - Staff never rereads Control Tower during a generation
+  - Principal consumes prepared Staff packets, not raw estate state
+  - Principal decisions are never inferred as execution authorization
+  - execution packets may originate only from ready pulls
+  - execution never regains update_state or open_work_items powers
+  - receipts must bind to the exact execution packet and snapshot generation
+  - reentry produces reviewable proposals and performs no governance mutation
+  - current points only to a fully successful coherent generation
+  - every real generation attempt leaves a canonical run record
+  - runtime health is derived by Run Record Owner rather than self-reported by producers
+  - unknown freshness is never treated as fresh
+
 verification:
-  status: parent-runtime-clean-profile-ci-plus-editorial-w0
-  last_verified: '2026-09-14'
+  status: office-v2-core
+  last_verified: '2026-09-15'
   command: make parent-audit
-  evidence:
-  - github-actions:34914909713
   notes:
-  - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
-  - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
-  - Control Tower v2 intake has a native snapshot contract over front, carry, capabilities, operator contracts, aliases, support artifacts, repo bindings/workspaces, and runtime health
-  - Control Tower v2 snapshot validation preserves native v2 semantics and rejects broken primary/foreign-key structure; declared alias collisions remain explicit observations
-  - Office v2 resolves execution identity only through front_id -> REPO MONITOR_v2 repo_id/binding -> repo_workspaces_v2 workspace/local_path
-  - front_registry repo_path/workdir and binding convenience paths are not execution authority and are intentionally ignored by the v2 resolver
-  - ambiguous or unavailable workspace identity remains explicit rather than falling back to a legacy direct path
-  - the typed work compiler emits DECIDE/UNBLOCK/VERIFY/EXECUTE/MAINTAIN from structured v2 state and never routes by parsing the free-text needs field
-  - staff_get is a preparation requirement/fallback signal, not a work taxonomy; WATCH/PARKED remain portfolio state rather than active work kinds
-  - portable work items carry repo/workspace identities and resolution states but do not embed machine-local paths
-  - Staff v2 consumes the frozen control snapshot plus its matching typed work set and never rereads Control Tower Sheets
-  - Staff v2 triages all work cheaply, bounds deep preparation with max_deep, preserves budget-deferred items explicitly, and suppresses expensive/local adapters for already-blocked identity
-  - local repository evidence is resolved through governed workspace identity and portable Staff packets do not expose the machine-local path
-  - Principal v2 consumes prepared Staff packets only; blocked or budget-deferred work remains an Office exception rather than being pushed raw to Matias
-  - Principal v2 bounds needs-you and ready-pull surfaces, keeps overflow explicit, and treats no-principal-action-required as a successful outcome
-  - Principal evidence is compressed to stable refs and does not export machine-local paths
-  - Execution v2 compiles only Principal ready pulls; needs-you entries are never interpreted as execution authorization
-  - Execution v2 requires an unambiguous ACTIVE operator contract and resolved repository targets before producing a portable packet
-  - Execution v2 withholds update_state and open_work_items even when an operator contract lists them as allowed; execution produces evidence and closure/reentry owns follow-up interpretation
-  - execution packets carry objective, target identities, effective power envelope, evidence inputs, acceptance conditions and stop conditions without machine-local paths
-  - Reentry v2 accepts only receipts bound to an exact execution packet id/digest and the same source snapshot generation
-  - COMPLETED receipts must pass every packet acceptance condition and contain evidence; blocked/failed receipts must name blockers
-  - Reentry v2 classifies packet outcomes as DONE/FOLLOW_UP/WAITING for review, never infers that the whole front is done, and keeps packets without receipts explicitly OPEN_NO_RECEIPT
-  - Reentry v2 produces reviewable proposals with candidate_control_patch null and mutation_performed false; suggested next touches remain recommendations rather than spawned work
-  - coherent generation v2 reads Control Tower once and derives work, Staff, Principal, and execution artifacts from that one immutable snapshot
-  - coherent generation v2 writes into a run-scoped staging tree, validates one snapshot digest across every forward stage, and promotes a current pointer only after the complete generation succeeds
-  - a failed generation cannot replace the previous known-good current pointer; shadow mode preserves the complete run while deliberately leaving current unchanged
-  - Staff and execution packet directories are generation-scoped, so stale packets from earlier runs cannot survive into a newer generation
-  - the legacy Office/Staff compiler and closure consumer remain separately available during migration and do not constrain v2 routing, preparation, receipt identity, or generation semantics
-  - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
-  - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
-  - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
-  - repository-health semantics, safe estate sensing, and operational surface declarations are owned by projects
-  - legacy Repo Health implementation remains in-tree as compatibility code, not an Office-owned semantic or product surface
-  - parent runtime profiles resolve and import-smoke in clean CI; full profile is proven on Python 3.11 and 3.12
-  - systemd user units have a portable render/install contract and no tracked machine-local checkout paths
-  unknowns:
-  - issue #20 still owns the stronger question of a committed transitive dependency lock; direct/profile authority and clean resolution are proven
-  - capture processing ontology issue #21 remains separate from infrastructure hardening
-  - live X account identity, metrics, and publication adapters are not yet implemented
-  - editorial upstream artifact contract names are not frozen at W0
-  - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
-  - scheduler cutover remains a separate explicit migration; merging coherent generation code does not change installed timers or enable v2 scheduling
-  - reviewed Control Tower patch application remains a later governance/cutover concern; M7 proposals are intentionally non-mutating
+    - historical Office v1, Staff-v1, Repo Health/GCP, and legacy prepared-block implementations were removed in M9; Git history is the archive
+    - Capture, Evidence, Estate Movement, and Editorial remain explicit sidecars
+    - scheduler cutover is a separate explicit installation action and merging source does not mutate installed user timers
+    - Office Review is a downstream projection and will be upgraded to the v2 artifact contract separately
+
 maintenance:
   cadence: quarterly
-  next_review: '2026-11-01'
+  next_review: '2026-12-01'
