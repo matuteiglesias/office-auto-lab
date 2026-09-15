@@ -33,7 +33,7 @@ def test_all_file_entrypoints_referenced_by_make_exist() -> None:
     assert missing == []
 
 
-def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
+def test_smoke_is_the_single_supported_office_surface() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
     smoke_deps = _target_dependencies("smoke").split()
 
@@ -55,60 +55,54 @@ def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     ]
     assert "src/office_runtime/scripts/repo_contract_scan.sh" in text
     assert "src/office_runtime/scripts/repo_snapshot_protocol.sh" in text
-    assert "\ncontrol-contracts:" in text
-    assert "tests.test_control_snapshot_v2" in text
-    assert "\nidentity-contracts:" in text
-    assert "tests.test_identity_resolution_v2" in text
-    assert "\nwork-contracts:" in text
-    assert "tests.test_work_item_compiler_v1" in text
-    assert "\nstaff-v2-contracts:" in text
-    assert "tests.test_staff_preparation_v2" in text
-    assert "\nprincipal-contracts:" in text
-    assert "tests.test_principal_compiler_v2" in text
-    assert "\nexecution-contracts:" in text
-    assert "tests.test_execution_compiler_v2" in text
-    assert "\nreentry-v2-contracts:" in text
-    assert "tests.test_reentry_v2" in text
-    assert "\ngeneration-v2-contracts:" in text
-    assert "tests.test_generation_v2" in text
-    assert "\nrun-record-contracts:" in text
-    assert "tests.test_run_record_health" in text
-    assert "tests.test_generation_invariants" in text
-    assert "\nfreshness-contracts:" in text
-    assert "tests.test_staff_packet_freshness" in text
-    assert "\nruntime-health-v2:" in text
-    assert "compile_runtime_health_v2.py" in text
-    assert "\noffice-v2-generate:" in text
-    assert "run_generation_v2.py" in text
-    assert "\noffice-v2-shadow:" in text
-    assert "--shadow" in text
-    assert "\ncompat-compile-blocks:" in text
-    assert "src/office_runtime/scripts/legacy/compile_blocks.py" in text
-    assert "\ncompile-blocks:" not in text
+    for target in (
+        "control-contracts",
+        "identity-contracts",
+        "work-contracts",
+        "staff-v2-contracts",
+        "principal-contracts",
+        "execution-contracts",
+        "reentry-v2-contracts",
+        "generation-v2-contracts",
+        "run-record-contracts",
+        "freshness-contracts",
+        "runtime-health-v2",
+        "office-v2-generate",
+        "office-v2-shadow",
+    ):
+        assert f"\n{target}:" in text
 
 
-def test_repo_health_is_compatibility_not_active_make_surface() -> None:
+def test_legacy_make_and_dependency_surfaces_are_gone() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
 
-    assert "\nrepo-health-policy:" not in text
-    assert "\nrepo-health-run:" not in text
-    assert "\ncompat-repo-health-policy:" in text
-    assert "\ncompat-repo-health-run:" in text
+    for target in (
+        "daily",
+        "office-compile",
+        "office-reentry",
+        "staff-bundles",
+        "staff-briefs",
+        "compat-compile-blocks",
+        "compat-repo-health-policy",
+        "compat-repo-health-run",
+        "repo-health-policy",
+        "repo-health-run",
+    ):
+        assert f"\n{target}:" not in text
+
+    assert not (REPO_ROOT / "src/office_runtime/scripts/legacy").exists()
+    assert not (REPO_ROOT / "src/office_runtime/ops/repo_health").exists()
+    assert not (REPO_ROOT / "src/office_runtime/staff/bundles.py").exists()
+    assert not (REPO_ROOT / "src/office_runtime/staff/briefs.py").exists()
+    assert not (REPO_ROOT / "src/office_runtime/office/compile.py").exists()
+    assert not (REPO_ROOT / "src/office_runtime/office/closure_reentry.py").exists()
 
 
-def test_broken_parallel_office_entrypoint_is_not_exposed() -> None:
-    text = MAKEFILE.read_text(encoding="utf-8")
-
-    assert "office_runtime.office.main" not in text
-    assert "\noffice:" not in text
-    assert "\noffice-compile:" in text
-
-
-def test_office_system_no_longer_produces_repo_health_authority_artifact() -> None:
+def test_system_declaration_has_no_compat_product_surface() -> None:
     text = SYSTEM.read_text(encoding="utf-8")
 
     assert "artifact:ops.repo-health@1" not in text
     assert "repository health/readiness semantics" in text
     assert "context:github-repositories@1" in text
-    assert "lifecycle_classes:" in text
-    assert "class: compat" in text
+    assert "class: compat" not in text
+    assert "legacy producer-local review projection" not in text
