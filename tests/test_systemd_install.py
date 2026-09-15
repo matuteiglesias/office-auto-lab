@@ -20,6 +20,7 @@ UNIT_NAMES = (
     "evidence-daily.timer",
     "office-v2-generation.service",
     "office-v2-generation.timer",
+    "office-v2-shadow.service",
 )
 
 
@@ -45,12 +46,18 @@ class SystemdInstallTests(unittest.TestCase):
         self.assertNotIn("After=", service)
         self.assertNotIn("Requires=", service)
 
-    def test_v2_adapter_is_fail_closed_until_m8_command_is_available(self) -> None:
+    def test_v2_adapter_uses_the_canonical_m8_command(self) -> None:
         entrypoint = (ROOT / "src/office_runtime/scripts/systemd_entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn("office-v2-generation", entrypoint)
+        self.assertIn("run_generation_v2.py", entrypoint)
+        self.assertIn("--shadow", entrypoint)
         self.assertIn("another generation is running", entrypoint)
-        self.assertIn("awaiting the canonical M8 runtime command", entrypoint)
-        self.assertNotIn("office-v2-generation)\n    exec", entrypoint)
+        self.assertNotIn("office-compile", entrypoint.split("run_v2_generation", 1)[1].split("case", 1)[0])
+
+    def test_shadow_is_manual_and_not_scheduled(self) -> None:
+        shadow = (ROOT / "systemd/user/office-v2-shadow.service").read_text(encoding="utf-8")
+        self.assertIn("office-v2-shadow", shadow)
+        self.assertFalse((ROOT / "systemd/user/office-v2-shadow.timer").exists())
 
     def test_legacy_units_remain_tracked_during_migration(self) -> None:
         for name in ("office-compile.service", "office-compile.timer", "staff-briefs.service", "staff-briefs.timer"):

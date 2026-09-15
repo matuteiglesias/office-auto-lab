@@ -18,6 +18,7 @@ UNIT_NAMES = (
     "evidence-daily.timer",
     "office-v2-generation.service",
     "office-v2-generation.timer",
+    "office-v2-shadow.service",
 )
 LEGACY_TIMER_NAMES = (
     "office-compile.timer",
