@@ -152,6 +152,15 @@ class PrincipalCompilerV2Tests(unittest.TestCase):
         ))
         self.assertEqual(len(brief["exceptions"]), 1)
         self.assertEqual(brief["exceptions"][0]["kinds"], ["UNBLOCK", "VERIFY"])
+        self.assertEqual(brief["exceptions"][0]["blockers_by_work_item"]["wi:fr_blocked:verify"], ["identity is not ready"])
+
+    def test_action_maturity_does_not_mature_an_unrelated_decision(self) -> None:
+        decision = packet("fr_shared", "DECIDE", principal_needed=True, decision_maturity="NEEDS_MORE_PREP")
+        action = packet("fr_shared", "EXECUTE")
+        brief = compile_principal_brief(preparation(decision, action))
+        self.assertEqual(brief["needs_you"], [])
+        self.assertEqual(len(brief["ready_pulls"]), 1)
+        self.assertEqual(brief["staff_follow_up"][0]["work_item_id"], "wi:fr_shared:decide")
 
     def test_needs_wording_does_not_change_lane_or_attention(self) -> None:
         first = packet("fr_exec", "EXECUTE", needs="DECIDE urgently")

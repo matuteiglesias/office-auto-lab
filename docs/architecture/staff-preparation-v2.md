@@ -69,6 +69,31 @@ Additional adapters can later cover documents, recent activity, relationship con
 
 For ACTION work, an adapter may additionally provide a Staff-owned action contract. It must specify a concrete objective, typed portable entry surface, why-now, scope boundary, acceptance and stop conditions, expected evidence, uncertainties, and any explicit decision dependencies. Staff does not infer this contract from front prose. Without one, a deeply prepared action is `NEEDS_MORE_PREP`, not a ready pull.
 
+## Observational action candidates
+
+`ops.staff-action-candidate.v1` is the generic seam between domain evidence and
+Staff action maturity. A candidate is advisory observation, never Control Tower
+state, Principal approval, or execution authorization. It includes its front,
+producer, generation time, evidence references/freshness, a proposed bounded
+objective and portable entry surface, conditions/evidence, uncertainties, and
+explicit decision dependencies.
+
+Repository, control-plane, and connected-context producers may emit candidates
+from already-materialized governed artifacts. Staff considers at most three per
+front in stable candidate-id order, validates freshness and portability, then
+selects a valid candidate into its own mature Action contract. A missing,
+stale, vague, or path-leaking candidate remains evidence only.
+
+`support_artifacts_v2` should eventually register stable producer pointers with
+the generic role `ACTION_CANDIDATE_SOURCE`; dynamic candidate contents belong
+in the referenced generated artifact, not in the Sheet. No such registration
+is assumed or written by this component.
+
+An ACTION budget lane is not itself an Action-contract requirement. In this
+iteration only the `EXECUTE` facet receives Action maturity; `DECIDE`, `VERIFY`,
+`UNBLOCK`, and `MAINTAIN` retain their typed evidence/blocker semantics unless
+an explicit future contract extends them.
+
 ## Staff packet contract
 
 A packet carries:

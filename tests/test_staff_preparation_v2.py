@@ -4,6 +4,7 @@ import inspect
 import unittest
 
 from office_runtime.staff import preparation_v2
+from office_runtime.office.action_candidates import ControlPlaneEvidenceProducer, RepositoryEvidenceProducer
 from office_runtime.staff.preparation_v2 import StaffPreparationError, prepare_work_items
 
 
@@ -87,6 +88,20 @@ def action_contract(*, front_id: str = "fr_exec", surface_type: str = "REPOSITOR
         "known_uncertainties": [],
         "decision_dependencies": [],
     }
+
+
+def action_candidate(candidate_id: str = "ac:repo:verify", *, freshness: str = "CURRENT") -> dict:
+    candidate = action_contract()
+    candidate.update({
+        "schema_version": "ops.staff-action-candidate.v1",
+        "candidate_id": candidate_id,
+        "front_id": "fr_exec",
+        "producer": "REPOSITORY_EVIDENCE",
+        "generated_at": "2026-09-15T00:00:00Z",
+        "source_evidence": [{"repo_id": "repo.exec", "workspace_id": "ws.exec", "revision": "abc123"}],
+        "source_freshness": freshness,
+    })
+    return candidate
 
 
 class StaffPreparationV2Tests(unittest.TestCase):
@@ -186,6 +201,65 @@ class StaffPreparationV2Tests(unittest.TestCase):
         packet = result["packets"][0]
         self.assertEqual(packet["action_maturity"], "BLOCKED")
         self.assertIn("decision dependency dec:go is unresolved", packet["blockers"])
+
+    def test_candidate_is_observation_until_staff_deep_prepares_and_validates_it(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        result = prepare_work_items(
+            snapshot(), work_set(action), candidate_producers=[RepositoryEvidenceProducer([action_candidate()])], max_deep=0,
+        )
+        packet = result["packets"][0]
+        self.assertEqual(packet["preparation_status"], "DEFERRED_BY_BUDGET")
+        self.assertEqual(packet["action_maturity"], "NEEDS_MORE_PREP")
+        self.assertFalse(packet["principal_needed"])
+
+    def test_fresh_candidate_becomes_staff_owned_mature_contract(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        result = prepare_work_items(
+            snapshot(), work_set(action), candidate_producers=[RepositoryEvidenceProducer([action_candidate()])], max_deep=1,
+        )
+        packet = result["packets"][0]
+        self.assertEqual(packet["action_maturity"], "READY_FOR_PULL")
+        self.assertEqual(packet["action_contract"]["objective"], action_candidate()["objective"])
+        self.assertEqual(packet["current_state"]["horizon"], "THIS_WEEK")
+
+    def test_stale_or_path_leaking_candidate_is_rejected(self) -> None:
+        stale = action_candidate(freshness="STALE")
+        leaking = action_candidate("ac:repo:path")
+        leaking["entry_surface"]["local_path"] = "/home/matias/repos/secret"
+        result = prepare_work_items(
+            snapshot(), work_set(item("fr_exec", "EXECUTE")), candidate_producers=[RepositoryEvidenceProducer([stale, leaking])], max_deep=1,
+        )
+        packet = result["packets"][0]
+        self.assertEqual(packet["action_maturity"], "NEEDS_MORE_PREP")
+        self.assertIn("stale or unknown", " ".join(packet["uncertainties"]))
+        self.assertIn("machine-local path", " ".join(packet["uncertainties"]))
+
+    def test_candidates_are_bounded_and_deterministic(self) -> None:
+        candidates = [action_candidate(f"ac:repo:{number}") for number in range(5)]
+        result = prepare_work_items(
+            snapshot(), work_set(item("fr_exec", "EXECUTE")), candidate_producers=[RepositoryEvidenceProducer(list(reversed(candidates)))], max_deep=1,
+        )
+        evidence = next(row for row in result["packets"][0]["evidence"] if row["adapter"] == "action_candidates")
+        self.assertEqual([row["candidate_id"] for row in evidence["candidates"]], ["ac:repo:0", "ac:repo:1", "ac:repo:2"])
+
+    def test_control_plane_candidate_cannot_change_governed_work_state(self) -> None:
+        candidate = action_candidate()
+        candidate["producer"] = "CONTROL_PLANE_EVIDENCE"
+        result = prepare_work_items(
+            snapshot(), work_set(item("fr_exec", "EXECUTE")), candidate_producers=[ControlPlaneEvidenceProducer([candidate])], max_deep=1,
+        )
+        state = result["packets"][0]["current_state"]
+        self.assertEqual((state["carry_status"], state["horizon"], state["priority_mode"]), ("ACTIVE", "THIS_WEEK", "SPRINT"))
+
+    def test_non_execute_facets_do_not_receive_action_contract_missing_uncertainty(self) -> None:
+        verify = item("fr_exec", "VERIFY")
+        verify["human_focus"] = True  # ACTION budget lane, not an EXECUTE facet.
+        decide = item("fr_decide", "DECIDE", principal_required=True)
+        result = prepare_work_items(snapshot(), work_set(verify, decide), max_deep=2)
+        packets = {packet["kind"]: packet for packet in result["packets"]}
+        self.assertEqual(packets["VERIFY"]["action_maturity"], "NOT_AN_ACTION")
+        self.assertNotIn("action contract", " ".join(packets["VERIFY"]["uncertainties"]))
+        self.assertNotIn("action contract", " ".join(packets["DECIDE"]["uncertainties"]))
 
     def test_maintenance_without_staff_requirement_stays_light(self) -> None:
         adapter = CountingAdapter()

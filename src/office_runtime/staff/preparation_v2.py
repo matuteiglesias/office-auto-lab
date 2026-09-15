@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 from office_runtime.office.identity import IdentityResolutionError, IdentityResolver
 from office_runtime.office.action_contracts import ActionContractError, unresolved_dependencies, validate_action_contract
+from office_runtime.office.action_candidates import ActionCandidateProducer, bounded_candidates
 
 
 SCHEMA_VERSION = "ops.staff-preparation-set.v2"
@@ -37,6 +38,28 @@ class EvidenceAdapter(Protocol):
 
     def collect(self, snapshot: dict, work_item: dict) -> dict:
         ...
+
+
+class ActionCandidateEvidenceAdapter:
+    """Collect bounded producer observations without treating them as authority."""
+
+    name = "action_candidates"
+
+    def __init__(self, producers: list[ActionCandidateProducer] | None = None) -> None:
+        self.producers = list(producers or [])
+
+    def collect(self, snapshot: dict, work_item: dict) -> dict:
+        candidates: list[dict] = []
+        for producer in self.producers:
+            candidates.extend(producer.produce(snapshot, work_item))
+        selected, rejected = bounded_candidates(candidates, front_id=str(work_item.get("front_id", "")))
+        return {
+            "adapter": self.name,
+            "status": "ok",
+            "candidate_count": len(selected),
+            "candidates": selected,
+            "rejected_candidates": rejected,
+        }
 
 
 def _rows(snapshot: dict, table: str) -> list[dict]:
@@ -72,6 +95,16 @@ def preparation_lane(work_item: dict) -> str:
     if kind == "VERIFY" and work_item.get("human_focus"):
         return "ACTION"
     return "REPAIR_VERIFY"
+
+
+def requires_action_contract(work_item: dict) -> bool:
+    """Only an EXECUTE facet uses Action maturity in this iteration.
+
+    Budget lanes deliberately group some VERIFY work with actions, but a lane is
+    not a semantic requirement. VERIFY/UNBLOCK/MAINTAIN retain their own
+    evidence and blocker semantics unless a later typed contract says otherwise.
+    """
+    return str(work_item.get("kind", "")).upper() == "EXECUTE"
 
 
 @dataclass(frozen=True)
@@ -254,7 +287,8 @@ def _action_contract_from_staff_evidence(work_item: dict, evidence: list[dict]) 
     front prose.  A preparation adapter may provide one after inspecting
     governed evidence; this is the seam for that Staff work.
     """
-    candidates = [row.get("action_contract") for row in evidence if isinstance(row.get("action_contract"), dict)]
+    candidates = [candidate for row in evidence for candidate in row.get("candidates", []) if isinstance(candidate, dict)]
+    candidates.extend(row.get("action_contract") for row in evidence if isinstance(row.get("action_contract"), dict))
     # The optional in-memory value is useful for a bounded Staff adapter caller
     # and fixtures; it is still validated below and is never inferred from
     # unstructured source state.
@@ -284,7 +318,7 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
     else:
         decision_maturity = "NOT_A_DECISION"
         decision = {}
-    if preparation_lane(work_item) == "ACTION":
+    if requires_action_contract(work_item):
         try:
             action_contract = validate_action_contract(_action_contract_from_staff_evidence(work_item, evidence), front_id=str(work_item.get("front_id", "")))
             unresolved = unresolved_dependencies(action_contract)
@@ -300,6 +334,9 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
             action_contract = {}
             action_maturity = "BLOCKED" if blockers else "NEEDS_MORE_PREP"
             uncertainties.append(f"action contract: {exc}")
+        for result in evidence:
+            for reason in result.get("rejected_candidates", []) or []:
+                uncertainties.append(f"action candidate rejected: {reason}")
     else:
         action_contract = {}
         action_maturity = "NOT_AN_ACTION"
@@ -335,7 +372,7 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
     return packet
 
 
-def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[EvidenceAdapter] | None = None, max_deep: int = 6, prepared_at: str = "") -> dict:
+def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[EvidenceAdapter] | None = None, candidate_producers: list[ActionCandidateProducer] | None = None, max_deep: int = 6, prepared_at: str = "") -> dict:
     """Prepare typed work without rereading governance state."""
     snapshot_digest = str(snapshot.get("snapshot_digest", "")).strip()
     source_digest = str(work_set.get("source_snapshot_digest", "")).strip()
@@ -345,6 +382,8 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
         raise StaffPreparationError("max_deep must be non-negative")
 
     adapters = list(adapters) if adapters is not None else [SnapshotEvidenceAdapter()]
+    if candidate_producers is not None:
+        adapters.append(ActionCandidateEvidenceAdapter(candidate_producers))
     items = [dict(item) for item in work_set.get("work_items", [])]
     items.sort(key=_priority_tuple)
     triage_rows = [triage_work_item(item) for item in items]
