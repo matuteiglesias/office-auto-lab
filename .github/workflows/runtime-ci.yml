@@ -16,6 +16,7 @@ on:
       - "tests/test_work_item_compiler_v1.py"
       - "tests/test_staff_preparation_v2.py"
       - "tests/test_principal_compiler_v2.py"
+      - "tests/test_execution_compiler_v2.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
       - "tests/test_office_identity_repo_context.py"
@@ -37,6 +38,7 @@ on:
       - "docs/architecture/work-item-compiler-v1.md"
       - "docs/architecture/staff-preparation-v2.md"
       - "docs/architecture/principal-compiler-v2.md"
+      - "docs/architecture/execution-compiler-v2.md"
       - "SYSTEM.yaml"
   workflow_dispatch:
 
@@ -104,9 +106,9 @@ jobs:
         run: python -m pip check
       - name: Import-smoke declared capability surface
         run: python src/office_runtime/scripts/profile_smoke.py ${{ matrix.profile }}
-      - name: Office v2 control-state, identity, work, Staff, Principal, and advisory context tests
+      - name: Office v2 control-state, identity, work, Staff, Principal, execution, and advisory context tests
         if: matrix.profile == 'office'
-        run: python -m unittest tests.test_control_snapshot_v2 tests.test_identity_resolution_v2 tests.test_work_item_compiler_v1 tests.test_staff_preparation_v2 tests.test_principal_compiler_v2 tests.test_office_identity_repo_context tests.test_office_surface_context
+        run: python -m unittest tests.test_control_snapshot_v2 tests.test_identity_resolution_v2 tests.test_work_item_compiler_v1 tests.test_staff_preparation_v2 tests.test_principal_compiler_v2 tests.test_execution_compiler_v2 tests.test_office_identity_repo_context tests.test_office_surface_context
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
@@ -132,6 +134,7 @@ jobs:
             tests.test_work_item_compiler_v1 \
             tests.test_staff_preparation_v2 \
             tests.test_principal_compiler_v2 \
+            tests.test_execution_compiler_v2 \
             tests.test_capture_lifecycle \
             tests.test_capture_transcription \
             tests.test_office_identity_repo_context \
