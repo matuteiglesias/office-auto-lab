@@ -97,7 +97,22 @@ class StaffPreparationV2Tests(unittest.TestCase):
         self.assertEqual(adapter.calls, ["wi:fr_decide:decide"])
         by_id = {packet["work_item_id"]: packet for packet in result["packets"]}
         self.assertEqual(by_id["wi:fr_decide:decide"]["preparation_status"], "PREPARED_DEEP")
-        self.assertEqual(by_id["wi:fr_exec:execute"]["preparation_status"], "DEFERRED_BUDGET")
+        self.assertEqual(by_id["wi:fr_exec:execute"]["preparation_status"], "DEFERRED_BY_BUDGET")
+
+    def test_lane_budgets_keep_action_work_from_decision_monopoly(self) -> None:
+        items = [item(f"fr_decide_{i}", "DECIDE", principal_required=True) for i in range(5)]
+        items += [item(f"fr_exec_{i}", "EXECUTE") for i in range(4)]
+        result = prepare_work_items(snapshot(), work_set(*items), adapters=[CountingAdapter()], max_deep=6)
+        deep = [packet for packet in result["packets"] if packet["preparation_status"] == "PREPARED_DEEP"]
+        self.assertEqual(result["deep_by_lane"], {"DECISION": 2, "ACTION": 4, "REPAIR_VERIFY": 0})
+        self.assertEqual(len(deep), 6)
+        self.assertEqual(result["counts"]["DEFERRED_BY_BUDGET"], 3)
+
+    def test_lane_capacity_spills_over_deterministically(self) -> None:
+        items = [item("fr_exec", "EXECUTE"), item("fr_maint", "MAINTAIN")]
+        result = prepare_work_items(snapshot(), work_set(*items), adapters=[CountingAdapter()], max_deep=6)
+        self.assertEqual(result["deep_by_lane"], {"DECISION": 0, "ACTION": 2, "REPAIR_VERIFY": 0})
+        self.assertEqual([p["work_item_id"] for p in result["packets"]], ["wi:fr_exec:execute", "wi:fr_maint:maintain"])
 
     def test_blocked_identity_does_not_invoke_expensive_adapter(self) -> None:
         adapter = CountingAdapter()
@@ -134,6 +149,21 @@ class StaffPreparationV2Tests(unittest.TestCase):
         self.assertEqual(packet["source_snapshot_digest"], "sha256:snapshot")
         self.assertEqual(packet["identity"]["path_authority"], "repo_workspaces_v2")
         self.assertNotIn("local_path", str(packet))
+
+    def test_identical_inputs_produce_identical_preparation(self) -> None:
+        first = prepare_work_items(
+            snapshot(),
+            work_set(item("fr_exec", "EXECUTE"), item("fr_decide", "DECIDE", principal_required=True)),
+            max_deep=2,
+            prepared_at="2026-09-15T00:00:00Z",
+        )
+        second = prepare_work_items(
+            snapshot(),
+            work_set(item("fr_exec", "EXECUTE"), item("fr_decide", "DECIDE", principal_required=True)),
+            max_deep=2,
+            prepared_at="2026-09-15T00:00:00Z",
+        )
+        self.assertEqual(first, second)
 
 
 if __name__ == "__main__":

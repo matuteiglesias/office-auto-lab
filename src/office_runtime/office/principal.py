@@ -8,7 +8,7 @@ from typing import Any
 SCHEMA_VERSION = "ops.principal-brief.v2"
 KIND_RANK = {"DECIDE": 0, "UNBLOCK": 1, "VERIFY": 2, "EXECUTE": 3, "MAINTAIN": 4}
 HORIZON_RANK = {"TODAY": 0, "THIS_WEEK": 1, "THIS_MONTH": 2, "MAINTENANCE": 3, "LATER": 4}
-EXCEPTION_STATUSES = frozenset({"BLOCKED", "DEFERRED_BUDGET"})
+EXCEPTION_STATUSES = frozenset({"BLOCKED"})
 READY_STATUSES = frozenset({"PREPARED_DEEP", "PREPARED_LIGHT"})
 
 
@@ -112,6 +112,8 @@ def _decision(packet: dict) -> dict:
         "question": str(packet.get("principal_question", "")).strip() or str(packet.get("question", "")).strip(),
         "recommended_default": str(packet.get("recommended_move", "")),
         "acceptable_outcomes": ["approve_default", "choose_narrower_alternative", "defer_with_review_point"],
+        "decision_maturity": packet.get("decision_maturity", ""),
+        "decision": packet.get("decision", {}),
     })
     entry["entry_digest"] = _stable_digest(entry)
     return entry
@@ -130,6 +132,49 @@ def _ready_pull(packet: dict) -> dict:
 
 def _minimal(packet: dict, reason: str) -> dict:
     return {"entry_id": str(packet.get("work_item_id", "")), "work_item_id": str(packet.get("work_item_id", "")), "front_id": str(packet.get("front_id", "")), "title": str(packet.get("title", "")), "kind": str(packet.get("kind", "")), "reason": reason}
+
+
+def _compact_exceptions(exceptions: list[dict]) -> list[dict]:
+    """Keep repeated typed symptoms visible without repeating one front."""
+    grouped: dict[tuple[str, str], dict] = {}
+    for entry in exceptions:
+        key = (str(entry.get("front_id", "")), str(entry.get("exception_code", "")))
+        if key not in grouped:
+            grouped[key] = dict(entry)
+            grouped[key]["work_item_ids"] = [str(entry.get("work_item_id", ""))]
+            grouped[key]["kinds"] = [str(entry.get("kind", ""))]
+            continue
+        current = grouped[key]
+        work_item_id = str(entry.get("work_item_id", ""))
+        kind = str(entry.get("kind", ""))
+        if work_item_id and work_item_id not in current["work_item_ids"]:
+            current["work_item_ids"].append(work_item_id)
+        if kind and kind not in current["kinds"]:
+            current["kinds"].append(kind)
+        for field in ("blockers", "uncertainties"):
+            values = current.setdefault(field, [])
+            for value in entry.get(field, []) or []:
+                if value not in values:
+                    values.append(value)
+        current["entry_digest"] = _stable_digest(current)
+    return list(grouped.values())
+
+
+def _decision_is_mature(packet: dict) -> bool:
+    if str(packet.get("kind", "")).upper() != "DECIDE":
+        return False
+    if str(packet.get("decision_maturity", "")).upper() != "READY_FOR_PRINCIPAL":
+        return False
+    decision = packet.get("decision", {}) or {}
+    required = ("question", "recommendation", "options", "why_now", "consequence", "default_if_deferred", "post_decision_move")
+    return all(decision.get(key) not in (None, "", []) for key in required)
+
+
+def _materially_relevant_now(packet: dict) -> bool:
+    state = packet.get("current_state", {}) or {}
+    if str(state.get("carry_status", "")).upper() not in {"ACTIVE", "ACTIVE_LIGHT"}:
+        return False
+    return str(state.get("horizon", "")).upper() in {"TODAY", "THIS_WEEK"}
 
 
 def _section_ids(brief: dict, section: str) -> dict[str, str]:
@@ -175,12 +220,17 @@ def compile_principal_brief(preparation: dict, *, previous_brief: dict | None = 
     decision_candidates: list[dict] = []
     pull_candidates: list[dict] = []
     prepared_nonprincipal: list[dict] = []
+    immature_decisions: list[dict] = []
     for packet in packets:
         if _is_exception(packet):
             exceptions.append(_exception(packet))
             continue
         if bool(packet.get("principal_needed")):
-            decision_candidates.append(packet)
+            if _decision_is_mature(packet) and _materially_relevant_now(packet):
+                decision_candidates.append(packet)
+            else:
+                reason = "DECISION_NOT_READY" if str(packet.get("kind", "")).upper() == "DECIDE" else "PRINCIPAL_REQUIRED"
+                immature_decisions.append(_minimal(packet, reason))
             continue
         if str(packet.get("preparation_status", "")).upper() in READY_STATUSES:
             pull_candidates.append(packet)
@@ -191,19 +241,30 @@ def compile_principal_brief(preparation: dict, *, previous_brief: dict | None = 
     ready_pulls = [_ready_pull(packet) for packet in pull_candidates[:max_ready_pulls]]
     ready_ids = {row["entry_id"] for row in ready_pulls}
     moved_without_you = [_minimal(packet, "STAFF_PREPARED") for packet in prepared_nonprincipal if str(packet.get("work_item_id", "")) not in ready_ids]
-    principal_action_required = bool(needs_you or deferred_attention)
+    preparation_counts = dict(preparation.get("counts", {}) or {})
+    if "DEFERRED_BY_BUDGET" not in preparation_counts and "DEFERRED_BUDGET" not in preparation_counts:
+        preparation_counts["DEFERRED_BY_BUDGET"] = sum(
+            1 for packet in packets if str(packet.get("preparation_status", "")).upper() == "DEFERRED_BY_BUDGET"
+        )
+    principal_action_required = bool(needs_you)
+    compacted_exceptions = _compact_exceptions(exceptions)
     brief = {
         "schema_version": SCHEMA_VERSION,
         "source_snapshot_digest": source_snapshot_digest,
         "source_preparation_digest": preparation.get("preparation_digest", ""),
         "needs_you": needs_you,
         "ready_pulls": ready_pulls,
-        "exceptions": exceptions,
+        "exceptions": compacted_exceptions,
         "moved_without_you": moved_without_you,
         "deferred_attention": deferred_attention,
+        "staff_follow_up": immature_decisions,
+        "preparation_frontier": {
+            "deep_prepared": preparation_counts.get("PREPARED_DEEP", 0),
+            "deferred_by_budget": preparation_counts.get("DEFERRED_BY_BUDGET", preparation_counts.get("DEFERRED_BUDGET", 0)),
+        },
         "principal_action_required": principal_action_required,
         "nothing_required": not principal_action_required,
-        "counts": {"needs_you": len(needs_you), "ready_pulls": len(ready_pulls), "exceptions": len(exceptions), "moved_without_you": len(moved_without_you), "deferred_attention": len(deferred_attention)},
+        "counts": {"needs_you": len(needs_you), "ready_pulls": len(ready_pulls), "exceptions": len(compacted_exceptions), "moved_without_you": len(moved_without_you), "deferred_attention": len(deferred_attention), "staff_follow_up": len(immature_decisions)},
     }
     brief["delta"] = _delta(brief, previous_brief)
     brief["brief_digest"] = _stable_digest(brief)

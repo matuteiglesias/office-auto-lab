@@ -13,6 +13,8 @@ from office_runtime.office.identity import IdentityResolutionError, IdentityReso
 SCHEMA_VERSION = "ops.staff-preparation-set.v2"
 PACKET_SCHEMA_VERSION = "ops.staff-packet.v2"
 DEEP_KINDS = frozenset({"DECIDE", "UNBLOCK", "VERIFY", "EXECUTE"})
+PREPARATION_LANE_BUDGETS = {"DECISION": 2, "ACTION": 3, "REPAIR_VERIFY": 1}
+DECISION_MATURITY = frozenset({"NOT_A_DECISION", "NEEDS_MORE_PREP", "WAITING_FOR_EVIDENCE", "READY_FOR_PRINCIPAL"})
 KIND_RANK = {"DECIDE": 0, "UNBLOCK": 1, "VERIFY": 2, "EXECUTE": 3, "MAINTAIN": 4}
 HORIZON_RANK = {"TODAY": 0, "THIS_WEEK": 1, "THIS_MONTH": 2, "MAINTENANCE": 3, "LATER": 4}
 QUESTION_BY_KIND = {
@@ -56,6 +58,18 @@ def _priority_tuple(item: dict) -> tuple[int, int, int, str]:
         HORIZON_RANK.get(str(item.get("horizon", "")).upper(), 50),
         str(item.get("work_item_id", "")),
     )
+
+
+def preparation_lane(work_item: dict) -> str:
+    """Return the deterministic Staff preparation lane for typed work."""
+    kind = str(work_item.get("kind", "")).upper()
+    if kind == "DECIDE":
+        return "DECISION"
+    if kind in {"EXECUTE", "MAINTAIN"}:
+        return "ACTION"
+    if kind == "VERIFY" and work_item.get("human_focus"):
+        return "ACTION"
+    return "REPAIR_VERIFY"
 
 
 @dataclass(frozen=True)
@@ -232,6 +246,14 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
     runtime_status = _current_state(snapshot, work_item)["runtime"].get("health_status", "")
     if not runtime_status or runtime_status.upper() == "UNKNOWN":
         uncertainties.append("runtime health is unknown")
+    if str(work_item.get("kind", "")).upper() == "DECIDE":
+        decision_maturity = str(work_item.get("decision_maturity", "NEEDS_MORE_PREP")).upper()
+        if decision_maturity not in DECISION_MATURITY - {"NOT_A_DECISION"}:
+            decision_maturity = "NEEDS_MORE_PREP"
+        decision = work_item.get("decision", {}) if isinstance(work_item.get("decision"), dict) else {}
+    else:
+        decision_maturity = "NOT_A_DECISION"
+        decision = {}
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "staff_packet_id": "sp:" + str(work_item.get("work_item_id", "")),
@@ -240,6 +262,7 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "title": work_item.get("title", ""),
         "kind": work_item.get("kind"),
         "preparation_status": preparation_status,
+        "preparation_lane": preparation_lane(work_item),
         "triage": triage.as_dict(),
         "question": QUESTION_BY_KIND.get(str(work_item.get("kind", "")).upper(), ""),
         "current_state": _current_state(snapshot, work_item),
@@ -252,6 +275,8 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "principal_question": "Choose or authorize the bounded next move for this item." if bool(work_item.get("principal_required")) or str(work_item.get("kind", "")).upper() == "DECIDE" else "",
         "prepared_at": prepared_at,
         "source_snapshot_digest": snapshot.get("snapshot_digest", ""),
+        "decision_maturity": decision_maturity,
+        "decision": decision,
     }
     packet["packet_digest"] = _stable_digest(packet)
     return packet
@@ -272,13 +297,50 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
     triage_rows = [triage_work_item(item) for item in items]
     triage_by_id = {row.work_item_id: row for row in triage_rows}
 
-    deep_used = 0
+    eligible = [
+        item for item in items
+        if triage_by_id[str(item.get("work_item_id", ""))].prep_depth == "DEEP"
+        and triage_by_id[str(item.get("work_item_id", ""))].status == "READY_FOR_PREP"
+    ]
+    by_lane: dict[str, list[dict]] = {lane: [] for lane in PREPARATION_LANE_BUDGETS}
+    for item in eligible:
+        by_lane[preparation_lane(item)].append(item)
+    selected_ids: set[str] = set()
+    for lane, budget in PREPARATION_LANE_BUDGETS.items():
+        for item in by_lane[lane][:budget]:
+            if len(selected_ids) >= max_deep:
+                break
+            selected_ids.add(str(item.get("work_item_id", "")))
+    if len(selected_ids) < max_deep:
+        spill_order = ("ACTION", "REPAIR_VERIFY", "DECISION")
+        selected_by_lane = {
+            lane: sum(1 for item in by_lane[lane] if str(item.get("work_item_id", "")) in selected_ids)
+            for lane in PREPARATION_LANE_BUDGETS
+        }
+        under_budget = [
+            item for lane in spill_order
+            for item in by_lane[lane]
+            if str(item.get("work_item_id", "")) not in selected_ids
+            and selected_by_lane[lane] < PREPARATION_LANE_BUDGETS[lane]
+        ]
+        spill_candidates = under_budget + [
+            item for lane in spill_order
+            for item in by_lane[lane]
+            if str(item.get("work_item_id", "")) not in selected_ids and item not in under_budget
+        ]
+        for item in spill_candidates:
+            selected_ids.add(str(item.get("work_item_id", "")))
+            if len(selected_ids) >= max_deep:
+                break
+
+    deep_used = len(selected_ids)
     packets: list[dict] = []
     for item in items:
         triage = triage_by_id[str(item.get("work_item_id", ""))]
-        run_deep = triage.prep_depth == "DEEP" and triage.status == "READY_FOR_PREP"
-        if run_deep and deep_used >= max_deep:
-            packets.append(_packet(snapshot, item, triage, [], prepared_at=prepared_at, preparation_status="DEFERRED_BUDGET"))
+        item_id = str(item.get("work_item_id", ""))
+        run_deep = item_id in selected_ids
+        if triage.prep_depth == "DEEP" and triage.status == "READY_FOR_PREP" and not run_deep:
+            packets.append(_packet(snapshot, item, triage, [], prepared_at=prepared_at, preparation_status="DEFERRED_BY_BUDGET"))
             continue
 
         evidence: list[dict] = []
@@ -289,7 +351,6 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
             evidence.append(SnapshotEvidenceAdapter().collect(snapshot, item))
 
         if run_deep:
-            deep_used += 1
             prep_status = "PREPARED_DEEP"
         elif triage.status == "BLOCKED":
             prep_status = "BLOCKED"
@@ -307,6 +368,11 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
         "source_work_set_schema": work_set.get("schema_version", ""),
         "max_deep": max_deep,
         "deep_used": deep_used,
+        "lane_budgets": dict(PREPARATION_LANE_BUDGETS),
+        "deep_by_lane": {
+            lane: sum(1 for packet in packets if packet.get("preparation_status") == "PREPARED_DEEP" and packet.get("preparation_lane") == lane)
+            for lane in PREPARATION_LANE_BUDGETS
+        },
         "triage": [row.as_dict() for row in triage_rows],
         "packets": packets,
         "counts": counts,

@@ -7,7 +7,8 @@ from office_runtime.office import principal
 from office_runtime.office.principal import PrincipalCompileError, compile_principal_brief, render_principal_markdown
 
 
-def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: str = "PREPARED_DEEP", blockers: list[str] | None = None, needs: str = "current bounded need", packet_digest: str | None = None) -> dict:
+def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: str = "PREPARED_DEEP", blockers: list[str] | None = None, needs: str = "current bounded need", packet_digest: str | None = None, decision_maturity: str | None = None, horizon: str = "THIS_WEEK") -> dict:
+    is_decision = kind == "DECIDE"
     return {
         "schema_version": "ops.staff-packet.v2",
         "staff_packet_id": f"sp:wi:{front_id}:{kind.lower()}",
@@ -18,7 +19,7 @@ def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: 
         "preparation_status": status,
         "question": f"Question for {front_id}?",
         "current_state": {
-            "carry_status": "ACTIVE", "horizon": "THIS_WEEK", "priority_mode": "SPRINT",
+            "carry_status": "ACTIVE", "horizon": horizon, "priority_mode": "SPRINT",
             "principal_mode": "REQUIRED" if principal_needed else "RECOMMENDED", "needs": needs,
             "note": "context note", "runtime": {"health_status": "OK", "health_bucket": "TEST"},
         },
@@ -40,6 +41,16 @@ def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: 
         "prepared_at": "2026-09-15T00:00:00Z",
         "source_snapshot_digest": "sha256:snapshot",
         "packet_digest": packet_digest or f"sha256:{front_id}:{kind}",
+        "decision_maturity": decision_maturity or ("READY_FOR_PRINCIPAL" if is_decision else "NOT_A_DECISION"),
+        "decision": ({
+            "question": f"What should happen for {front_id}?",
+            "recommendation": "Approve the bounded default.",
+            "options": ["approve_default", "defer"],
+            "why_now": "The active weekly frontier has a concrete next move.",
+            "consequence": "The selected bounded move becomes the next governed state.",
+            "default_if_deferred": "Leave the current state unchanged and review next cycle.",
+            "post_decision_move": "Staff can prepare the approved next step.",
+        } if is_decision else {}),
     }
 
 
@@ -88,11 +99,48 @@ class PrincipalCompilerV2Tests(unittest.TestCase):
         self.assertTrue(brief["nothing_required"])
 
     def test_exception_does_not_become_raw_principal_work(self) -> None:
-        brief = compile_principal_brief(preparation(packet("fr_verify", "VERIFY", status="DEFERRED_BUDGET")))
+        brief = compile_principal_brief(preparation(packet("fr_verify", "VERIFY", status="DEFERRED_BY_BUDGET")))
         self.assertEqual(brief["needs_you"], [])
         self.assertEqual(brief["ready_pulls"], [])
-        self.assertEqual(brief["exceptions"][0]["exception_code"], "STAFF_PREP_BUDGET")
+        self.assertEqual(brief["exceptions"], [])
+        self.assertEqual(brief["preparation_frontier"]["deferred_by_budget"], 1)
         self.assertTrue(brief["nothing_required"])
+
+    def test_required_immature_decision_stays_with_staff(self) -> None:
+        brief = compile_principal_brief(preparation(packet("fr_decide", "DECIDE", principal_needed=True, decision_maturity="NEEDS_MORE_PREP")))
+        self.assertEqual(brief["needs_you"], [])
+        self.assertEqual(brief["staff_follow_up"][0]["reason"], "DECISION_NOT_READY")
+        self.assertEqual(brief["exceptions"], [])
+
+    def test_mature_relevant_decision_reaches_needs_you(self) -> None:
+        brief = compile_principal_brief(preparation(packet("fr_decide", "DECIDE", principal_needed=True)))
+        self.assertEqual(len(brief["needs_you"]), 1)
+        self.assertEqual(brief["needs_you"][0]["decision_maturity"], "READY_FOR_PRINCIPAL")
+
+    def test_required_but_later_decision_is_not_immediate_attention(self) -> None:
+        brief = compile_principal_brief(preparation(packet("fr_decide", "DECIDE", principal_needed=True, horizon="LATER")))
+        self.assertEqual(brief["needs_you"], [])
+        self.assertEqual(brief["staff_follow_up"][0]["reason"], "DECISION_NOT_READY")
+
+    def test_principal_required_action_cannot_become_ready_pull(self) -> None:
+        brief = compile_principal_brief(preparation(packet("fr_exec", "EXECUTE", principal_needed=True)))
+        self.assertEqual(brief["ready_pulls"], [])
+        self.assertEqual(brief["staff_follow_up"][0]["reason"], "PRINCIPAL_REQUIRED")
+
+    def test_repeated_blockers_are_compacted_by_front(self) -> None:
+        brief = compile_principal_brief(preparation(
+            packet("fr_blocked", "VERIFY", status="BLOCKED", blockers=["identity is not ready"]),
+            packet("fr_blocked", "UNBLOCK", status="BLOCKED", blockers=["identity is not ready"]),
+        ))
+        self.assertEqual(len(brief["exceptions"]), 1)
+        self.assertEqual(brief["exceptions"][0]["kinds"], ["UNBLOCK", "VERIFY"])
+
+    def test_needs_wording_does_not_change_lane_or_attention(self) -> None:
+        first = packet("fr_exec", "EXECUTE", needs="DECIDE urgently")
+        second = packet("fr_exec", "EXECUTE", needs="ordinary maintenance")
+        first_ids = [row["entry_id"] for row in compile_principal_brief(preparation(first))["ready_pulls"]]
+        second_ids = [row["entry_id"] for row in compile_principal_brief(preparation(second))["ready_pulls"]]
+        self.assertEqual(first_ids, second_ids)
 
     def test_principal_surface_compresses_evidence_and_never_exports_local_path(self) -> None:
         brief = compile_principal_brief(preparation(packet("fr_exec", "EXECUTE")))
