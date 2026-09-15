@@ -16,6 +16,7 @@ IMPORTS_BY_PROFILE = {
         "office_runtime.office.principal",
         "office_runtime.office.execution",
         "office_runtime.office.reentry_v2",
+        "office_runtime.office.generation_v2",
         "office_runtime.office.io",
         "office_runtime.office.render",
         "office_runtime.office.validate",

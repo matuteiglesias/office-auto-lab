@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry office-v2-generate office-v2-shadow staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -10,7 +10,7 @@ FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 # Supported CORE acceptance only. SIDECAR/COMPAT components retain dedicated
 # contract/test slices and must not become implicit dependencies of this smoke.
-smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts editorial-contracts runtime-contracts repo-scans
+smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts editorial-contracts runtime-contracts repo-scans
 
 # Active Office product surface only. Repo Health remains compatibility code and
 # is validated separately by its dedicated CI profile/tests.
@@ -29,6 +29,7 @@ import office_runtime.office.work_items; \
 import office_runtime.office.principal; \
 import office_runtime.office.execution; \
 import office_runtime.office.reentry_v2; \
+import office_runtime.office.generation_v2; \
 import office_runtime.office.io; \
 import office_runtime.office.render; \
 import office_runtime.office.validate; \
@@ -59,6 +60,9 @@ execution-contracts:
 reentry-v2-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_reentry_v2
 
+generation-v2-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_generation_v2
+
 editorial-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts
 
@@ -86,7 +90,7 @@ audit: docs-check runtime-contracts
 	$(MAKE) imports
 	git diff --check
 
-parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts
+parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts
 	python3 -m compileall -q -x '/editorial/' src/office_runtime
 	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
@@ -96,6 +100,14 @@ daily:
 
 office-compile:
 	PYTHONPATH=src python3 -m office_runtime.cli office compile
+
+# Manual coherent v2 generation entrypoints. systemd cutover remains a separate
+# explicit scheduler migration; these commands do not enable or modify timers.
+office-v2-generate:
+	PYTHONPATH=src python3 src/office_runtime/scripts/run_generation_v2.py
+
+office-v2-shadow:
+	PYTHONPATH=src python3 src/office_runtime/scripts/run_generation_v2.py --shadow
 
 # Read-only closure intake. Inputs are explicit; this target never writes
 # Office sheets or applies Ops recommendations.
