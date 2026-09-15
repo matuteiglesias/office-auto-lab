@@ -28,7 +28,6 @@ def _target_dependencies(target: str) -> str:
 
 def test_all_file_entrypoints_referenced_by_make_exist() -> None:
     paths = _recipe_paths()
-
     assert paths
     missing = sorted(path for path in paths if not (REPO_ROOT / path).is_file())
     assert missing == []
@@ -38,7 +37,22 @@ def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
     smoke_deps = _target_dependencies("smoke").split()
 
-    assert smoke_deps == ["imports", "control-contracts", "identity-contracts", "work-contracts", "staff-v2-contracts", "principal-contracts", "execution-contracts", "reentry-v2-contracts", "generation-v2-contracts", "editorial-contracts", "runtime-contracts", "repo-scans"]
+    assert smoke_deps == [
+        "imports",
+        "control-contracts",
+        "identity-contracts",
+        "work-contracts",
+        "staff-v2-contracts",
+        "principal-contracts",
+        "execution-contracts",
+        "reentry-v2-contracts",
+        "generation-v2-contracts",
+        "run-record-contracts",
+        "freshness-contracts",
+        "editorial-contracts",
+        "runtime-contracts",
+        "repo-scans",
+    ]
     assert "src/office_runtime/scripts/repo_contract_scan.sh" in text
     assert "src/office_runtime/scripts/repo_snapshot_protocol.sh" in text
     assert "\ncontrol-contracts:" in text
@@ -57,6 +71,13 @@ def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     assert "tests.test_reentry_v2" in text
     assert "\ngeneration-v2-contracts:" in text
     assert "tests.test_generation_v2" in text
+    assert "\nrun-record-contracts:" in text
+    assert "tests.test_run_record_health" in text
+    assert "tests.test_generation_invariants" in text
+    assert "\nfreshness-contracts:" in text
+    assert "tests.test_staff_packet_freshness" in text
+    assert "\nruntime-health-v2:" in text
+    assert "compile_runtime_health_v2.py" in text
     assert "\noffice-v2-generate:" in text
     assert "run_generation_v2.py" in text
     assert "\noffice-v2-shadow:" in text
