@@ -47,6 +47,7 @@ authority:
   - bounded Staff triage and evidence preparation over frozen v2 inputs
   - bounded Principal attention compilation from prepared Staff packets
   - bounded execution-envelope compilation from Principal ready pulls and operator contracts
+  - packet-linked execution receipt validation and non-mutating closure/reentry proposals
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -60,7 +61,7 @@ interfaces:
   consumes:
   - control:control-tower-v2@2 (read-only semantic control plane)
   - artifact:ops.capture-record@1
-  - artifact:ops.closure@1 (read-only Ops execution evidence; optional)
+  - artifact:ops.closure@1 (read-only legacy Ops execution evidence; optional compatibility input)
   - context:github-repositories@1 (optional advisory context from projects)
   - registry:estate-surfaces@1 (optional advisory governance context from projects)
   produces:
@@ -71,8 +72,11 @@ interfaces:
   - artifact:ops.principal-brief@2
   - artifact:ops.execution-plan@2
   - artifact:ops.execution-packet@2
+  - artifact:ops.execution-receipt@2
+  - artifact:ops.closure-set@2
+  - artifact:ops.reentry-proposal@2
   - artifact:ops.office-run-record@1
-  - artifact:ops.office-reentry-proposal@1 (producer-local review projection; never Carry approval)
+  - artifact:ops.office-reentry-proposal@1 (legacy producer-local review projection; never Carry approval)
 upstream:
 - repo.capture-site
 - repo.media-monitor
@@ -89,6 +93,7 @@ canonical_commands:
 - make staff-v2-contracts
 - make principal-contracts
 - make execution-contracts
+- make reentry-v2-contracts
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -100,7 +105,7 @@ verification:
   last_verified: '2026-09-14'
   command: make parent-audit
   evidence:
-  - github-actions:34914637839
+  - github-actions:34914909713
   notes:
   - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
   - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
@@ -120,13 +125,16 @@ verification:
   - Principal evidence is compressed to stable refs and does not export machine-local paths
   - Execution v2 compiles only Principal ready pulls; needs-you entries are never interpreted as execution authorization
   - Execution v2 requires an unambiguous ACTIVE operator contract and resolved repository targets before producing a portable packet
-  - Execution v2 withholds update_state and open_work_items even when an operator contract lists them as allowed; execution produces evidence and M7 owns closure/reentry proposals
+  - Execution v2 withholds update_state and open_work_items even when an operator contract lists them as allowed; execution produces evidence and closure/reentry owns follow-up interpretation
   - execution packets carry objective, target identities, effective power envelope, evidence inputs, acceptance conditions and stop conditions without machine-local paths
-  - the legacy Office/Staff compiler remains separately available during migration and is not treated as a semantic adapter for v2 routing or preparation
+  - Reentry v2 accepts only receipts bound to an exact execution packet id/digest and the same source snapshot generation
+  - COMPLETED receipts must pass every packet acceptance condition and contain evidence; blocked/failed receipts must name blockers
+  - Reentry v2 classifies packet outcomes as DONE/FOLLOW_UP/WAITING for review, never infers that the whole front is done, and keeps packets without receipts explicitly OPEN_NO_RECEIPT
+  - Reentry v2 produces reviewable proposals with candidate_control_patch null and mutation_performed false; suggested next touches remain recommendations rather than spawned work
+  - the legacy Office/Staff compiler and closure consumer remain separately available during migration and do not constrain v2 routing, preparation, or receipt identity
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
-  - Ops closure intake preserves execution facts and produces reviewable reentry proposals only; it never approves or mutates Carry State, horizon, priority, escalation, or follow-up work
   - repository-health semantics, safe estate sensing, and operational surface declarations are owned by projects
   - legacy Repo Health implementation remains in-tree as compatibility code, not an Office-owned semantic or product surface
   - parent runtime profiles resolve and import-smoke in clean CI; full profile is proven on Python 3.11 and 3.12
@@ -138,6 +146,7 @@ verification:
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
   - scheduled Office still uses the legacy compiler until coherent-run/cutover milestones consume the v2 contracts end to end
+  - reviewed Control Tower patch application remains a later governance/cutover concern; M7 proposals are intentionally non-mutating
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
