@@ -14,7 +14,9 @@ import pandas as pd
 from .config import OfficeConfig
 from .control_snapshot import build_snapshot, read_control_tower_v2
 from .execution import compile_execution_plan
+from .invariants import validate_forward_generation
 from .principal import compile_principal_brief, render_principal_markdown
+from .run_records import build_run_record, write_run_record
 from .work_items import compile_work_items
 from office_runtime.staff.preparation_v2 import LocalRepoEvidenceAdapter, SnapshotEvidenceAdapter, prepare_work_items
 
@@ -120,37 +122,55 @@ def compile_generation_from_frames(
     include_local_repo_evidence: bool = False,
     previous_brief: dict | None = None,
     publish: bool = True,
+    trigger: str = "manual",
 ) -> dict:
-    """Compile and atomically publish one coherent Office v2 generation.
+    """Compile and publish one coherent Office v2 generation.
 
     All downstream artifacts derive from one in-memory snapshot. Nothing reads
-    Control Tower again during this function. A failed generation remains
-    unpublished and cannot replace the known-good current pointer.
+    Control Tower again during this function. Run evidence is part of the
+    publication protocol: a published current pointer always has a canonical
+    run record for the same generation.
     """
     run_id = _validate_run_id(run_id)
     out_root = Path(out_root)
     v2_root = _v2_root(out_root)
     final_dir = v2_root / "runs" / run_id
     staging_dir = v2_root / ".staging" / run_id
-    if final_dir.exists() or staging_dir.exists():
+    record_path = v2_root / "run_records" / f"{run_id}.json"
+    if final_dir.exists() or staging_dir.exists() or record_path.exists():
         raise GenerationV2Error(f"run_id {run_id!r} already exists")
 
     if previous_brief is None:
         previous_brief = _load_current_brief(v2_root)
 
+    stage_names = ("snapshot", "work", "staff", "principal", "execution", "invariants", "manifest", "promotion", "run_record", "publication")
+    stage_results = {name: {"status": "PENDING"} for name in stage_names}
+    current_stage = "snapshot"
+    started_at = _now_iso()
+    snapshot_digest = ""
+    manifest_digest = ""
+    counts: dict[str, int] = {}
+    manifest: dict = {}
+
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
     final_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
+        current_stage = "snapshot"
         snapshot = build_snapshot(
             frames,
             observed_at=observed_at,
             spreadsheet_id=spreadsheet_id,
         )
+        snapshot_digest = str(snapshot.get("snapshot_digest", ""))
         _write_json(staging_dir / "control" / "snapshot.json", snapshot)
+        stage_results[current_stage] = {"status": "OK"}
 
+        current_stage = "work"
         work_set = compile_work_items(snapshot)
         _write_json(staging_dir / "routing" / "work_items.json", work_set)
+        stage_results[current_stage] = {"status": "OK"}
 
+        current_stage = "staff"
         adapters = [SnapshotEvidenceAdapter()]
         if include_local_repo_evidence:
             adapters.append(LocalRepoEvidenceAdapter())
@@ -167,13 +187,17 @@ def compile_generation_from_frames(
         for packet in preparation.get("packets", []) or []:
             packet_id = str(packet.get("staff_packet_id", ""))
             _write_json(packet_dir / f"{_safe_name(packet_id)}.json", packet)
+        stage_results[current_stage] = {"status": "OK"}
 
+        current_stage = "principal"
         principal = compile_principal_brief(preparation, previous_brief=previous_brief)
         _write_json(staging_dir / "principal" / "brief.json", principal)
         principal_md = staging_dir / "principal" / "brief.md"
         principal_md.parent.mkdir(parents=True, exist_ok=True)
         principal_md.write_text(render_principal_markdown(principal), encoding="utf-8")
+        stage_results[current_stage] = {"status": "OK"}
 
+        current_stage = "execution"
         execution = compile_execution_plan(snapshot, principal)
         _write_json(staging_dir / "execution" / "plan.json", execution)
         execution_packet_dir = staging_dir / "execution" / "packets"
@@ -181,6 +205,11 @@ def compile_generation_from_frames(
         for packet in execution.get("packets", []) or []:
             packet_id = str(packet.get("execution_packet_id", ""))
             _write_json(execution_packet_dir / f"{_safe_name(packet_id)}.json", packet)
+        stage_results[current_stage] = {"status": "OK"}
+
+        current_stage = "invariants"
+        invariant_checks = validate_forward_generation(snapshot, work_set, preparation, principal, execution)
+        stage_results[current_stage] = {"status": "OK", "checks": invariant_checks}
 
         lineage = {
             "snapshot_digest": snapshot["snapshot_digest"],
@@ -202,45 +231,125 @@ def compile_generation_from_frames(
         }) != 1:
             raise GenerationV2Error("generation lineage diverged across v2 stages")
 
+        current_stage = "manifest"
         published = published_at or _now_iso()
+        counts = {
+            "work_items": work_set.get("counts", {}).get("work_items", 0),
+            "staff_packets": len(preparation.get("packets", []) or []),
+            "principal_needs_you": principal.get("counts", {}).get("needs_you", 0),
+            "principal_ready_pulls": principal.get("counts", {}).get("ready_pulls", 0),
+            "principal_exceptions": principal.get("counts", {}).get("exceptions", 0),
+            "execution_packets": execution.get("counts", {}).get("packets", 0),
+            "execution_exceptions": execution.get("counts", {}).get("exceptions", 0),
+        }
         manifest = {
             "schema_version": SCHEMA_VERSION,
             "status": "ok",
             "run_id": run_id,
             "published_at": published,
             "lineage": lineage,
-            "counts": {
-                "work_items": work_set.get("counts", {}).get("work_items", 0),
-                "staff_packets": len(preparation.get("packets", []) or []),
-                "principal_needs_you": principal.get("counts", {}).get("needs_you", 0),
-                "principal_ready_pulls": principal.get("counts", {}).get("ready_pulls", 0),
-                "principal_exceptions": principal.get("counts", {}).get("exceptions", 0),
-                "execution_packets": execution.get("counts", {}).get("packets", 0),
-                "execution_exceptions": execution.get("counts", {}).get("exceptions", 0),
-            },
+            "counts": counts,
             "settings": {
                 "max_deep": max_deep,
                 "local_repo_evidence": include_local_repo_evidence,
             },
+            "invariants": invariant_checks,
             "artifact_hashes": _artifact_hashes(staging_dir),
         }
         manifest["manifest_digest"] = _stable_digest(manifest)
+        manifest_digest = str(manifest["manifest_digest"])
         _write_json(staging_dir / "manifest.json", manifest)
+        stage_results[current_stage] = {"status": "OK"}
 
+        current_stage = "promotion"
         os.replace(staging_dir, final_dir)
+        stage_results[current_stage] = {"status": "OK"}
+
+        current_stage = "run_record"
+        stage_results[current_stage] = {"status": "OK"}
+        pre_publication_status = "SHADOW" if not publish else "NOT_PUBLISHED"
+        pre_record = build_run_record(
+            run_id=run_id,
+            trigger=trigger,
+            started_at=started_at,
+            finished_at=_now_iso(),
+            status="SUCCEEDED",
+            publication_status=pre_publication_status,
+            stage_results=stage_results,
+            source_snapshot_digest=snapshot_digest,
+            manifest_digest=manifest_digest,
+            counts=counts,
+            run_path=f"v2/runs/{run_id}",
+        )
+        write_run_record(out_root, pre_record)
+
         if publish:
+            current_stage = "publication"
             v2_root.mkdir(parents=True, exist_ok=True)
             _publish_current(v2_root, run_id, manifest)
+            stage_results[current_stage] = {"status": "OK"}
+            final_record = build_run_record(
+                run_id=run_id,
+                trigger=trigger,
+                started_at=started_at,
+                finished_at=_now_iso(),
+                status="SUCCEEDED",
+                publication_status="PUBLISHED",
+                stage_results=stage_results,
+                source_snapshot_digest=snapshot_digest,
+                manifest_digest=manifest_digest,
+                counts=counts,
+                run_path=f"v2/runs/{run_id}",
+            )
+            write_run_record(out_root, final_record)
+        else:
+            stage_results["publication"] = {"status": "SKIPPED", "reason": "SHADOW"}
+            shadow_record = build_run_record(
+                run_id=run_id,
+                trigger=trigger,
+                started_at=started_at,
+                finished_at=_now_iso(),
+                status="SUCCEEDED",
+                publication_status="SHADOW",
+                stage_results=stage_results,
+                source_snapshot_digest=snapshot_digest,
+                manifest_digest=manifest_digest,
+                counts=counts,
+                run_path=f"v2/runs/{run_id}",
+            )
+            write_run_record(out_root, shadow_record)
+
         return {
             "status": "ok",
             "run_id": run_id,
             "run_dir": str(final_dir),
+            "run_record": str(record_path),
             "manifest": manifest,
             "published": publish,
         }
-    except Exception:
+    except Exception as exc:
+        if current_stage in stage_results:
+            stage_results[current_stage] = {"status": "FAILED", "error_type": type(exc).__name__}
         if staging_dir.exists():
             shutil.rmtree(staging_dir)
+        try:
+            failure_record = build_run_record(
+                run_id=run_id,
+                trigger=trigger,
+                started_at=started_at,
+                finished_at=_now_iso(),
+                status="FAILED",
+                publication_status="NOT_PUBLISHED",
+                stage_results=stage_results,
+                source_snapshot_digest=snapshot_digest,
+                manifest_digest=manifest_digest,
+                counts=counts,
+                failures=[{"stage": current_stage, "type": type(exc).__name__, "message": str(exc)}],
+                run_path=f"v2/runs/{run_id}" if final_dir.exists() else "",
+            )
+            write_run_record(out_root, failure_record)
+        except Exception:
+            pass
         raise
 
 
@@ -251,6 +360,7 @@ def run_generation_v2(
     max_deep: int = 6,
     include_local_repo_evidence: bool = False,
     publish: bool = True,
+    trigger: str = "manual",
 ) -> dict:
     frames = read_control_tower_v2(cfg)
     return compile_generation_from_frames(
@@ -261,4 +371,5 @@ def run_generation_v2(
         max_deep=max_deep,
         include_local_repo_evidence=include_local_repo_evidence,
         publish=publish,
+        trigger=trigger,
     )
