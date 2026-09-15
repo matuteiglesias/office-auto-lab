@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from .action_contracts import ActionContractError, validate_action_contract
+
 
 class GenerationInvariantError(ValueError):
     pass
@@ -87,6 +89,12 @@ def validate_forward_generation(
             raise GenerationInvariantError(f"ready pull {work_id} still requires principal judgment")
         if str(packet.get("preparation_status", "")).upper() not in {"PREPARED_DEEP", "PREPARED_LIGHT"}:
             raise GenerationInvariantError(f"ready pull {work_id} is not prepared")
+        if str(packet.get("action_maturity", "")).upper() != "READY_FOR_PULL":
+            raise GenerationInvariantError(f"ready pull {work_id} lacks mature Staff action preparation")
+        try:
+            validate_action_contract(packet.get("action_contract"), front_id=str(packet.get("front_id", "")))
+        except ActionContractError as exc:
+            raise GenerationInvariantError(f"ready pull {work_id} has invalid action contract: {exc}") from exc
 
     execution_packets = list(execution.get("packets", []) or [])
     execution_ids = _ids(execution_packets, "work_item_id")
@@ -100,7 +108,7 @@ def validate_forward_generation(
         kind = str(work_by_id.get(work_id, {}).get("kind", "")).upper()
         if kind == "DECIDE":
             raise GenerationInvariantError(f"DECIDE item {work_id} cannot become an execution packet")
-        target = packet.get("target", {}) or {}
+        target = (packet.get("target", {}) or {}).get("repository_context", {}) or {}
         for workspace in target.get("workspaces", []) or []:
             if str(workspace.get("status", "")).upper() != "RESOLVED":
                 raise GenerationInvariantError(f"execution packet {work_id} has unresolved workspace identity")
@@ -116,6 +124,7 @@ def validate_forward_generation(
         "principal_sections_are_disjoint",
         "principal_attention_is_prepared",
         "ready_pulls_require_no_principal_judgment",
+        "ready_pulls_require_staff_action_contract",
         "execution_only_from_ready_pulls",
         "execution_identity_is_resolved",
         "execution_withholds_governance_mutation",

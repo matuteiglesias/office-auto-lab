@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from office_runtime.office.identity import IdentityResolutionError, IdentityResolver
+from office_runtime.office.action_contracts import ActionContractError, unresolved_dependencies, validate_action_contract
 
 
 SCHEMA_VERSION = "ops.staff-preparation-set.v2"
@@ -15,6 +16,7 @@ PACKET_SCHEMA_VERSION = "ops.staff-packet.v2"
 DEEP_KINDS = frozenset({"DECIDE", "UNBLOCK", "VERIFY", "EXECUTE"})
 PREPARATION_LANE_BUDGETS = {"DECISION": 2, "ACTION": 3, "REPAIR_VERIFY": 1}
 DECISION_MATURITY = frozenset({"NOT_A_DECISION", "NEEDS_MORE_PREP", "WAITING_FOR_EVIDENCE", "READY_FOR_PRINCIPAL"})
+ACTION_MATURITY = frozenset({"NOT_AN_ACTION", "NEEDS_MORE_PREP", "WAITING_FOR_EVIDENCE", "BLOCKED", "READY_FOR_PULL"})
 KIND_RANK = {"DECIDE": 0, "UNBLOCK": 1, "VERIFY": 2, "EXECUTE": 3, "MAINTAIN": 4}
 HORIZON_RANK = {"TODAY": 0, "THIS_WEEK": 1, "THIS_MONTH": 2, "MAINTENANCE": 3, "LATER": 4}
 QUESTION_BY_KIND = {
@@ -245,6 +247,27 @@ def _recommended_move(work_item: dict, blockers: list[str]) -> str:
     }.get(str(work_item.get("kind", "")).upper(), "Clarify the next bounded move.")
 
 
+def _action_contract_from_staff_evidence(work_item: dict, evidence: list[dict]) -> dict | None:
+    """Return one Staff-produced contract, refusing ambiguous sources.
+
+    Work compilation deliberately does not manufacture an action contract from
+    front prose.  A preparation adapter may provide one after inspecting
+    governed evidence; this is the seam for that Staff work.
+    """
+    candidates = [row.get("action_contract") for row in evidence if isinstance(row.get("action_contract"), dict)]
+    # The optional in-memory value is useful for a bounded Staff adapter caller
+    # and fixtures; it is still validated below and is never inferred from
+    # unstructured source state.
+    if isinstance(work_item.get("action_contract"), dict):
+        candidates.append(work_item["action_contract"])
+    if not candidates:
+        return None
+    canonical = json.dumps(candidates[0], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if any(json.dumps(candidate, sort_keys=True, separators=(",", ":"), ensure_ascii=False) != canonical for candidate in candidates[1:]):
+        raise ActionContractError("Staff evidence contains conflicting action contracts")
+    return dict(candidates[0])
+
+
 def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: list[dict], *, prepared_at: str, preparation_status: str) -> dict:
     blockers = _blockers(work_item, evidence)
     uncertainties: list[str] = []
@@ -261,6 +284,25 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
     else:
         decision_maturity = "NOT_A_DECISION"
         decision = {}
+    if preparation_lane(work_item) == "ACTION":
+        try:
+            action_contract = validate_action_contract(_action_contract_from_staff_evidence(work_item, evidence), front_id=str(work_item.get("front_id", "")))
+            unresolved = unresolved_dependencies(action_contract)
+            if blockers or unresolved:
+                action_maturity = "BLOCKED"
+                if unresolved:
+                    blockers.extend(f"decision dependency {decision_id} is unresolved" for decision_id in unresolved if f"decision dependency {decision_id} is unresolved" not in blockers)
+            elif preparation_status == "PREPARED_DEEP":
+                action_maturity = "READY_FOR_PULL"
+            else:
+                action_maturity = "NEEDS_MORE_PREP"
+        except ActionContractError as exc:
+            action_contract = {}
+            action_maturity = "BLOCKED" if blockers else "NEEDS_MORE_PREP"
+            uncertainties.append(f"action contract: {exc}")
+    else:
+        action_contract = {}
+        action_maturity = "NOT_AN_ACTION"
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "staff_packet_id": "sp:" + str(work_item.get("work_item_id", "")),
@@ -286,6 +328,8 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "source_snapshot_digest": snapshot.get("snapshot_digest", ""),
         "decision_maturity": decision_maturity,
         "decision": decision,
+        "action_maturity": action_maturity,
+        "action_contract": action_contract,
     }
     packet["packet_digest"] = _stable_digest(packet)
     return packet

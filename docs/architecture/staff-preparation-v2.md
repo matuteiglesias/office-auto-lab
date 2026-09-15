@@ -47,7 +47,7 @@ Every work item receives cheap deterministic triage. Triage can classify an item
 - `NO_DEEP_PREP_REQUIRED` / `READY_LIGHT` — only light preparation is warranted;
 - `BLOCKED` — a prerequisite is explicit enough that expensive/local adapters must not run.
 
-Deep preparation is bounded by `max_deep`. Principal-required work is ranked ahead of other kinds, followed by the typed work vocabulary and horizon. Items beyond the budget remain visible as `DEFERRED_BUDGET`; they are not silently dropped.
+Deep preparation is bounded by `max_deep` and allocated deterministically across `DECISION`, `ACTION`, and `REPAIR_VERIFY` lanes before unused capacity spills over. Items beyond the budget remain visible as `DEFERRED_BY_BUDGET`; they are not silently dropped or escalated as Principal exceptions.
 
 The budget is a WIP bound, not a strategic priority system. Control Tower still owns governed state and priority semantics.
 
@@ -66,6 +66,8 @@ Reads only the already-captured snapshot and exposes current runtime observation
 Resolves a workspace through the governed v2 identity resolver and may inspect the selected local Git checkout. A concrete local path is used only inside the adapter. Portable evidence returns `repo_id`, `workspace_id`, revision, branch, and dirty state; it does not export the path.
 
 Additional adapters can later cover documents, recent activity, relationship context, opportunity context, calendars, or public web evidence. They must remain evidence providers rather than hidden routing engines.
+
+For ACTION work, an adapter may additionally provide a Staff-owned action contract. It must specify a concrete objective, typed portable entry surface, why-now, scope boundary, acceptance and stop conditions, expected evidence, uncertainties, and any explicit decision dependencies. Staff does not infer this contract from front prose. Without one, a deeply prepared action is `NEEDS_MORE_PREP`, not a ready pull.
 
 ## Staff packet contract
 
@@ -91,6 +93,8 @@ prepared_at
 source_snapshot_digest
 packet_digest
 ```
+
+ACTION packets additionally carry `action_maturity` and, only when evidence supports it, `action_contract`. Valid ready maturity is `READY_FOR_PULL`; other states include `NEEDS_MORE_PREP`, `WAITING_FOR_EVIDENCE`, and `BLOCKED`.
 
 `needs` and `note` remain available inside `current_state` as human context. They do not select adapters or work kinds.
 

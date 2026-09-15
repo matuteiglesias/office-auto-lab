@@ -9,7 +9,6 @@ SCHEMA_VERSION = "ops.principal-brief.v2"
 KIND_RANK = {"DECIDE": 0, "UNBLOCK": 1, "VERIFY": 2, "EXECUTE": 3, "MAINTAIN": 4}
 HORIZON_RANK = {"TODAY": 0, "THIS_WEEK": 1, "THIS_MONTH": 2, "MAINTENANCE": 3, "LATER": 4}
 EXCEPTION_STATUSES = frozenset({"BLOCKED"})
-READY_STATUSES = frozenset({"PREPARED_DEEP", "PREPARED_LIGHT"})
 
 
 class PrincipalCompileError(ValueError):
@@ -125,6 +124,8 @@ def _ready_pull(packet: dict) -> dict:
     entry.update({
         "entry_context": {"repo_ids": list(identity.get("repo_ids", []) or []), "workspace_states": list(identity.get("workspace_states", []) or [])},
         "preparation_status": packet.get("preparation_status", ""),
+        "action_maturity": packet.get("action_maturity", ""),
+        "action_contract": packet.get("action_contract", {}),
     })
     entry["entry_digest"] = _stable_digest(entry)
     return entry
@@ -175,6 +176,14 @@ def _materially_relevant_now(packet: dict) -> bool:
     if str(state.get("carry_status", "")).upper() not in {"ACTIVE", "ACTIVE_LIGHT"}:
         return False
     return str(state.get("horizon", "")).upper() in {"TODAY", "THIS_WEEK"}
+
+
+def _ready_for_pull(packet: dict) -> bool:
+    return (
+        str(packet.get("preparation_status", "")).upper() == "PREPARED_DEEP"
+        and str(packet.get("action_maturity", "")).upper() == "READY_FOR_PULL"
+        and str(packet.get("kind", "")).upper() in {"UNBLOCK", "VERIFY", "EXECUTE", "MAINTAIN"}
+    )
 
 
 def _section_ids(brief: dict, section: str) -> dict[str, str]:
@@ -232,7 +241,7 @@ def compile_principal_brief(preparation: dict, *, previous_brief: dict | None = 
                 reason = "DECISION_NOT_READY" if str(packet.get("kind", "")).upper() == "DECIDE" else "PRINCIPAL_REQUIRED"
                 immature_decisions.append(_minimal(packet, reason))
             continue
-        if str(packet.get("preparation_status", "")).upper() in READY_STATUSES:
+        if _ready_for_pull(packet):
             pull_candidates.append(packet)
             prepared_nonprincipal.append(packet)
 

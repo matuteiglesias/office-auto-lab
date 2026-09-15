@@ -4,6 +4,8 @@ import hashlib
 import json
 from typing import Any
 
+from .action_contracts import ActionContractError, validate_action_contract
+
 
 PLAN_SCHEMA_VERSION = "ops.execution-plan.v2"
 PACKET_SCHEMA_VERSION = "ops.execution-packet.v2"
@@ -67,43 +69,6 @@ def _target(entry: dict) -> tuple[dict, str | None]:
     return target, None
 
 
-def _acceptance(kind: str) -> list[str]:
-    return {
-        "UNBLOCK": [
-            "one explicit blocker is resolved or converted into a smaller named blocker",
-            "the next typed work state is clearer than before",
-            "evidence of the resolution is recorded",
-        ],
-        "VERIFY": [
-            "the targeted assumption is confirmed, falsified, or left explicitly unknown",
-            "the check output is captured as evidence",
-            "no unrelated repair is folded into the verification step",
-        ],
-        "EXECUTE": [
-            "one bounded objective is completed or stopped at a named blocker",
-            "expected evidence or artifact is produced",
-            "residual work is recorded rather than silently expanded",
-        ],
-        "MAINTAIN": [
-            "the continuity-preserving touch is completed",
-            "no new build lane is created",
-            "any discovered defect is recorded separately",
-        ],
-    }.get(kind, ["the bounded objective has an explicit evidence-backed outcome"])
-
-
-def _stop_conditions(kind: str) -> list[str]:
-    base = [
-        "stop if the requested objective would require a forbidden power",
-        "stop if target identity becomes ambiguous or unavailable",
-        "stop rather than widening scope beyond this work item",
-        "stop after one bounded unit and leave residuals for closure/reentry",
-    ]
-    if kind == "VERIFY":
-        base.append("stop after the requested check; do not automatically repair a failed check")
-    return base
-
-
 def _operator_envelope(contract: dict) -> dict:
     allowed = _split_semicolon(contract.get("allowed_powers"))
     forbidden = _split_semicolon(contract.get("forbidden_powers"))
@@ -125,6 +90,7 @@ def _operator_envelope(contract: dict) -> dict:
 
 def _packet(snapshot: dict, brief: dict, entry: dict, contract: dict) -> dict:
     kind = str(entry.get("kind", "")).strip().upper()
+    action_contract = validate_action_contract(entry.get("action_contract"), front_id=str(entry.get("front_id", "")))
     target, target_error = _target(entry)
     if target_error:
         raise ExecutionCompileError(target_error)
@@ -134,13 +100,17 @@ def _packet(snapshot: dict, brief: dict, entry: dict, contract: dict) -> dict:
         "work_item_id": str(entry.get("work_item_id", "")),
         "front_id": str(entry.get("front_id", "")),
         "kind": kind,
-        "objective": str(entry.get("recommended_move", "")).strip(),
-        "why_now": str(entry.get("why_now", "")).strip(),
-        "target": target,
+        "objective": str(action_contract["objective"]).strip(),
+        "why_now": str(action_contract["why_now"]).strip(),
+        "target": {"entry_surface": action_contract["entry_surface"], "repository_context": target},
         "operator": _operator_envelope(contract),
         "evidence_inputs": list(entry.get("evidence_refs", []) or []),
-        "acceptance_conditions": _acceptance(kind),
-        "stop_conditions": _stop_conditions(kind),
+        "scope_boundary": str(action_contract["scope_boundary"]).strip(),
+        "acceptance_conditions": list(action_contract["acceptance_conditions"]),
+        "stop_conditions": list(action_contract["stop_conditions"]),
+        "expected_evidence": list(action_contract["expected_evidence"]),
+        "known_uncertainties": list(action_contract.get("known_uncertainties", [])),
+        "decision_dependencies": list(action_contract.get("decision_dependencies", [])),
         "authorization": {
             "mode": "READY_PULL",
             "source_principal_brief_digest": str(brief.get("brief_digest", "")),
@@ -192,6 +162,13 @@ def compile_execution_plan(snapshot: dict, principal_brief: dict) -> dict:
             continue
         try:
             packets.append(_packet(snapshot, principal_brief, entry, contract))
+        except ActionContractError as exc:
+            exceptions.append({
+                "work_item_id": work_item_id,
+                "front_id": front_id,
+                "code": "ACTION_CONTRACT_NOT_READY",
+                "detail": str(exc),
+            })
         except ExecutionCompileError as exc:
             exceptions.append({
                 "work_item_id": work_item_id,

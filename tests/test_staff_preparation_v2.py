@@ -70,6 +70,25 @@ def work_set(*items: dict) -> dict:
     return {"schema_version": "ops.work-item-set.v1", "source_snapshot_digest": "sha256:snapshot", "work_items": list(items)}
 
 
+def action_contract(*, front_id: str = "fr_exec", surface_type: str = "REPOSITORY") -> dict:
+    surface = {"type": surface_type}
+    if surface_type == "REPOSITORY":
+        surface.update({"repo_id": "repo.exec", "workspace_id": "ws.exec", "revision": "abc123"})
+    else:
+        surface.update({"table": "front_registry_v2", "front_id": front_id})
+    return {
+        "objective": "Verify the named governed surface at its recorded revision.",
+        "entry_surface": surface,
+        "why_now": "The bounded verification is on the current frontier.",
+        "scope_boundary": "Inspect only the named surface and do not mutate state.",
+        "acceptance_conditions": ["The named surface is checked."],
+        "stop_conditions": ["Stop after recording the result."],
+        "expected_evidence": ["A bounded verification receipt."],
+        "known_uncertainties": [],
+        "decision_dependencies": [],
+    }
+
+
 class StaffPreparationV2Tests(unittest.TestCase):
     def test_module_has_no_sheet_reader_or_office_config_dependency(self) -> None:
         source = inspect.getsource(preparation_v2)
@@ -138,6 +157,35 @@ class StaffPreparationV2Tests(unittest.TestCase):
         packet = result["packets"][0]
         self.assertEqual(packet["principal_posture"], "REQUIRED")
         self.assertFalse(packet["principal_needed"])
+
+    def test_deep_action_without_contract_is_not_ready_for_pull(self) -> None:
+        result = prepare_work_items(snapshot(), work_set(item("fr_exec", "EXECUTE")), max_deep=1)
+        packet = result["packets"][0]
+        self.assertEqual(packet["preparation_status"], "PREPARED_DEEP")
+        self.assertEqual(packet["action_maturity"], "NEEDS_MORE_PREP")
+
+    def test_concrete_repo_contract_makes_deep_action_ready(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        action["action_contract"] = action_contract()
+        result = prepare_work_items(snapshot(), work_set(action), max_deep=1)
+        packet = result["packets"][0]
+        self.assertEqual(packet["action_maturity"], "READY_FOR_PULL")
+        self.assertEqual(packet["action_contract"]["entry_surface"]["type"], "REPOSITORY")
+
+    def test_control_state_contract_can_be_ready_without_repository(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        action["action_contract"] = action_contract(surface_type="CONTROL_STATE")
+        result = prepare_work_items(snapshot(), work_set(action), max_deep=1)
+        self.assertEqual(result["packets"][0]["action_maturity"], "READY_FOR_PULL")
+
+    def test_unresolved_contract_dependency_blocks_readiness(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        action["action_contract"] = action_contract()
+        action["action_contract"]["decision_dependencies"] = [{"decision_id": "dec:go", "status": "PENDING"}]
+        result = prepare_work_items(snapshot(), work_set(action), max_deep=1)
+        packet = result["packets"][0]
+        self.assertEqual(packet["action_maturity"], "BLOCKED")
+        self.assertIn("decision dependency dec:go is unresolved", packet["blockers"])
 
     def test_maintenance_without_staff_requirement_stays_light(self) -> None:
         adapter = CountingAdapter()

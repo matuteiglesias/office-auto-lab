@@ -7,8 +7,19 @@ from office_runtime.office import principal
 from office_runtime.office.principal import PrincipalCompileError, compile_principal_brief, render_principal_markdown
 
 
-def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: str = "PREPARED_DEEP", blockers: list[str] | None = None, needs: str = "current bounded need", packet_digest: str | None = None, decision_maturity: str | None = None, horizon: str = "THIS_WEEK") -> dict:
+def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: str = "PREPARED_DEEP", blockers: list[str] | None = None, needs: str = "current bounded need", packet_digest: str | None = None, decision_maturity: str | None = None, action_maturity: str | None = None, horizon: str = "THIS_WEEK") -> dict:
     is_decision = kind == "DECIDE"
+    is_action = kind in {"UNBLOCK", "VERIFY", "EXECUTE", "MAINTAIN"}
+    contract = {
+        "objective": f"Verify the named surface for {front_id}.",
+        "entry_surface": {"type": "REPOSITORY", "repo_id": f"repo.{front_id}", "workspace_id": f"ws.{front_id}", "revision": "abc123"},
+        "why_now": "The bounded action is on the active frontier.",
+        "scope_boundary": "Inspect only the named surface without mutation.",
+        "acceptance_conditions": ["The named surface is checked."],
+        "stop_conditions": ["Stop after recording the result."],
+        "expected_evidence": ["A bounded verification receipt."],
+        "known_uncertainties": [], "decision_dependencies": [],
+    } if is_action else {}
     return {
         "schema_version": "ops.staff-packet.v2",
         "staff_packet_id": f"sp:wi:{front_id}:{kind.lower()}",
@@ -51,6 +62,8 @@ def packet(front_id: str, kind: str, *, principal_needed: bool = False, status: 
             "default_if_deferred": "Leave the current state unchanged and review next cycle.",
             "post_decision_move": "Staff can prepare the approved next step.",
         } if is_decision else {}),
+        "action_maturity": action_maturity or ("READY_FOR_PULL" if is_action and status == "PREPARED_DEEP" and not blockers else "NEEDS_MORE_PREP" if is_action else "NOT_AN_ACTION"),
+        "action_contract": contract,
     }
 
 
@@ -127,6 +140,10 @@ class PrincipalCompilerV2Tests(unittest.TestCase):
         action["current_state"]["principal_mode"] = "REQUIRED"
         brief = compile_principal_brief(preparation(action))
         self.assertEqual([row["work_item_id"] for row in brief["ready_pulls"]], ["wi:fr_exec:execute"])
+
+    def test_deep_action_without_maturity_is_not_a_ready_pull(self) -> None:
+        brief = compile_principal_brief(preparation(packet("fr_exec", "EXECUTE", action_maturity="NEEDS_MORE_PREP")))
+        self.assertEqual(brief["ready_pulls"], [])
 
     def test_repeated_blockers_are_compacted_by_front(self) -> None:
         brief = compile_principal_brief(preparation(
