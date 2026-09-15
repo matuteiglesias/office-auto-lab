@@ -114,10 +114,30 @@ def _gid(spec: TableSpec) -> str:
 
 
 def _clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    out = normalize(frame)
+    # Sheets ranges may materialize trailing blank cells as NaN. Replace
+    # missing scalars before normalize() stringifies them as the literal
+    # value "nan", which would look like a real primary key.
+    out = normalize(frame.where(pd.notna(frame), ""))
     if out.empty:
         return out
-    nonempty = out.apply(lambda row: any(str(value).strip() for value in row), axis=1)
+
+    def has_value(value: object) -> bool:
+        if value is None or pd.isna(value):
+            return False
+        return bool(str(value).strip())
+
+    default_false_columns = {"is_primary", "enabled"}
+
+    def is_material_row(row: pd.Series) -> bool:
+        values = [(str(column), value) for column, value in row.items() if has_value(value)]
+        if not values:
+            return False
+        return not all(
+            column in default_false_columns and str(value).upper() == "FALSE"
+            for column, value in values
+        )
+
+    nonempty = out.apply(is_material_row, axis=1)
     return out.loc[nonempty].reset_index(drop=True)
 
 
