@@ -1,0 +1,8 @@
+[Unit]
+Description=Office Runtime - Office v2 Coherent Generation
+ConditionPathExists=%h/.config/office-auto-lab/runtime.env
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/office-auto-lab/runtime.env
+ExecStart=/usr/bin/bash -lc 'exec /usr/bin/bash "$OFFICE_ROOT/src/office_runtime/scripts/systemd_entrypoint.sh" office-v2-generation'

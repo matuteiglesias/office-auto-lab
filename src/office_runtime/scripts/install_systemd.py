@@ -16,8 +16,16 @@ UNIT_NAMES = (
     "staff-briefs.timer",
     "evidence-daily.service",
     "evidence-daily.timer",
+    "office-v2-generation.service",
+    "office-v2-generation.timer",
 )
-TIMER_NAMES = tuple(name for name in UNIT_NAMES if name.endswith(".timer"))
+LEGACY_TIMER_NAMES = (
+    "office-compile.timer",
+    "staff-briefs.timer",
+    "evidence-daily.timer",
+)
+V2_TIMER_NAMES = ("office-v2-generation.timer",)
+TIMER_NAMES = LEGACY_TIMER_NAMES + V2_TIMER_NAMES
 RUNTIME_ENV_PATH = Path.home() / ".config/office-auto-lab/runtime.env"
 
 
@@ -174,8 +182,13 @@ def install(args: argparse.Namespace) -> int:
         surface_context_json=args.surface_context_json,
     )
     _systemctl("daemon-reload")
+    timers_to_enable: list[str] = []
     if args.enable:
-        _systemctl("enable", "--now", *TIMER_NAMES)
+        timers_to_enable.extend(LEGACY_TIMER_NAMES)
+    if args.enable_v2:
+        timers_to_enable.extend(V2_TIMER_NAMES)
+    if timers_to_enable:
+        _systemctl("enable", "--now", *timers_to_enable)
     print(f"installed units: {unit_dir}")
     print(f"runtime environment: {RUNTIME_ENV_PATH}")
     return 0
@@ -240,7 +253,16 @@ def main() -> int:
     install_parser = sub.add_parser("install", help="Install units for the current user.")
     _add_runtime_args(install_parser)
     install_parser.add_argument("--unit-dir", type=Path, default=None)
-    install_parser.add_argument("--enable", action="store_true", help="Enable and start all tracked timers after install.")
+    install_parser.add_argument(
+        "--enable",
+        action="store_true",
+        help="Enable and start the legacy/evidence timers after install; v2 remains disabled.",
+    )
+    install_parser.add_argument(
+        "--enable-v2",
+        action="store_true",
+        help="Explicitly enable and start the Office v2 generation timer.",
+    )
     install_parser.set_defaults(handler=install)
 
     uninstall_parser = sub.add_parser("uninstall", help="Disable and remove installed Office Runtime user units.")

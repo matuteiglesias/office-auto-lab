@@ -18,6 +18,8 @@ UNIT_NAMES = (
     "staff-briefs.timer",
     "evidence-daily.service",
     "evidence-daily.timer",
+    "office-v2-generation.service",
+    "office-v2-generation.timer",
 )
 
 
@@ -29,6 +31,44 @@ class SystemdInstallTests(unittest.TestCase):
             self.assertNotIn("@@", text)
             self.assertIn("runtime.env", text)
             self.assertIn("systemd_entrypoint.sh", text)
+
+    def test_v2_timer_is_one_coherent_office_clock(self) -> None:
+        timer = (ROOT / "systemd/user/office-v2-generation.timer").read_text(encoding="utf-8")
+        self.assertEqual(timer.count("OnCalendar="), 4)
+        for time in ("08:05:00", "12:05:00", "16:05:00", "20:05:00"):
+            self.assertIn(f"OnCalendar=*-*-* {time}", timer)
+        self.assertIn("Persistent=true", timer)
+
+        service = (ROOT / "systemd/user/office-v2-generation.service").read_text(encoding="utf-8")
+        self.assertIn("systemd_entrypoint.sh\" office-v2-generation", service)
+        self.assertNotIn("staff-briefs", service)
+        self.assertNotIn("After=", service)
+        self.assertNotIn("Requires=", service)
+
+    def test_v2_adapter_is_fail_closed_until_m8_command_is_available(self) -> None:
+        entrypoint = (ROOT / "src/office_runtime/scripts/systemd_entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn("office-v2-generation", entrypoint)
+        self.assertIn("another generation is running", entrypoint)
+        self.assertIn("awaiting the canonical M8 runtime command", entrypoint)
+        self.assertNotIn("office-v2-generation)\n    exec", entrypoint)
+
+    def test_legacy_units_remain_tracked_during_migration(self) -> None:
+        for name in ("office-compile.service", "office-compile.timer", "staff-briefs.service", "staff-briefs.timer"):
+            self.assertTrue((ROOT / "systemd/user" / name).is_file())
+
+    def test_v2_is_not_enabled_by_legacy_enable_flag(self) -> None:
+        installer_source = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn('if args.enable_v2:', installer_source)
+        self.assertIn('V2_TIMER_NAMES', installer_source)
+        enable_block = installer_source.split('if args.enable:', 1)[1].split('if args.enable_v2:', 1)[0]
+        self.assertNotIn('V2_TIMER_NAMES', enable_block)
+
+    def test_service_does_not_swallow_failures(self) -> None:
+        entrypoint = (ROOT / "src/office_runtime/scripts/systemd_entrypoint.sh").read_text(encoding="utf-8")
+        service = (ROOT / "systemd/user/office-v2-generation.service").read_text(encoding="utf-8")
+        self.assertNotIn("|| true", service)
+        self.assertNotIn("|| true", entrypoint)
+        self.assertIn("set -euo pipefail", entrypoint)
 
     def test_render_from_arbitrary_checkout_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

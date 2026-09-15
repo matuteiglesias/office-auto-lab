@@ -12,6 +12,23 @@ fi
 
 routine="${1:-}"
 case "${routine}" in
+  office-v2-generation)
+    # M8 owns the canonical coherent-generation command. Keep this adapter
+    # fail-closed until the scheduler branch is rebased onto that runtime;
+    # never substitute the legacy Office or Staff routines here.
+    lock_dir="${OFFICE_V2_LOCK_DIR:-${OFFICE_ROOT}/artifacts/locks/office-v2-generation.lock}"
+    mkdir -p "$(dirname "${lock_dir}")"
+    if ! mkdir "${lock_dir}" 2>/dev/null; then
+      echo "Office v2 generation skipped: another generation is running (lock=${lock_dir})" >&2
+      exit 75
+    fi
+    cleanup_lock() {
+      rmdir "${lock_dir}" 2>/dev/null || true
+    }
+    trap cleanup_lock EXIT
+    echo "Office v2 generation adapter is awaiting the canonical M8 runtime command" >&2
+    exit 78
+    ;;
   office-compile)
     exec "${OFFICE_RUN}" office compile
     ;;
@@ -48,7 +65,7 @@ case "${routine}" in
     ;;
   *)
     echo "unsupported scheduled routine: ${routine:-<empty>}" >&2
-    echo "expected one of: office-compile, staff-briefs, evidence-daily" >&2
+    echo "expected one of: office-v2-generation, office-compile, staff-briefs, evidence-daily" >&2
     exit 2
     ;;
 esac
