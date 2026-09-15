@@ -70,3 +70,9 @@ AI-assisted narrative. Future Office automation may add an explicit
 AI-assisted synthesis step to turn that evidence bundle into a more useful
 interpretive day-close and next-day brief. Until then, label any such narrative
 as AI-assisted synthesis and keep structured evidence artifacts authoritative.
+
+This projection's generation summary is not an observed day-movement
+reconstruction. Until a bounded movement-evidence producer supplies dated
+estate, receipt, closure/reentry, or governed repository evidence, the close
+must declare movement coverage incomplete rather than infer historical change
+from generation counts or digest differences.

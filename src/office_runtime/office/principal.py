@@ -146,6 +146,8 @@ def _compact_exceptions(exceptions: list[dict]) -> list[dict]:
             grouped[key]["kinds"] = [str(entry.get("kind", ""))]
             grouped[key]["blockers_by_work_item"] = {str(entry.get("work_item_id", "")): list(entry.get("blockers", []) or [])}
             grouped[key]["uncertainties_by_work_item"] = {str(entry.get("work_item_id", "")): list(entry.get("uncertainties", []) or [])}
+            grouped[key]["all_blockers"] = list(entry.get("blockers", []) or [])
+            grouped[key]["all_uncertainties"] = list(entry.get("uncertainties", []) or [])
             continue
         current = grouped[key]
         work_item_id = str(entry.get("work_item_id", ""))
@@ -156,8 +158,8 @@ def _compact_exceptions(exceptions: list[dict]) -> list[dict]:
             current["kinds"].append(kind)
         current.setdefault("blockers_by_work_item", {})[work_item_id] = list(entry.get("blockers", []) or [])
         current.setdefault("uncertainties_by_work_item", {})[work_item_id] = list(entry.get("uncertainties", []) or [])
-        for field in ("blockers", "uncertainties"):
-            values = current.setdefault(field, [])
+        for field, aggregate_field in (("blockers", "all_blockers"), ("uncertainties", "all_uncertainties")):
+            values = current.setdefault(aggregate_field, [])
             for value in entry.get(field, []) or []:
                 if value not in values:
                     values.append(value)

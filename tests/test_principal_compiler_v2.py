@@ -154,6 +154,14 @@ class PrincipalCompilerV2Tests(unittest.TestCase):
         self.assertEqual(brief["exceptions"][0]["kinds"], ["UNBLOCK", "VERIFY"])
         self.assertEqual(brief["exceptions"][0]["blockers_by_work_item"]["wi:fr_blocked:verify"], ["identity is not ready"])
 
+    def test_compacted_exception_preserves_action_uncertainty_attribution(self) -> None:
+        verify = packet("fr_shared", "VERIFY", status="BLOCKED", blockers=["identity is not ready"])
+        execute = packet("fr_shared", "EXECUTE", status="BLOCKED", blockers=["identity is not ready"])
+        execute["uncertainties"] = ["action contract: action contract is missing"]
+        exception = compile_principal_brief(preparation(verify, execute))["exceptions"][0]
+        self.assertEqual(exception["uncertainties_by_work_item"]["wi:fr_shared:verify"], [])
+        self.assertIn("action contract: action contract is missing", exception["all_uncertainties"])
+
     def test_action_maturity_does_not_mature_an_unrelated_decision(self) -> None:
         decision = packet("fr_shared", "DECIDE", principal_needed=True, decision_maturity="NEEDS_MORE_PREP")
         action = packet("fr_shared", "EXECUTE")

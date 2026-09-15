@@ -106,14 +106,14 @@ def render_battletest_projection(run_dir: Path, out_root: Path, *, generated_at:
     counts = dict((manifest := _read_json(run_dir / "manifest.json")).get("counts", {}) or {})
     _write_json(close / "manifest.json", _stamped(lineage, artifact_role="sep14_close", counts=counts, artifacts=[name for name in artifacts if name.startswith("2026-09-14-close/")]))
     _write_json(prep / "manifest.json", _stamped(lineage, artifact_role="sep15_preparation", counts=counts, artifacts=[name for name in artifacts if name.startswith("2026-09-15-prep/")]))
-    _write_json(close / "movement.json", _stamped(lineage, generation_status=manifest.get("status", ""), generation_counts=counts))
-    _write_json(close / "open_work.json", _stamped(lineage, staff_counts=preparation.get("counts", {}), principal_follow_up=principal.get("staff_follow_up", [])))
+    _write_json(close / "movement.json", _stamped(lineage, generation_status=manifest.get("status", ""), generation_counts=counts, movement_coverage={"status": "INCOMPLETE", "observed_domains": ["coherent_generation"], "missing_domains": ["estate_movement", "execution_receipts", "closure_reentry", "bounded_repository_activity"], "movements": []}))
+    _write_json(close / "open_work.json", _stamped(lineage, staff_counts=preparation.get("counts", {}), staff_follow_up=principal.get("staff_follow_up", [])))
     _write_json(close / "exceptions.json", _stamped(lineage, exceptions=principal.get("exceptions", [])))
     _write_json(close / "evidence_index.json", _stamped(lineage, run_path=str(run_dir), snapshot_digest=snapshot.get("snapshot_digest", ""), preparation_digest=preparation.get("preparation_digest", ""), principal_brief_digest=principal.get("brief_digest", ""), execution_plan_digest=execution.get("plan_digest", "")))
     _write_markdown(close / "day_close.md", lineage, [
-        "# September 14 close", "", "Deterministic projection from one coherent Office v2 generation; this is not an AI-assisted narrative.",
+        "# September 14 close", "", "## Office generation summary", "", "Deterministic projection from one coherent Office v2 generation; this is not an AI-assisted narrative.",
         "", f"- Work items: {counts.get('work_items', 0)}", f"- Deep Staff preparation: {preparation.get('deep_by_lane', {})}",
-        f"- Budget deferred: {preparation.get('counts', {}).get('DEFERRED_BY_BUDGET', 0)}", f"- True front-level exceptions: {principal.get('counts', {}).get('exceptions', 0)}",
+        f"- Budget deferred: {preparation.get('counts', {}).get('DEFERRED_BY_BUDGET', 0)}", f"- True front-level exceptions: {principal.get('counts', {}).get('exceptions', 0)}", "", "## Observed day movement", "", "Movement coverage incomplete: this projection has no bounded historical movement-evidence producer. Generation counts and lineage do not claim what materially changed during September 14.",
     ])
     _write_markdown(close / "qa_notes.md", lineage, ["# Close QA notes", "", "Projection lineage validated against snapshot, preparation, Principal, and execution artifacts."])
     _write_json(prep / "principal.json", _stamped(lineage, principal_brief=principal))

@@ -78,6 +78,20 @@ class BattleTestProjectionTests(unittest.TestCase):
             with self.assertRaises(BattleTestProjectionError):
                 render_battletest_projection(run, root / "review", generated_at="2026-09-15T04:00:00Z")
 
+    def test_close_labels_generation_summary_and_incomplete_movement_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            review = root / "review"
+            render_battletest_projection(generation(root / "runs", "v10"), review, generated_at="2026-09-15T04:00:00Z")
+            close = (review / "2026-09-14-close" / "day_close.md").read_text(encoding="utf-8")
+            movement = json.loads((review / "2026-09-14-close" / "movement.json").read_text(encoding="utf-8"))
+            open_work = json.loads((review / "2026-09-14-close" / "open_work.json").read_text(encoding="utf-8"))
+            self.assertIn("Office generation summary", close)
+            self.assertIn("Movement coverage incomplete", close)
+            self.assertEqual(movement["movement_coverage"]["status"], "INCOMPLETE")
+            self.assertIn("staff_follow_up", open_work)
+            self.assertNotIn("principal_follow_up", open_work)
+
 
 if __name__ == "__main__":
     unittest.main()
