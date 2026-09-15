@@ -1,52 +1,47 @@
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
+
 def _env(name: str, default: str = "") -> str:
-    v = os.environ.get(name, "").strip()
-    return v if v else default
+    value = os.environ.get(name, "").strip()
+    return value if value else default
+
 
 @dataclass(frozen=True)
 class OfficeConfig:
     service_account_json: str
     spreadsheet_id: str
-    front_gid: str
-    carry_gid: str
-    runtime_gid: str
-    support_gid: str
     out_root: Path
-    scripts_dir: Path
-    strict: bool
-    repo_context_json: Path | None = None
-    surface_context_json: Path | None = None
-    closure_source: Path | None = None
 
     @property
     def latest_dir(self) -> Path:
+        """Sidecar-compatible mutable output root.
+
+        Canonical Office v2 itself publishes through `out_root / v2`; Capture
+        may continue using `latest` independently until its artifact contract is
+        migrated.
+        """
         return self.out_root / "latest"
 
     @property
-    def runs_dir(self) -> Path:
-        return self.out_root / "runs"
+    def v2_dir(self) -> Path:
+        return self.out_root / "v2"
+
 
 def load_config() -> OfficeConfig:
     root = Path(_env("OFFICE_ROOT", ".")).resolve()
     out_root = Path(_env("OFFICE_OUT_ROOT", str(root / "artifacts"))).resolve()
-    repo_context_raw = _env("OFFICE_REPO_CONTEXT_JSON")
-    surface_context_raw = _env("OFFICE_SURFACE_CONTEXT_JSON")
-    closure_source_raw = _env("OFFICE_CLOSURE_SOURCE")
     return OfficeConfig(
-        service_account_json=_env("GOOGLE_APPLICATION_CREDENTIALS", str(root / "newgsheets-349817-cdd6efdaa76f.json")),
-        spreadsheet_id=_env("OFFICE_SPREADSHEET_ID", "1mImijqIwcbBqcO05xKzPWMITo-53ypjd1BEGicTp3jE"),
-        front_gid=_env("OFFICE_FRONT_GID", "716143116"),
-        carry_gid=_env("OFFICE_CARRY_GID", "1585724687"),
-        runtime_gid=_env("OFFICE_RUNTIME_GID", "1395426441"),
-        support_gid=_env("OFFICE_SUPPORT_GID", "788211576"),
+        service_account_json=_env(
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            str(root / "newgsheets-349817-cdd6efdaa76f.json"),
+        ),
+        spreadsheet_id=_env(
+            "OFFICE_SPREADSHEET_ID",
+            "1mImijqIwcbBqcO05xKzPWMITo-53ypjd1BEGicTp3jE",
+        ),
         out_root=out_root,
-        scripts_dir=Path(_env("OFFICE_SCRIPTS_DIR", str(root / "src" / "office_runtime" / "scripts"))).resolve(),
-        strict=_env("OFFICE_STRICT", "false").lower() == "true",
-        repo_context_json=Path(repo_context_raw).expanduser().resolve() if repo_context_raw else None,
-        surface_context_json=Path(surface_context_raw).expanduser().resolve() if surface_context_raw else None,
-        closure_source=Path(closure_source_raw).expanduser().resolve() if closure_source_raw else None,
     )
