@@ -38,7 +38,7 @@ def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
     smoke_deps = _target_dependencies("smoke").split()
 
-    assert smoke_deps == ["imports", "control-contracts", "identity-contracts", "work-contracts", "staff-v2-contracts", "editorial-contracts", "runtime-contracts", "repo-scans"]
+    assert smoke_deps == ["imports", "control-contracts", "identity-contracts", "work-contracts", "staff-v2-contracts", "principal-contracts", "editorial-contracts", "runtime-contracts", "repo-scans"]
     assert "src/office_runtime/scripts/repo_contract_scan.sh" in text
     assert "src/office_runtime/scripts/repo_snapshot_protocol.sh" in text
     assert "\ncontrol-contracts:" in text
@@ -49,6 +49,8 @@ def test_smoke_is_core_only_and_legacy_compiler_is_compatibility_only() -> None:
     assert "tests.test_work_item_compiler_v1" in text
     assert "\nstaff-v2-contracts:" in text
     assert "tests.test_staff_preparation_v2" in text
+    assert "\nprincipal-contracts:" in text
+    assert "tests.test_principal_compiler_v2" in text
     assert "\ncompat-compile-blocks:" in text
     assert "src/office_runtime/scripts/legacy/compile_blocks.py" in text
     assert "\ncompile-blocks:" not in text

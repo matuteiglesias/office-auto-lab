@@ -45,6 +45,7 @@ authority:
   - governed front-to-repository-to-workspace resolution for local Office execution context
   - deterministic typed work compilation from structured Control Tower state
   - bounded Staff triage and evidence preparation over frozen v2 inputs
+  - bounded Principal attention compilation from prepared Staff packets
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -66,6 +67,7 @@ interfaces:
   - artifact:ops.work-item-set@1
   - artifact:ops.staff-preparation-set@2
   - artifact:ops.staff-packet@2
+  - artifact:ops.principal-brief@2
   - artifact:ops.office-run-record@1
   - artifact:ops.office-reentry-proposal@1 (producer-local review projection; never Carry approval)
 upstream:
@@ -82,6 +84,7 @@ canonical_commands:
 - make identity-contracts
 - make work-contracts
 - make staff-v2-contracts
+- make principal-contracts
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -93,7 +96,7 @@ verification:
   last_verified: '2026-09-14'
   command: make parent-audit
   evidence:
-  - github-actions:34913739376
+  - github-actions:34914249354
   notes:
   - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
   - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
@@ -108,6 +111,9 @@ verification:
   - Staff v2 consumes the frozen control snapshot plus its matching typed work set and never rereads Control Tower Sheets
   - Staff v2 triages all work cheaply, bounds deep preparation with max_deep, preserves budget-deferred items explicitly, and suppresses expensive/local adapters for already-blocked identity
   - local repository evidence is resolved through governed workspace identity and portable Staff packets do not expose the machine-local path
+  - Principal v2 consumes prepared Staff packets only; blocked or budget-deferred work remains an Office exception rather than being pushed raw to Matias
+  - Principal v2 bounds needs-you and ready-pull surfaces, keeps overflow explicit, and treats no-principal-action-required as a successful outcome
+  - Principal evidence is compressed to stable refs and does not export machine-local paths
   - the legacy Office/Staff compiler remains separately available during migration and is not treated as a semantic adapter for v2 routing or preparation
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
@@ -123,7 +129,7 @@ verification:
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
-  - scheduled Office still uses the legacy compiler until Staff/Principal/coherent-run milestones can consume the v2 contracts end to end
+  - scheduled Office still uses the legacy compiler until coherent-run/cutover milestones consume the v2 contracts end to end
 maintenance:
   cadence: quarterly
   next_review: '2026-11-01'
