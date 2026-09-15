@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 
 from office_runtime.dependencies import (
     ACTIVE_PROFILES,
-    COMPATIBILITY_PROFILES,
     CONSTRAINTS_PATH,
     CORE_PROFILES,
     PROFILE_PATHS,
     SIDECAR_PROFILES,
     TEST_TOOLING_PATH,
-    install_command,
     load_constraints,
     load_profile,
     load_test_tooling,
@@ -24,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DependencyProfileTests(unittest.TestCase):
-    def test_profiles_validate_and_active_full_is_exact_union(self) -> None:
+    def test_profiles_validate_and_full_is_exact_active_union(self) -> None:
         validate_profiles(ROOT)
         loaded = {name: set(load_profile(ROOT, name)) for name in PROFILE_PATHS}
         expected = loaded["office"] | loaded["capture"]
@@ -32,8 +29,7 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertEqual(CORE_PROFILES, ("office",))
         self.assertEqual(SIDECAR_PROFILES, ("capture",))
         self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "full"))
-        self.assertEqual(COMPATIBILITY_PROFILES, ("repo-health", "legacy-auto-checker"))
-        self.assertTrue(loaded["repo-health"] - loaded["full"])
+        self.assertEqual(set(PROFILE_PATHS), {"office", "capture", "full"})
 
     def test_constraints_are_exact_and_cover_every_declared_surface(self) -> None:
         constraints = load_constraints(ROOT)
@@ -51,31 +47,22 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertTrue(tooling.isdisjoint(runtime_packages))
         self.assertEqual(TEST_TOOLING_PATH, Path("requirements/test.txt"))
 
-    def test_compatibility_profiles_remain_explicitly_installable(self) -> None:
-        command = install_command(ROOT, "repo-health")
-        self.assertEqual(command[:4], [sys.executable, "-m", "pip", "install"])
-        self.assertEqual(command[4:6], ["-c", str(ROOT / CONSTRAINTS_PATH)])
-        self.assertEqual(command[6:], ["-r", str(ROOT / PROFILE_PATHS["repo-health"])])
-
-    def test_root_requirement_files_are_compatibility_shims(self) -> None:
-        expected = {
-            "requirements.txt": "full",
-            "requirements-repo-health.txt": "repo-health",
-            "requirements-auto-checker.txt": "legacy-auto-checker",
-        }
-        for filename, profile in expected.items():
-            lines = [
-                line.strip()
-                for line in (ROOT / filename).read_text(encoding="utf-8").splitlines()
-                if line.strip() and not line.lstrip().startswith("#")
-            ]
-            self.assertEqual(
-                lines,
-                [
-                    "-c requirements/constraints.txt",
-                    f"-r requirements/profiles/{profile}.txt",
-                ],
-            )
+    def test_root_requirements_is_only_supported_runtime_shim(self) -> None:
+        lines = [
+            line.strip()
+            for line in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(
+            lines,
+            [
+                "-c requirements/constraints.txt",
+                "-r requirements/profiles/full.txt",
+            ],
+        )
+        self.assertFalse((ROOT / "requirements-repo-health.txt").exists())
+        self.assertFalse((ROOT / "requirements-auto-checker.txt").exists())
+        self.assertTrue((ROOT / CONSTRAINTS_PATH).is_file())
 
 
 if __name__ == "__main__":
