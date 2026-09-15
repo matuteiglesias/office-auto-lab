@@ -7,8 +7,9 @@
 
 ## Purpose and non-goals
 
-Evidence produces bounded JSONL observations of Git commits or filesystem
-modifications over caller-selected roots and time ranges. It owns discovery,
+Evidence produces bounded JSONL observations of Git commits, filesystem
+modifications, or local ActivityWatch/Firefox activity over caller-selected
+time ranges. It owns discovery,
 date normalization, row construction, limits, and emission. It does not decide
 what the observations mean for Office, staff, or Repo Health and does not ingest
 them automatically into another subsystem.
@@ -19,6 +20,7 @@ them automatically into another subsystem.
 |---|---|
 | `evidence/git_trace.py` | Repository discovery, commit traversal, Git/error rows, JSONL writer |
 | `evidence/fs_trace.py` | Date bounds, bounded filesystem traversal, file/error rows, JSONL writer |
+| `evidence/activity_trace.py` | ActivityWatch/Firefox acquisition, source health, private raw archive, sanitized JSONL writer |
 | `cli.py` | Primary commands, summaries, run logs, ledger entries |
 | `run_logging.py`, `ledger.py` | Shared execution/event and daily log formats |
 | `systemd/user/evidence-daily.*` | Optional daily scheduling templates |
@@ -33,7 +35,7 @@ run/event and daily ledger logs.
 
 ## Canonical command surface
 
-Primary commands are `evidence git` and `evidence files`; Make provides
+Primary commands are `evidence git`, `evidence files`, and `evidence activity`; Make provides
 `evidence-git`, `evidence-files`, and the composed `evidence-today`. Direct module
 CLIs exist but are secondary implementation surfaces. Operational examples and
 recovery belong to PR-OD4 rather than this owner guide.
@@ -69,5 +71,8 @@ exists—inspect the summary, error count, roots, dates, and output.
 
 New evidence kinds should define a stable row vocabulary, deterministic bounds,
 explicit error rows, a caller-selected destination, tests, and CLI/ledger
-summary fields. Do not make a tracer mutate scanned roots or silently feed a
+summary fields. Activity raw payloads are machine-private under the XDG state
+directory; the ordinary output contains structural observations only. Firefox is
+read through a bounded SQLite online backup and is independently degradable.
+Semantic episode inference is downstream and is not owned here. Do not make a tracer mutate scanned roots or silently feed a
 domain component; that would change this component's observation-only boundary.

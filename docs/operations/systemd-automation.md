@@ -139,6 +139,15 @@ systemctl --user enable --now office-v2-generation.timer
 
 The independent `evidence-daily.timer` may remain enabled.
 
+ActivityWatch window and AFK services are the continuous sensing authority;
+`evidence-daily` is the bounded materialization authority. Its activity stage
+uses a read-only, bounded SQLite online backup for Firefox history. Raw browser
+payloads remain under the operator's private XDG state directory, while the
+repository artifact contains structural observations only. Firefox degradation
+is recorded as source health while valid ActivityWatch evidence remains
+publishable. Semantic episode inference is downstream and is not performed by
+this timer.
+
 ## Shadow and manual operation
 
 After installation, inspect the rendered/installed units and run a shadow

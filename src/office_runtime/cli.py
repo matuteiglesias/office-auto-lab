@@ -43,6 +43,22 @@ def _log_evidence_files(summary: dict) -> None:
     )
 
 
+def _log_evidence_activity(summary: dict) -> None:
+    from office_runtime.ledger import append_ledger
+
+    append_ledger(
+        "evidence.activity",
+        "ok" if summary.get("status") == "ok" else "degraded",
+        metrics={
+            "window": summary.get("counts", {}).get("activitywatch_window"),
+            "afk": summary.get("counts", {}).get("activitywatch_afk"),
+            "firefox": summary.get("counts", {}).get("firefox_visit"),
+            "firefox_status": summary.get("firefox_status"),
+        },
+        artifacts={"out": str(summary.get("out")), "raw_private": str(summary.get("raw_private"))},
+    )
+
+
 def _log_estate_movement(summary: dict) -> None:
     from office_runtime.ledger import append_ledger
 
@@ -132,6 +148,36 @@ def _cmd_evidence_files(args: argparse.Namespace) -> int:
     _log_evidence_files(summary)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
+
+
+def _cmd_evidence_activity(args: argparse.Namespace) -> int:
+    from office_runtime.evidence import activity_trace
+    from office_runtime.run_logging import RunLogger
+
+    run_id = _new_run_id()
+    logger = RunLogger("evidence.activity", run_id)
+    logger.event("run.start", status="ok", start=args.start, end=args.end)
+    summary = activity_trace.collect_activity(
+        start=args.start,
+        end=args.end,
+        out=args.out,
+        aw_url=args.aw_url,
+        profile_ini=args.profile_ini,
+        raw_root=args.raw_root,
+    )
+    logger.event(
+        "activity.trace",
+        status=summary.get("status"),
+        rows_written=summary.get("rows_written"),
+        counts=summary.get("counts"),
+        firefox_status=summary.get("firefox_status"),
+        out=str(args.out),
+        raw_private=summary.get("raw_private"),
+    )
+    logger.event("run.end", status=summary.get("status"))
+    _log_evidence_activity(summary)
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    return 0 if summary.get("status") == "ok" else 1
 
 
 def _cmd_estate_movement(args: argparse.Namespace) -> int:
@@ -343,6 +389,15 @@ def build_parser() -> argparse.ArgumentParser:
     ev_files.add_argument("--include-hidden", action="store_true")
     ev_files.add_argument("--limit", type=int, default=None)
     ev_files.set_defaults(handler=_cmd_evidence_files)
+
+    ev_activity = evidence_sub.add_parser("activity", help="Trace ActivityWatch and Firefox activity into safe evidence.")
+    ev_activity.add_argument("--start", required=True)
+    ev_activity.add_argument("--end", required=True)
+    ev_activity.add_argument("--out", required=True, type=Path)
+    ev_activity.add_argument("--aw-url", default="http://127.0.0.1:5600/api/0")
+    ev_activity.add_argument("--profile-ini", type=Path, default=None)
+    ev_activity.add_argument("--raw-root", type=Path, default=None)
+    ev_activity.set_defaults(handler=_cmd_evidence_activity)
 
     estate = subparsers.add_parser("estate", help="Read-only estate evidence projections.")
     estate_sub = estate.add_subparsers(dest="estate_cmd", required=True)

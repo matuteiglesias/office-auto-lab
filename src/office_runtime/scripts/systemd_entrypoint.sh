@@ -86,12 +86,16 @@ case "${routine}" in
       --start "${today}" \
       --end "${today}" \
       --out "${out_root}/git_trace/${today}_${today}.jsonl"
-    exec "${OFFICE_RUN}" evidence files \
+    "${OFFICE_RUN}" evidence files \
       --roots "${roots[@]}" \
       --start "${today}" \
       --end "${today}" \
       --out "${out_root}/fs_trace/${today}_${today}.jsonl" \
       --max-depth "${OFFICE_EVIDENCE_MAX_DEPTH:-8}"
+    exec "${OFFICE_RUN}" evidence activity \
+      --start "${today}" \
+      --end "${today}" \
+      --out "${out_root}/activity_trace/${today}_${today}.jsonl"
     ;;
   *)
     echo "unsupported scheduled routine: ${routine:-<empty>}" >&2
