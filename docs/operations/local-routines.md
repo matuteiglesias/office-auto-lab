@@ -60,3 +60,13 @@ never treat a reingest proposal as approved/applied.
 `evidence git` was not executed in PR-OD4; the files variant was. Select narrow
 roots and date bounds, then verify `repos_found`, commits, errors, and output
 JSONL. Zero rows can be correct but is not proof of expected activity.
+
+## Day-close narrative — future TODO
+
+The September 14 battletest close was synthesized by an AI operator from the
+structured generation, estate-movement, Git, and QA artifacts. That narrative
+is useful, but it is not currently a reproducible runtime output. Future
+Office automation should add an explicit AI-assisted synthesis step here to
+turn the evidence bundle into a concise day-close and next-day brief. Until
+then, label such Markdown as AI-assisted synthesis and keep the structured
+evidence artifacts authoritative.
