@@ -48,6 +48,7 @@ authority:
   - bounded Principal attention compilation from prepared Staff packets
   - bounded execution-envelope compilation from Principal ready pulls and operator contracts
   - packet-linked execution receipt validation and non-mutating closure/reentry proposals
+  - coherent run-scoped Office v2 generation and last-known-good publication
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -75,6 +76,8 @@ interfaces:
   - artifact:ops.execution-receipt@2
   - artifact:ops.closure-set@2
   - artifact:ops.reentry-proposal@2
+  - artifact:ops.office-generation@2
+  - artifact:ops.office-current-pointer@2
   - artifact:ops.office-run-record@1
   - artifact:ops.office-reentry-proposal@1 (legacy producer-local review projection; never Carry approval)
 upstream:
@@ -94,6 +97,9 @@ canonical_commands:
 - make principal-contracts
 - make execution-contracts
 - make reentry-v2-contracts
+- make generation-v2-contracts
+- make office-v2-shadow
+- make office-v2-generate
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -131,7 +137,11 @@ verification:
   - COMPLETED receipts must pass every packet acceptance condition and contain evidence; blocked/failed receipts must name blockers
   - Reentry v2 classifies packet outcomes as DONE/FOLLOW_UP/WAITING for review, never infers that the whole front is done, and keeps packets without receipts explicitly OPEN_NO_RECEIPT
   - Reentry v2 produces reviewable proposals with candidate_control_patch null and mutation_performed false; suggested next touches remain recommendations rather than spawned work
-  - the legacy Office/Staff compiler and closure consumer remain separately available during migration and do not constrain v2 routing, preparation, or receipt identity
+  - coherent generation v2 reads Control Tower once and derives work, Staff, Principal, and execution artifacts from that one immutable snapshot
+  - coherent generation v2 writes into a run-scoped staging tree, validates one snapshot digest across every forward stage, and promotes a current pointer only after the complete generation succeeds
+  - a failed generation cannot replace the previous known-good current pointer; shadow mode preserves the complete run while deliberately leaving current unchanged
+  - Staff and execution packet directories are generation-scoped, so stale packets from earlier runs cannot survive into a newer generation
+  - the legacy Office/Staff compiler and closure consumer remain separately available during migration and do not constrain v2 routing, preparation, receipt identity, or generation semantics
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
   - optional estate surface context is advisory and only reports promotion/remediation topology; it cannot directly change carry, horizon, priority, selection, or canonical human state
@@ -145,7 +155,7 @@ verification:
   - live X account identity, metrics, and publication adapters are not yet implemented
   - editorial upstream artifact contract names are not frozen at W0
   - deletion of legacy Repo Health compatibility code/dependencies requires a separate consumer audit and is not implied by M0
-  - scheduled Office still uses the legacy compiler until coherent-run/cutover milestones consume the v2 contracts end to end
+  - scheduler cutover remains a separate explicit migration; merging coherent generation code does not change installed timers or enable v2 scheduling
   - reviewed Control Tower patch application remains a later governance/cutover concern; M7 proposals are intentionally non-mutating
 maintenance:
   cadence: quarterly
