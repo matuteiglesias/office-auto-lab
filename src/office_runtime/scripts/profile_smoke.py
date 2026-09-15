@@ -14,6 +14,7 @@ IMPORTS_BY_PROFILE = {
         "office_runtime.office.identity",
         "office_runtime.office.work_items",
         "office_runtime.office.principal",
+        "office_runtime.office.execution",
         "office_runtime.office.io",
         "office_runtime.office.render",
         "office_runtime.office.validate",

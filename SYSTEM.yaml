@@ -46,6 +46,7 @@ authority:
   - deterministic typed work compilation from structured Control Tower state
   - bounded Staff triage and evidence preparation over frozen v2 inputs
   - bounded Principal attention compilation from prepared Staff packets
+  - bounded execution-envelope compilation from Principal ready pulls and operator contracts
   - run records and bounded mutation commands
   - bounded editorial projection execution after explicit capability promotion
   does_not_own:
@@ -68,6 +69,8 @@ interfaces:
   - artifact:ops.staff-preparation-set@2
   - artifact:ops.staff-packet@2
   - artifact:ops.principal-brief@2
+  - artifact:ops.execution-plan@2
+  - artifact:ops.execution-packet@2
   - artifact:ops.office-run-record@1
   - artifact:ops.office-reentry-proposal@1 (producer-local review projection; never Carry approval)
 upstream:
@@ -85,6 +88,7 @@ canonical_commands:
 - make work-contracts
 - make staff-v2-contracts
 - make principal-contracts
+- make execution-contracts
 - make runtime-contracts
 - make parent-audit
 - make editorial-contracts
@@ -96,7 +100,7 @@ verification:
   last_verified: '2026-09-14'
   command: make parent-audit
   evidence:
-  - github-actions:34914249354
+  - github-actions:34914637839
   notes:
   - active smoke is CORE-only; compatibility compiler and Repo Health entry points are excluded
   - the full dependency profile is the supported Office + Capture runtime and no longer carries Repo Health/GCP compatibility dependencies
@@ -114,6 +118,10 @@ verification:
   - Principal v2 consumes prepared Staff packets only; blocked or budget-deferred work remains an Office exception rather than being pushed raw to Matias
   - Principal v2 bounds needs-you and ready-pull surfaces, keeps overflow explicit, and treats no-principal-action-required as a successful outcome
   - Principal evidence is compressed to stable refs and does not export machine-local paths
+  - Execution v2 compiles only Principal ready pulls; needs-you entries are never interpreted as execution authorization
+  - Execution v2 requires an unambiguous ACTIVE operator contract and resolved repository targets before producing a portable packet
+  - Execution v2 withholds update_state and open_work_items even when an operator contract lists them as allowed; execution produces evidence and M7 owns closure/reentry proposals
+  - execution packets carry objective, target identities, effective power envelope, evidence inputs, acceptance conditions and stop conditions without machine-local paths
   - the legacy Office/Staff compiler remains separately available during migration and is not treated as a semantic adapter for v2 routing or preparation
   - Front identity is canonicalized as front_id while project_id remains a compatibility alias in the legacy compiler
   - optional repository context is advisory and cannot directly change carry, horizon, priority, or escalation
