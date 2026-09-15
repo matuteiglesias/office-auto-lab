@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -63,6 +66,20 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertFalse((ROOT / "requirements-repo-health.txt").exists())
         self.assertFalse((ROOT / "requirements-auto-checker.txt").exists())
         self.assertTrue((ROOT / CONSTRAINTS_PATH).is_file())
+
+    def test_profile_listing_has_no_retired_compatibility_profiles(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "src/office_runtime/scripts/install_profile.py", "--list"],
+            cwd=ROOT,
+            env={"PYTHONPATH": "src"},
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            json.loads(completed.stdout),
+            {"active": ["office", "capture", "full"], "compatibility_only": []},
+        )
 
 
 if __name__ == "__main__":
