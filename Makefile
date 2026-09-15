@@ -8,8 +8,12 @@ ESTATE_OUT_DIR ?= artifacts/estate-movement
 GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
+# Supported CORE acceptance only. SIDECAR/COMPAT components retain dedicated
+# contract/test slices and must not become implicit dependencies of this smoke.
 smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts editorial-contracts runtime-contracts repo-scans
 
+# Active Office product surface only. Repo Health remains compatibility code and
+# is validated separately by its dedicated CI profile/tests.
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
 import office_runtime.cli; \
@@ -81,6 +85,8 @@ daily:
 office-compile:
 	PYTHONPATH=src python3 -m office_runtime.cli office compile
 
+# Read-only closure intake. Inputs are explicit; this target never writes
+# Office sheets or applies Ops recommendations.
 office-reentry:
 	@test -n "$(CLOSURES)" || (echo "CLOSURES is required" >&2; exit 2)
 	@test -n "$(FRONT_REGISTRY)" || (echo "FRONT_REGISTRY is required" >&2; exit 2)
@@ -96,6 +102,7 @@ staff-briefs:
 capture-lifecycle:
 	PYTHONPATH=src python3 -m office_runtime.cli capture lifecycle
 
+# Compatibility-only entrypoints retained during consumer migration.
 compat-repo-health-policy:
 	PYTHONPATH=src python3 -m office_runtime.cli ops repo-health policy
 
@@ -110,6 +117,8 @@ evidence-files:
 
 evidence-today: evidence-git evidence-files
 
+# Read-only delta producer. ROOTS, START, END, and DIGEST_ID are explicit to
+# prevent accidental broad estate scans; PREVIOUS_MANIFEST is optional.
 estate-movement:
 	@test -n "$(ROOTS)" || (echo "ROOTS is required" >&2; exit 2)
 	@test -n "$(START)" || (echo "START is required" >&2; exit 2)
@@ -127,6 +136,8 @@ repo-scans:
 	test -s /tmp/office_auto_lab_srp.txt
 	@echo "repo scans ok"
 
+# Compatibility-only legacy prepared-block compiler. This remains callable for
+# migration consumers but is intentionally excluded from active smoke/acceptance.
 compat-compile-blocks:
 	mkdir -p out/frontier
 	cp fixtures/frontier_sample_v2.csv out/frontier/latest.csv 2>/dev/null || cp fixtures/frontier_sample.csv out/frontier/latest.csv
