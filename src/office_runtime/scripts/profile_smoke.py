@@ -49,13 +49,20 @@ IMPORTS_BY_PROFILE = {
         "pandas",
     ),
 }
-IMPORTS_BY_PROFILE["full"] = tuple(dict.fromkeys(module for profile in ("office", "capture") for module in IMPORTS_BY_PROFILE[profile]))
+IMPORTS_BY_PROFILE["full"] = tuple(
+    dict.fromkeys(
+        module
+        for profile in ("office", "capture")
+        for module in IMPORTS_BY_PROFILE[profile]
+    )
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Import-smoke one installed Office Runtime dependency profile.")
     parser.add_argument("profile", choices=tuple(IMPORTS_BY_PROFILE))
     args = parser.parse_args()
+
     imported = []
     for module in IMPORTS_BY_PROFILE[args.profile]:
         importlib.import_module(module)
