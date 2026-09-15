@@ -26,6 +26,25 @@ class GenerationInvariantTests(unittest.TestCase):
         execution = compile_execution_plan(snapshot, principal)
         return snapshot, work_set, preparation, principal, execution
 
+    def _compiled_with_ready_action(self):
+        snapshot = build_snapshot(frames(), observed_at="2026-09-15T00:00:00Z", spreadsheet_id="sheet")
+        work_set = compile_work_items(snapshot)
+        action = next(row for row in work_set["work_items"] if row["kind"] == "EXECUTE")
+        action["action_contract"] = {
+            "objective": "Verify the named execution surface at revision abc123.",
+            "entry_surface": {"type": "REPOSITORY", "repo_id": "repo.exec", "workspace_id": "ws_exec", "revision": "abc123"},
+            "why_now": "The bounded check is on the active frontier.",
+            "scope_boundary": "Inspect only the named surface without mutation.",
+            "acceptance_conditions": ["The named surface is checked."],
+            "stop_conditions": ["Stop after recording the result."],
+            "expected_evidence": ["A bounded verification receipt."],
+            "known_uncertainties": [], "decision_dependencies": [],
+        }
+        preparation = prepare_work_items(snapshot, work_set, adapters=[SnapshotEvidenceAdapter()], max_deep=6, prepared_at="2026-09-15T00:01:00Z")
+        principal = compile_principal_brief(preparation)
+        execution = compile_execution_plan(snapshot, principal)
+        return snapshot, work_set, preparation, principal, execution
+
     def test_valid_generation_passes_explicit_invariant_suite(self) -> None:
         names = validate_forward_generation(*self._compiled())
         self.assertIn("one_snapshot_lineage", names)
@@ -46,7 +65,7 @@ class GenerationInvariantTests(unittest.TestCase):
             validate_forward_generation(snapshot, work_set, preparation, principal, execution)
 
     def test_execution_cannot_regain_state_mutation_power(self) -> None:
-        snapshot, work_set, preparation, principal, execution = self._compiled()
+        snapshot, work_set, preparation, principal, execution = self._compiled_with_ready_action()
         execution = dict(execution)
         packets = [dict(row) for row in execution.get("packets", [])]
         self.assertTrue(packets)

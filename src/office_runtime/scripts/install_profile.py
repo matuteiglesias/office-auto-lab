@@ -8,7 +8,6 @@ from pathlib import Path
 
 from office_runtime.dependencies import (
     ACTIVE_PROFILES,
-    COMPATIBILITY_PROFILES,
     PROFILE_PATHS,
     DependencyProfileError,
     install_command,
@@ -36,10 +35,7 @@ def main() -> int:
     try:
         validate_profiles(root)
         if args.list:
-            payload = {
-                "active": list(ACTIVE_PROFILES),
-                "compatibility_only": list(COMPATIBILITY_PROFILES),
-            }
+            payload = {"active": list(ACTIVE_PROFILES)}
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.check:

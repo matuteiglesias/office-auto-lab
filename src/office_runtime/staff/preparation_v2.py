@@ -8,11 +8,16 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from office_runtime.office.identity import IdentityResolutionError, IdentityResolver
+from office_runtime.office.action_contracts import ActionContractError, unresolved_dependencies, validate_action_contract
+from office_runtime.office.action_candidates import ActionCandidateProducer, bounded_candidates
 
 
 SCHEMA_VERSION = "ops.staff-preparation-set.v2"
 PACKET_SCHEMA_VERSION = "ops.staff-packet.v2"
 DEEP_KINDS = frozenset({"DECIDE", "UNBLOCK", "VERIFY", "EXECUTE"})
+PREPARATION_LANE_BUDGETS = {"DECISION": 2, "ACTION": 3, "REPAIR_VERIFY": 1}
+DECISION_MATURITY = frozenset({"NOT_A_DECISION", "NEEDS_MORE_PREP", "WAITING_FOR_EVIDENCE", "READY_FOR_PRINCIPAL"})
+ACTION_MATURITY = frozenset({"NOT_AN_ACTION", "NEEDS_MORE_PREP", "WAITING_FOR_EVIDENCE", "BLOCKED", "READY_FOR_PULL"})
 KIND_RANK = {"DECIDE": 0, "UNBLOCK": 1, "VERIFY": 2, "EXECUTE": 3, "MAINTAIN": 4}
 HORIZON_RANK = {"TODAY": 0, "THIS_WEEK": 1, "THIS_MONTH": 2, "MAINTENANCE": 3, "LATER": 4}
 QUESTION_BY_KIND = {
@@ -33,6 +38,28 @@ class EvidenceAdapter(Protocol):
 
     def collect(self, snapshot: dict, work_item: dict) -> dict:
         ...
+
+
+class ActionCandidateEvidenceAdapter:
+    """Collect bounded producer observations without treating them as authority."""
+
+    name = "action_candidates"
+
+    def __init__(self, producers: list[ActionCandidateProducer] | None = None) -> None:
+        self.producers = list(producers or [])
+
+    def collect(self, snapshot: dict, work_item: dict) -> dict:
+        candidates: list[dict] = []
+        for producer in self.producers:
+            candidates.extend(producer.produce(snapshot, work_item))
+        selected, rejected = bounded_candidates(candidates, front_id=str(work_item.get("front_id", "")))
+        return {
+            "adapter": self.name,
+            "status": "ok",
+            "candidate_count": len(selected),
+            "candidates": selected,
+            "rejected_candidates": rejected,
+        }
 
 
 def _rows(snapshot: dict, table: str) -> list[dict]:
@@ -56,6 +83,28 @@ def _priority_tuple(item: dict) -> tuple[int, int, int, str]:
         HORIZON_RANK.get(str(item.get("horizon", "")).upper(), 50),
         str(item.get("work_item_id", "")),
     )
+
+
+def preparation_lane(work_item: dict) -> str:
+    """Return the deterministic Staff preparation lane for typed work."""
+    kind = str(work_item.get("kind", "")).upper()
+    if kind == "DECIDE":
+        return "DECISION"
+    if kind in {"EXECUTE", "MAINTAIN"}:
+        return "ACTION"
+    if kind == "VERIFY" and work_item.get("human_focus"):
+        return "ACTION"
+    return "REPAIR_VERIFY"
+
+
+def requires_action_contract(work_item: dict) -> bool:
+    """Only an EXECUTE facet uses Action maturity in this iteration.
+
+    Budget lanes deliberately group some VERIFY work with actions, but a lane is
+    not a semantic requirement. VERIFY/UNBLOCK/MAINTAIN retain their own
+    evidence and blocker semantics unless a later typed contract says otherwise.
+    """
+    return str(work_item.get("kind", "")).upper() == "EXECUTE"
 
 
 @dataclass(frozen=True)
@@ -90,6 +139,10 @@ def triage_work_item(work_item: dict) -> TriageResult:
     workspace_statuses = {str(row.get("status", "")).upper() for row in identity.get("workspace_states", []) or []}
     if identity_status == "ERROR":
         return TriageResult(work_item_id, front_id, kind, "BLOCKED", "LIGHT", ("IDENTITY_ERROR",))
+    decision_dependency = work_item.get("decision_dependency", {}) or {}
+    dependency_status = str(decision_dependency.get("status", "")).upper() if isinstance(decision_dependency, dict) else ""
+    if kind in {"UNBLOCK", "VERIFY", "EXECUTE", "MAINTAIN"} and dependency_status in {"PENDING", "BLOCKED", "UNRESOLVED"}:
+        return TriageResult(work_item_id, front_id, kind, "BLOCKED", "LIGHT", ("DECISION_DEPENDENCY_UNRESOLVED",))
     if kind == "UNBLOCK" and (
         identity_status == "NOT_READY" or workspace_statuses.intersection({"AMBIGUOUS", "UNRESOLVED", "UNAVAILABLE"})
     ):
@@ -206,6 +259,9 @@ def _blockers(work_item: dict, evidence: list[dict]) -> list[str]:
         status = str(row.get("status", "")).upper()
         if status in {"AMBIGUOUS", "UNRESOLVED", "UNAVAILABLE"}:
             out.append(f"workspace {row.get('workspace_id') or '<unresolved>'} is {status.lower()}")
+    decision_dependency = work_item.get("decision_dependency", {}) or {}
+    if isinstance(decision_dependency, dict) and str(decision_dependency.get("status", "")).upper() in {"PENDING", "BLOCKED", "UNRESOLVED"}:
+        out.append(f"decision dependency {decision_dependency.get('decision_id') or '<unnamed>'} is unresolved")
     for result in evidence:
         if result.get("status") == "blocked":
             out.append(f"{result.get('adapter')}: {result.get('reason', 'blocked')}")
@@ -224,6 +280,28 @@ def _recommended_move(work_item: dict, blockers: list[str]) -> str:
     }.get(str(work_item.get("kind", "")).upper(), "Clarify the next bounded move.")
 
 
+def _action_contract_from_staff_evidence(work_item: dict, evidence: list[dict]) -> dict | None:
+    """Return one Staff-produced contract, refusing ambiguous sources.
+
+    Work compilation deliberately does not manufacture an action contract from
+    front prose.  A preparation adapter may provide one after inspecting
+    governed evidence; this is the seam for that Staff work.
+    """
+    candidates = [candidate for row in evidence for candidate in row.get("candidates", []) if isinstance(candidate, dict)]
+    candidates.extend(row.get("action_contract") for row in evidence if isinstance(row.get("action_contract"), dict))
+    # The optional in-memory value is useful for a bounded Staff adapter caller
+    # and fixtures; it is still validated below and is never inferred from
+    # unstructured source state.
+    if isinstance(work_item.get("action_contract"), dict):
+        candidates.append(work_item["action_contract"])
+    if not candidates:
+        return None
+    canonical = json.dumps(candidates[0], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if any(json.dumps(candidate, sort_keys=True, separators=(",", ":"), ensure_ascii=False) != canonical for candidate in candidates[1:]):
+        raise ActionContractError("Staff evidence contains conflicting action contracts")
+    return dict(candidates[0])
+
+
 def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: list[dict], *, prepared_at: str, preparation_status: str) -> dict:
     blockers = _blockers(work_item, evidence)
     uncertainties: list[str] = []
@@ -232,6 +310,36 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
     runtime_status = _current_state(snapshot, work_item)["runtime"].get("health_status", "")
     if not runtime_status or runtime_status.upper() == "UNKNOWN":
         uncertainties.append("runtime health is unknown")
+    if str(work_item.get("kind", "")).upper() == "DECIDE":
+        decision_maturity = str(work_item.get("decision_maturity", "NEEDS_MORE_PREP")).upper()
+        if decision_maturity not in DECISION_MATURITY - {"NOT_A_DECISION"}:
+            decision_maturity = "NEEDS_MORE_PREP"
+        decision = work_item.get("decision", {}) if isinstance(work_item.get("decision"), dict) else {}
+    else:
+        decision_maturity = "NOT_A_DECISION"
+        decision = {}
+    if requires_action_contract(work_item):
+        try:
+            action_contract = validate_action_contract(_action_contract_from_staff_evidence(work_item, evidence), front_id=str(work_item.get("front_id", "")))
+            unresolved = unresolved_dependencies(action_contract)
+            if blockers or unresolved:
+                action_maturity = "BLOCKED"
+                if unresolved:
+                    blockers.extend(f"decision dependency {decision_id} is unresolved" for decision_id in unresolved if f"decision dependency {decision_id} is unresolved" not in blockers)
+            elif preparation_status == "PREPARED_DEEP":
+                action_maturity = "READY_FOR_PULL"
+            else:
+                action_maturity = "NEEDS_MORE_PREP"
+        except ActionContractError as exc:
+            action_contract = {}
+            action_maturity = "BLOCKED" if blockers else "NEEDS_MORE_PREP"
+            uncertainties.append(f"action contract: {exc}")
+        for result in evidence:
+            for reason in result.get("rejected_candidates", []) or []:
+                uncertainties.append(f"action candidate rejected: {reason}")
+    else:
+        action_contract = {}
+        action_maturity = "NOT_AN_ACTION"
     packet = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "staff_packet_id": "sp:" + str(work_item.get("work_item_id", "")),
@@ -240,6 +348,7 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "title": work_item.get("title", ""),
         "kind": work_item.get("kind"),
         "preparation_status": preparation_status,
+        "preparation_lane": preparation_lane(work_item),
         "triage": triage.as_dict(),
         "question": QUESTION_BY_KIND.get(str(work_item.get("kind", "")).upper(), ""),
         "current_state": _current_state(snapshot, work_item),
@@ -248,16 +357,22 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "uncertainties": uncertainties,
         "blockers": blockers,
         "recommended_move": _recommended_move(work_item, blockers),
-        "principal_needed": bool(work_item.get("principal_required")) or str(work_item.get("kind", "")).upper() == "DECIDE",
-        "principal_question": "Choose or authorize the bounded next move for this item." if bool(work_item.get("principal_required")) or str(work_item.get("kind", "")).upper() == "DECIDE" else "",
+        "principal_posture": str(work_item.get("principal_mode", "")).upper(),
+        "principal_needed": str(work_item.get("kind", "")).upper() == "DECIDE",
+        "principal_question": "Choose or authorize the bounded next move for this item." if str(work_item.get("kind", "")).upper() == "DECIDE" else "",
+        "decision_dependency": work_item.get("decision_dependency", {}) if isinstance(work_item.get("decision_dependency"), dict) else {},
         "prepared_at": prepared_at,
         "source_snapshot_digest": snapshot.get("snapshot_digest", ""),
+        "decision_maturity": decision_maturity,
+        "decision": decision,
+        "action_maturity": action_maturity,
+        "action_contract": action_contract,
     }
     packet["packet_digest"] = _stable_digest(packet)
     return packet
 
 
-def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[EvidenceAdapter] | None = None, max_deep: int = 6, prepared_at: str = "") -> dict:
+def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[EvidenceAdapter] | None = None, candidate_producers: list[ActionCandidateProducer] | None = None, max_deep: int = 6, prepared_at: str = "") -> dict:
     """Prepare typed work without rereading governance state."""
     snapshot_digest = str(snapshot.get("snapshot_digest", "")).strip()
     source_digest = str(work_set.get("source_snapshot_digest", "")).strip()
@@ -267,18 +382,57 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
         raise StaffPreparationError("max_deep must be non-negative")
 
     adapters = list(adapters) if adapters is not None else [SnapshotEvidenceAdapter()]
+    if candidate_producers is not None:
+        adapters.append(ActionCandidateEvidenceAdapter(candidate_producers))
     items = [dict(item) for item in work_set.get("work_items", [])]
     items.sort(key=_priority_tuple)
     triage_rows = [triage_work_item(item) for item in items]
     triage_by_id = {row.work_item_id: row for row in triage_rows}
 
-    deep_used = 0
+    eligible = [
+        item for item in items
+        if triage_by_id[str(item.get("work_item_id", ""))].prep_depth == "DEEP"
+        and triage_by_id[str(item.get("work_item_id", ""))].status == "READY_FOR_PREP"
+    ]
+    by_lane: dict[str, list[dict]] = {lane: [] for lane in PREPARATION_LANE_BUDGETS}
+    for item in eligible:
+        by_lane[preparation_lane(item)].append(item)
+    selected_ids: set[str] = set()
+    for lane, budget in PREPARATION_LANE_BUDGETS.items():
+        for item in by_lane[lane][:budget]:
+            if len(selected_ids) >= max_deep:
+                break
+            selected_ids.add(str(item.get("work_item_id", "")))
+    if len(selected_ids) < max_deep:
+        spill_order = ("ACTION", "REPAIR_VERIFY", "DECISION")
+        selected_by_lane = {
+            lane: sum(1 for item in by_lane[lane] if str(item.get("work_item_id", "")) in selected_ids)
+            for lane in PREPARATION_LANE_BUDGETS
+        }
+        under_budget = [
+            item for lane in spill_order
+            for item in by_lane[lane]
+            if str(item.get("work_item_id", "")) not in selected_ids
+            and selected_by_lane[lane] < PREPARATION_LANE_BUDGETS[lane]
+        ]
+        spill_candidates = under_budget + [
+            item for lane in spill_order
+            for item in by_lane[lane]
+            if str(item.get("work_item_id", "")) not in selected_ids and item not in under_budget
+        ]
+        for item in spill_candidates:
+            selected_ids.add(str(item.get("work_item_id", "")))
+            if len(selected_ids) >= max_deep:
+                break
+
+    deep_used = len(selected_ids)
     packets: list[dict] = []
     for item in items:
         triage = triage_by_id[str(item.get("work_item_id", ""))]
-        run_deep = triage.prep_depth == "DEEP" and triage.status == "READY_FOR_PREP"
-        if run_deep and deep_used >= max_deep:
-            packets.append(_packet(snapshot, item, triage, [], prepared_at=prepared_at, preparation_status="DEFERRED_BUDGET"))
+        item_id = str(item.get("work_item_id", ""))
+        run_deep = item_id in selected_ids
+        if triage.prep_depth == "DEEP" and triage.status == "READY_FOR_PREP" and not run_deep:
+            packets.append(_packet(snapshot, item, triage, [], prepared_at=prepared_at, preparation_status="DEFERRED_BY_BUDGET"))
             continue
 
         evidence: list[dict] = []
@@ -289,7 +443,6 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
             evidence.append(SnapshotEvidenceAdapter().collect(snapshot, item))
 
         if run_deep:
-            deep_used += 1
             prep_status = "PREPARED_DEEP"
         elif triage.status == "BLOCKED":
             prep_status = "BLOCKED"
@@ -307,6 +460,11 @@ def prepare_work_items(snapshot: dict, work_set: dict, *, adapters: list[Evidenc
         "source_work_set_schema": work_set.get("schema_version", ""),
         "max_deep": max_deep,
         "deep_used": deep_used,
+        "lane_budgets": dict(PREPARATION_LANE_BUDGETS),
+        "deep_by_lane": {
+            lane: sum(1 for packet in packets if packet.get("preparation_status") == "PREPARED_DEEP" and packet.get("preparation_lane") == lane)
+            for lane in PREPARATION_LANE_BUDGETS
+        },
         "triage": [row.as_dict() for row in triage_rows],
         "packets": packets,
         "counts": counts,

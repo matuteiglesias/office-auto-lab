@@ -49,6 +49,18 @@ def ready_entry(*, workspace_status: str = "RESOLVED", kind: str = "EXECUTE") ->
             "workspace_states": [{"repo_id": "repo.exec", "workspace_id": "ws_exec", "status": workspace_status}],
         },
         "preparation_status": "PREPARED_DEEP",
+        "action_maturity": "READY_FOR_PULL",
+        "action_contract": {
+            "objective": "Verify the named execution surface at the recorded revision.",
+            "entry_surface": {"type": "REPOSITORY", "repo_id": "repo.exec", "workspace_id": "ws_exec", "revision": "abc123"},
+            "why_now": "The bounded verification is on the current work frontier.",
+            "scope_boundary": "Inspect only the recorded repository surface; do not modify state.",
+            "acceptance_conditions": ["The named surface is checked at revision abc123."],
+            "stop_conditions": ["Stop after recording the verification result."],
+            "expected_evidence": ["A verification receipt referencing repo.exec and abc123."],
+            "known_uncertainties": [],
+            "decision_dependencies": [],
+        },
         "entry_digest": "sha256:entry",
     }
 
@@ -77,8 +89,9 @@ class ExecutionCompilerV2Tests(unittest.TestCase):
         packet = plan["packets"][0]
         self.assertEqual(packet["authorization"]["mode"], "READY_PULL")
         self.assertFalse(packet["authorization"]["principal_decision_inferred"])
-        self.assertEqual(packet["target"]["repo_ids"], ["repo.exec"])
-        self.assertEqual(packet["target"]["workspaces"][0]["workspace_id"], "ws_exec")
+        self.assertEqual(packet["target"]["repository_context"]["repo_ids"], ["repo.exec"])
+        self.assertEqual(packet["target"]["repository_context"]["workspaces"][0]["workspace_id"], "ws_exec")
+        self.assertEqual(packet["objective"], ready_entry()["action_contract"]["objective"])
         self.assertTrue(packet["acceptance_conditions"])
         self.assertTrue(packet["stop_conditions"])
 
@@ -124,6 +137,20 @@ class ExecutionCompilerV2Tests(unittest.TestCase):
         brief["source_snapshot_digest"] = "sha256:other"
         with self.assertRaises(ExecutionCompileError):
             compile_execution_plan(snapshot(), brief)
+
+    def test_execution_refuses_missing_staff_action_contract(self) -> None:
+        entry = ready_entry()
+        entry.pop("action_contract")
+        plan = compile_execution_plan(snapshot(), principal_brief(ready=[entry]))
+        self.assertEqual(plan["packets"], [])
+        self.assertEqual(plan["exceptions"][0]["code"], "ACTION_CONTRACT_NOT_READY")
+
+    def test_generic_acceptance_does_not_replace_a_concrete_staff_contract(self) -> None:
+        entry = ready_entry()
+        entry["action_contract"]["objective"] = "Pull one bounded execution step with explicit acceptance evidence and stop after that unit completes."
+        plan = compile_execution_plan(snapshot(), principal_brief(ready=[entry]))
+        self.assertEqual(plan["packets"], [])
+        self.assertEqual(plan["exceptions"][0]["code"], "ACTION_CONTRACT_NOT_READY")
 
 
 if __name__ == "__main__":

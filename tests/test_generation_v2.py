@@ -88,7 +88,9 @@ class GenerationV2Tests(unittest.TestCase):
             self.assertEqual(snapshot_digest, manifest["lineage"]["source_principal_snapshot_digest"])
             self.assertEqual(snapshot_digest, manifest["lineage"]["source_execution_snapshot_digest"])
             self.assertEqual(manifest["counts"]["work_items"], 1)
-            self.assertEqual(manifest["counts"]["execution_packets"], 1)
+            # Typed work alone is not an action contract. Execution remains
+            # empty until Staff supplies a concrete mature action.
+            self.assertEqual(manifest["counts"]["execution_packets"], 0)
             current = read_json(root / "v2" / "current.json")
             self.assertEqual(current["run_id"], "run-1")
             self.assertEqual(current["manifest_digest"], manifest["manifest_digest"])
@@ -114,7 +116,7 @@ class GenerationV2Tests(unittest.TestCase):
             compile_generation_from_frames(changed, out_root=root, run_id="run-2")
             brief = read_json(root / "v2" / "runs" / "run-2" / "principal" / "brief.json")
             self.assertNotEqual(brief["delta"]["baseline"], "none")
-            self.assertIn("wi:fr_exec:execute", brief["delta"]["changed"]["ready_pulls"])
+            self.assertEqual(brief["delta"]["changed"]["ready_pulls"], [])
             self.assertEqual(read_json(root / "v2" / "current.json")["run_id"], "run-2")
 
     def test_generation_directories_do_not_retain_stale_packets(self) -> None:

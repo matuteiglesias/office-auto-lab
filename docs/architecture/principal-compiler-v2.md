@@ -39,7 +39,9 @@ Contains successfully prepared non-principal work that can move into bounded exe
 
 ### Exceptions
 
-Contains preparation failures, explicit blockers, budget deferrals, or degraded evidence. Exceptions remain visible but do not manufacture principal attention merely because preparation failed.
+Contains preparation failures, explicit blockers, or degraded evidence. Normal
+Staff WIP outcomes such as `DEFERRED_BY_BUDGET` remain in the preparation index
+and are summarized as frontier state; they are not exceptions.
 
 ### Moved without you
 
@@ -69,7 +71,14 @@ The Staff packet remains the inspectable evidence-rich artifact when deeper revi
 
 ## Authority boundary
 
-The Principal Compiler does not approve, execute, send, publish, mutate Carry State, or change priority. It produces a decision/readiness surface. Subsequent execution compilation must consume an explicit approved or pulled item rather than inferring approval from the existence of a Principal entry.
+`principal_mode=REQUIRED` is front-level posture: it causes typed `DECIDE`
+work, but does not automatically veto every Action item on that front. Only an
+explicit unresolved decision dependency blocks a specific Action item.
+
+The Principal Compiler does not approve, execute, send, publish, mutate Carry State, or change priority. A ready pull is a presentation/readiness object,
+not execution. Subsequent execution compilation may create a bounded packet
+under the existing operator contract; no work is executed merely because it is
+presented or compiled.
 
 ## Rendering
 

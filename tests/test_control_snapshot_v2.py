@@ -128,6 +128,19 @@ class ControlSnapshotV2Tests(unittest.TestCase):
         with self.assertRaises(ControlSnapshotError):
             build_snapshot(frames)
 
+    def test_trailing_blank_sheet_rows_are_ignored(self) -> None:
+        frames = valid_frames()
+        support = frames["support_artifacts_v2"]
+        blank_rows = pd.DataFrame([[pd.NA] * len(support.columns)] * 3, columns=support.columns)
+        blank_rows["is_primary"] = "FALSE"
+        support["is_primary"] = "TRUE"
+        frames["support_artifacts_v2"] = pd.concat([support, blank_rows], ignore_index=True)
+
+        issues = validate_tables(frames)
+        self.assertFalse(any(issue["code"] == "blank_primary_key" for issue in issues))
+        snapshot = build_snapshot(frames, observed_at="2026-09-14T22:00:00Z")
+        self.assertEqual(snapshot["tables"]["support_artifacts_v2"]["row_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,8 @@
 
 The Execution Compiler turns Principal `ready_pulls` into bounded machine-readable execution envelopes. It does not execute them.
 
+A ready pull is a presentation object, not execution authorization. It must already contain a validated Staff action contract; Execution validates and wraps that contract but never invents an objective, entry surface, acceptance condition, or stop condition.
+
 The canonical seam is:
 
 ```text
@@ -92,16 +94,7 @@ Supported execution kinds are `UNBLOCK`, `VERIFY`, `EXECUTE`, and `MAINTAIN`. `D
 
 ## Acceptance and stop semantics
 
-Acceptance conditions are typed by work kind. They describe what evidence-backed outcome closes one bounded execution unit.
-
-Every packet includes generic stop conditions:
-
-- stop if a forbidden power is required;
-- stop if target identity becomes ambiguous/unavailable;
-- stop rather than widening scope;
-- stop after one bounded unit and leave residuals for closure/reentry.
-
-`VERIFY` adds a stricter rule: a failed check is evidence; it does not automatically authorize a repair.
+Acceptance and stop conditions are supplied by the mature Staff action contract for the named bounded unit. Generic conditions such as “complete one bounded objective” are rejected: they cannot establish that Staff actually prepared a meaningful pull. Execution still withholds forbidden powers and fails closed for unresolved target identity. `VERIFY` failure remains evidence, never automatic repair authorization.
 
 ## Plan exceptions
 
