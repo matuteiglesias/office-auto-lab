@@ -122,10 +122,11 @@ class PrincipalCompilerV2Tests(unittest.TestCase):
         self.assertEqual(brief["needs_you"], [])
         self.assertEqual(brief["staff_follow_up"][0]["reason"], "DECISION_NOT_READY")
 
-    def test_principal_required_action_cannot_become_ready_pull(self) -> None:
-        brief = compile_principal_brief(preparation(packet("fr_exec", "EXECUTE", principal_needed=True)))
-        self.assertEqual(brief["ready_pulls"], [])
-        self.assertEqual(brief["staff_follow_up"][0]["reason"], "PRINCIPAL_REQUIRED")
+    def test_principal_posture_alone_does_not_veto_ready_pull(self) -> None:
+        action = packet("fr_exec", "EXECUTE", principal_needed=False)
+        action["current_state"]["principal_mode"] = "REQUIRED"
+        brief = compile_principal_brief(preparation(action))
+        self.assertEqual([row["work_item_id"] for row in brief["ready_pulls"]], ["wi:fr_exec:execute"])
 
     def test_repeated_blockers_are_compacted_by_front(self) -> None:
         brief = compile_principal_brief(preparation(

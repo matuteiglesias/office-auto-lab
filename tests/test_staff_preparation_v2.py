@@ -125,6 +125,20 @@ class StaffPreparationV2Tests(unittest.TestCase):
         self.assertTrue(packet["blockers"])
         self.assertEqual(packet["evidence"][0]["adapter"], "control_snapshot")
 
+    def test_explicit_unresolved_decision_dependency_blocks_action(self) -> None:
+        action = item("fr_exec", "EXECUTE")
+        action["decision_dependency"] = {"decision_id": "dec:fr_exec:launch", "status": "PENDING"}
+        result = prepare_work_items(snapshot(), work_set(action), max_deep=1)
+        packet = result["packets"][0]
+        self.assertEqual(packet["preparation_status"], "BLOCKED")
+        self.assertIn("decision dependency dec:fr_exec:launch is unresolved", packet["blockers"])
+
+    def test_principal_posture_does_not_make_action_principal_needed(self) -> None:
+        result = prepare_work_items(snapshot(), work_set(item("fr_exec", "EXECUTE", principal_required=True)), max_deep=1)
+        packet = result["packets"][0]
+        self.assertEqual(packet["principal_posture"], "REQUIRED")
+        self.assertFalse(packet["principal_needed"])
+
     def test_maintenance_without_staff_requirement_stays_light(self) -> None:
         adapter = CountingAdapter()
         result = prepare_work_items(snapshot(), work_set(item("fr_maint", "MAINTAIN", prep_mode="NONE")), adapters=[adapter], max_deep=0)

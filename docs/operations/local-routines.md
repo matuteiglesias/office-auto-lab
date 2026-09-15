@@ -63,10 +63,10 @@ JSONL. Zero rows can be correct but is not proof of expected activity.
 
 ## Day-close narrative — future TODO
 
-The September 14 battletest close was synthesized by an AI operator from the
-structured generation, estate-movement, Git, and QA artifacts. That narrative
-is useful, but it is not currently a reproducible runtime output. Future
-Office automation should add an explicit AI-assisted synthesis step here to
-turn the evidence bundle into a concise day-close and next-day brief. Until
-then, label such Markdown as AI-assisted synthesis and keep the structured
-evidence artifacts authoritative.
+The first September 14 battletest close was synthesized by an AI operator from
+structured evidence. The current battle-test review package is instead a
+deterministic, lineage-validated projection of one v2 run; it is not an
+AI-assisted narrative. Future Office automation may add an explicit
+AI-assisted synthesis step to turn that evidence bundle into a more useful
+interpretive day-close and next-day brief. Until then, label any such narrative
+as AI-assisted synthesis and keep structured evidence artifacts authoritative.

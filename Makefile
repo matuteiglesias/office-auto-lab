@@ -55,7 +55,7 @@ reentry-v2-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_reentry_v2
 
 generation-v2-contracts:
-	PYTHONPATH=src python3 -m unittest tests.test_generation_v2 tests.test_generation_run_records
+	PYTHONPATH=src python3 -m unittest tests.test_generation_v2 tests.test_generation_run_records tests.test_battletest_projection
 
 run-record-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_run_record_health tests.test_generation_invariants

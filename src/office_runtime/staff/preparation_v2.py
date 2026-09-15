@@ -104,6 +104,10 @@ def triage_work_item(work_item: dict) -> TriageResult:
     workspace_statuses = {str(row.get("status", "")).upper() for row in identity.get("workspace_states", []) or []}
     if identity_status == "ERROR":
         return TriageResult(work_item_id, front_id, kind, "BLOCKED", "LIGHT", ("IDENTITY_ERROR",))
+    decision_dependency = work_item.get("decision_dependency", {}) or {}
+    dependency_status = str(decision_dependency.get("status", "")).upper() if isinstance(decision_dependency, dict) else ""
+    if kind in {"UNBLOCK", "VERIFY", "EXECUTE", "MAINTAIN"} and dependency_status in {"PENDING", "BLOCKED", "UNRESOLVED"}:
+        return TriageResult(work_item_id, front_id, kind, "BLOCKED", "LIGHT", ("DECISION_DEPENDENCY_UNRESOLVED",))
     if kind == "UNBLOCK" and (
         identity_status == "NOT_READY" or workspace_statuses.intersection({"AMBIGUOUS", "UNRESOLVED", "UNAVAILABLE"})
     ):
@@ -220,6 +224,9 @@ def _blockers(work_item: dict, evidence: list[dict]) -> list[str]:
         status = str(row.get("status", "")).upper()
         if status in {"AMBIGUOUS", "UNRESOLVED", "UNAVAILABLE"}:
             out.append(f"workspace {row.get('workspace_id') or '<unresolved>'} is {status.lower()}")
+    decision_dependency = work_item.get("decision_dependency", {}) or {}
+    if isinstance(decision_dependency, dict) and str(decision_dependency.get("status", "")).upper() in {"PENDING", "BLOCKED", "UNRESOLVED"}:
+        out.append(f"decision dependency {decision_dependency.get('decision_id') or '<unnamed>'} is unresolved")
     for result in evidence:
         if result.get("status") == "blocked":
             out.append(f"{result.get('adapter')}: {result.get('reason', 'blocked')}")
@@ -271,8 +278,10 @@ def _packet(snapshot: dict, work_item: dict, triage: TriageResult, evidence: lis
         "uncertainties": uncertainties,
         "blockers": blockers,
         "recommended_move": _recommended_move(work_item, blockers),
-        "principal_needed": bool(work_item.get("principal_required")) or str(work_item.get("kind", "")).upper() == "DECIDE",
-        "principal_question": "Choose or authorize the bounded next move for this item." if bool(work_item.get("principal_required")) or str(work_item.get("kind", "")).upper() == "DECIDE" else "",
+        "principal_posture": str(work_item.get("principal_mode", "")).upper(),
+        "principal_needed": str(work_item.get("kind", "")).upper() == "DECIDE",
+        "principal_question": "Choose or authorize the bounded next move for this item." if str(work_item.get("kind", "")).upper() == "DECIDE" else "",
+        "decision_dependency": work_item.get("decision_dependency", {}) if isinstance(work_item.get("decision_dependency"), dict) else {},
         "prepared_at": prepared_at,
         "source_snapshot_digest": snapshot.get("snapshot_digest", ""),
         "decision_maturity": decision_maturity,
