@@ -3,6 +3,7 @@
 **Status:** canonical
 **Audience:** maintainers, scheduler/runtime engineers, Staff/Principal consumers
 **Owner:** `src/office_runtime/office/generation_v2.py`
+**Verified against:** M8 coherent-generation fixture acceptance and Office v2 contract suite
 
 ## Purpose
 
