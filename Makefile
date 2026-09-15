@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
+.PHONY: imports docs-check parent-docs-check audit parent-audit daily office-compile office-reentry staff-bundles staff-briefs capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail compat-compile-blocks compat-repo-health-policy compat-repo-health-run
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -10,7 +10,7 @@ FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 # Supported CORE acceptance only. SIDECAR/COMPAT components retain dedicated
 # contract/test slices and must not become implicit dependencies of this smoke.
-smoke: imports control-contracts identity-contracts editorial-contracts runtime-contracts repo-scans
+smoke: imports control-contracts identity-contracts work-contracts editorial-contracts runtime-contracts repo-scans
 
 # Active Office product surface only. Repo Health remains compatibility code and
 # is validated separately by its dedicated CI profile/tests.
@@ -25,6 +25,7 @@ import office_runtime.office.compile; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
+import office_runtime.office.work_items; \
 import office_runtime.office.io; \
 import office_runtime.office.render; \
 import office_runtime.office.validate; \
@@ -38,6 +39,9 @@ control-contracts:
 
 identity-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_identity_resolution_v2
+
+work-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_work_item_compiler_v1
 
 editorial-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts
@@ -66,7 +70,7 @@ audit: docs-check runtime-contracts
 	$(MAKE) imports
 	git diff --check
 
-parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts
+parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts
 	python3 -m compileall -q -x '/editorial/' src/office_runtime
 	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
