@@ -8,7 +8,6 @@ from pathlib import Path
 
 from office_runtime.dependencies import (
     ACTIVE_PROFILES,
-    COMPATIBILITY_PROFILES,
     PROFILE_PATHS,
     DependencyProfileError,
     install_command,
@@ -38,7 +37,7 @@ def main() -> int:
         if args.list:
             payload = {
                 "active": list(ACTIVE_PROFILES),
-                "compatibility_only": list(COMPATIBILITY_PROFILES),
+                "compatibility_only": [],
             }
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
