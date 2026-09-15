@@ -18,6 +18,7 @@ IMPORTS_BY_PROFILE = {
         "office_runtime.office.validate",
         "office_runtime.staff.bundles",
         "office_runtime.staff.briefs",
+        "office_runtime.staff.preparation_v2",
         "office_runtime.evidence.git_trace",
         "office_runtime.evidence.fs_trace",
         "office_runtime.ledger",
