@@ -33,6 +33,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Compile a complete run but do not replace the v2 current pointer.",
     )
+    parser.add_argument(
+        "--trigger",
+        default=os.environ.get("OFFICE_V2_TRIGGER", "manual"),
+        help="Run trigger label recorded as evidence, e.g. manual, scheduled, or shadow-check.",
+    )
     args = parser.parse_args(argv)
 
     result = run_generation_v2(
@@ -41,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
         max_deep=args.max_deep,
         include_local_repo_evidence=args.local_repo_evidence,
         publish=not args.shadow,
+        trigger=args.trigger,
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
