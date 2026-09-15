@@ -8,7 +8,6 @@ import json
 
 IMPORTS_BY_PROFILE = {
     "office": (
-        "office_runtime.office.compile",
         "office_runtime.office.config",
         "office_runtime.office.control_snapshot",
         "office_runtime.office.identity",
@@ -20,10 +19,6 @@ IMPORTS_BY_PROFILE = {
         "office_runtime.office.invariants",
         "office_runtime.office.run_records",
         "office_runtime.office.io",
-        "office_runtime.office.render",
-        "office_runtime.office.validate",
-        "office_runtime.staff.bundles",
-        "office_runtime.staff.briefs",
         "office_runtime.staff.preparation_v2",
         "office_runtime.staff.freshness",
         "office_runtime.evidence.git_trace",
@@ -35,24 +30,6 @@ IMPORTS_BY_PROFILE = {
         "office_runtime.capture.lifecycle",
         "office_runtime.capture.processing",
         "office_runtime.capture.transcription",
-    ),
-    "repo-health": (
-        "office_runtime.ops.repo_health.policy",
-        "office_runtime.ops.repo_health.runner",
-        "office_runtime.ops.repo_health.plugin_loader",
-        "office_runtime.ops.repo_health.remote.source",
-        "office_runtime.ops.repo_health.run_bundle.model",
-        "office_runtime.ops.repo_health.run_bundle.ports",
-        "office_runtime.ops.repo_health.adapters.gcp.bigquery",
-        "office_runtime.ops.repo_health.adapters.gcp.storage",
-        "office_runtime.ops.repo_health.cloud.run_job",
-    ),
-    "legacy-auto-checker": (
-        "gspread",
-        "google_auth_oauthlib",
-        "requests_oauthlib",
-        "oauthlib",
-        "pandas",
     ),
 }
 IMPORTS_BY_PROFILE["full"] = tuple(
