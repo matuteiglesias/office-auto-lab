@@ -35,9 +35,8 @@ test('desktop navigation, history, deep links, Mermaid, and 404 stay healthy', a
   await page.goBack(); await expectPage(page, '/architecture/system-overview', 'System overview')
   await page.goForward(); await expectPage(page, '/operations/local-routines', 'Routine local operation')
   await page.goto('/')
-  await page.locator('.route-card', { hasText: 'Review the GCP engineering case' }).click()
-  await expectPage(page, '/case-studies/gcp-project-health-retrofit', 'GCP Repo Health retrofit')
-  await expect(page.locator('.mermaid svg')).toHaveCount(1)
+  await page.locator('.route-card', { hasText: 'Trace one coherent generation' }).click()
+  await expectPage(page, '/architecture/coherent-generation-v2', 'Coherent Office v2 Generation')
   await page.goto('/architecture/system-overview'); await page.reload()
   await expectPage(page, '/architecture/system-overview', 'System overview')
   await page.locator('.vp-doc').getByRole('link', { name: 'trust boundaries', exact: true }).click()
@@ -77,9 +76,7 @@ test('every public Mermaid block renders without a parser error', async ({ page 
     '/architecture/system-overview': 1,
     '/architecture/runtime-and-artifact-flow': 2,
     '/architecture/ownership-and-state': 1,
-    '/architecture/trust-boundaries': 1,
-    '/architecture/repo-health-gcp': 1,
-    '/case-studies/gcp-project-health-retrofit': 1
+    '/architecture/trust-boundaries': 1
   }
   for (const [route, count] of Object.entries(pages)) {
     await page.goto(route)

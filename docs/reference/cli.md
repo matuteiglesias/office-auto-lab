@@ -2,63 +2,69 @@
 
 **Status:** canonical
 **Audience:** operators, contributors, and agents
-**Owner:** `src/office_runtime/cli.py` and `Makefile`
-**Verified against:** `8b4c9b7`
+**Owner:** `src/office_runtime/cli.py`, `src/office_runtime/scripts/`, and `Makefile`
+**Verified against:** `f7af9bbd40e04ba4b27f4e24ec20bd4121e4548a`
 
-All help surfaces below were executed in PR-OD4 unless marked pass-through.
-Prefix primary commands with `PYTHONPATH=src python3 -m office_runtime.cli`.
+The canonical Office v2 entrypoint is
+`src/office_runtime/scripts/run_generation_v2.py`. The Python CLI exposes
+sidecars only; it does not contain a second Office compiler.
 
-## Primary CLI
+## Office v2 commands
 
-| Command | Arguments/defaults | Effect boundary |
-|---|---|---|
-| `daily` | `--scan-mode {none,existing,refresh}`; `existing` | Office then staff bundles/briefs after success |
-| `office compile` | none | Network read; local artifact writes |
-| `office reentry compile` | required closures, front-registry and out paths | Explicit local read; deterministic proposal/review artifacts; no Office state mutation |
-| `staff bundles` | scan mode; CLI default `refresh` | Network read/local writes; refresh executes scans |
-| `staff briefs` | none | Local reads/writes |
-| `ops repo-health policy` | intended remainder pass-through | Currently unusable with required runner options; see below |
-| `ops repo-health run` | intended remainder pass-through | Currently unusable with required runner options; see below |
-| `capture lifecycle` | `--inbox-root`, `--out` | Local observer artifacts |
-| `capture transcribe` | required `--event-id`; inbox/model/audio-root/max-bytes/force/dry-run | May call OpenAI; may append event |
-| `capture transcribe-pending` | limit 5; inbox/model/force/dry-run | May call OpenAI; may append events |
-| `capture route` | required event id; inbox/model/force/dry-run | May call OpenAI; may append event |
-| `capture artifactize` | required event id; inbox/model/force/dry-run | May call OpenAI; may append event |
-| `capture propose-reingest` | required event id; inbox/model/force/dry-run | May call OpenAI; proposal only |
-| `capture process` | required event id; inbox/model/transcription-model/force/dry-run | Runs missing stages in order |
-| `evidence git` | required roots/start/end/out; max-depth 4; optional per-repo limit | Reads roots; writes JSONL/logs |
-| `evidence files` | required roots/start/end/out; max-depth 8; hidden false; optional limit | Reads roots; writes JSONL/logs |
+| Make target | Effect boundary |
+|---|---|
+| `office-v2-shadow` | Read the configured Control Tower and compile a complete run without advancing the current pointer. |
+| `office-v2-generate` | Compile, validate, publish a complete run, and advance the current pointer only after success. |
+| `runtime-health-v2` | Derive the local runtime-health projection from canonical run records. |
 
-Repo Health runner arguments are `--sheet-id` and `--sa` (required), `--subset`,
-`--rows`, `--plugins`, `--date`, `--apply`, `--no-write`, and `--policy-only`.
-Invoke `python -m office_runtime.ops.repo_health.runner` directly. Parser checks
-executed in PR-OD4 confirmed that the primary wrapper rejects options without a
-separator and incorrectly forwards the separator when one is used.
+Shadow and published generations do not execute ready pulls or mutate Control
+Tower. Review the [coherent generation](../architecture/coherent-generation-v2.md)
+and [reentry](../architecture/reentry-v2.md) contracts before operation.
 
-Frozen-snapshot CLI:
+## Sidecar CLI
 
-```text
-python -m office_runtime.ops.repo_health.cloud.run_job
-  [--profile {local,gcp}] [--policy PATH] [--out PATH] [--validate-only]
+Prefix these commands with:
+
+```bash
+PYTHONPATH=src python3 -m office_runtime.cli
 ```
 
-Policy may instead come from `REPO_HEALTH_POLICY_JSON`; local output defaults to
-`out/repo-health-runs`.
+| Command family | Subcommands | Effect boundary |
+|---|---|---|
+| `capture` | `lifecycle`, `transcribe`, `transcribe-pending`, `route`, `artifactize`, `propose-reingest`, `process` | Local capture lifecycle and proposal artifacts; model-backed commands may call OpenAI and append events. |
+| `evidence` | `git`, `files` | Read explicitly supplied roots and write local evidence artifacts. |
+| `estate` | `movement` | Produce a bounded, read-only Estate Movement Digest from caller-selected roots. |
 
-## Make targets
+Use each subcommand's `--help` for its current arguments. Model-backed or
+mutation-capable capture paths require explicit inputs, credentials, mode, and
+authorization; discovery is not authorization.
 
-| Target | Delegates to / note |
+## Acceptance and contract targets
+
+| Target | Scope |
 |---|---|
-| `imports` | Import surface and dynamic plugin discovery |
-| `audit` | compileall, imports, `git diff --check` |
-| `daily`, `office-compile`, `staff-bundles`, `staff-briefs` | Primary CLI; bundles uses existing scans |
-| `capture-lifecycle` | Primary lifecycle command |
-| `repo-health-policy`, `repo-health-run` | Broken: omit required runner sheet/credential arguments |
-| `evidence-git`, `evidence-files`, `evidence-today` | Uses `ROOTS`, `START`, `END`, `OUT_DIR`, `GIT_OUT`, `FILES_OUT` |
-| `logs-tail` | Last 30 lines of daily ledgers |
-| `office` | References missing `office.main`; not a canonical operation |
-| `smoke`, `repo-scans`, `compile-blocks` | Known broken pre-`src` script paths; do not use until product repair |
+| `parent-audit` | Parent documentation, dependency/scheduler contracts, and the complete Office v2 contract surface. |
+| `smoke` | Imports, Office v2 contracts, editorial contracts, runtime contracts, and bounded repository scans. |
+| `runtime-contracts` | Dependency authority and systemd rendering/install contracts. |
+| `docs-check` | Repository documentation metadata and link checks. |
+| `imports` | Supported import surface. |
 
-For safe sequencing, expected results, and recovery, use
-[routine operation](../operations/local-routines.md) and
-[Repo Health local](../operations/repo-health-local.md).
+Focused targets are available for control state, identity, work, Staff,
+Principal, execution, reentry, generation, run records, freshness, editorial,
+dependencies, and systemd. The `Makefile` is the exact target authority.
+
+## Local evidence targets
+
+| Target | Inputs |
+|---|---|
+| `capture-lifecycle` | Capture inbox and output configuration. |
+| `evidence-git` | `ROOTS`, `START`, `END`, and output configuration. |
+| `evidence-files` | `ROOTS`, `START`, `END`, and output configuration. |
+| `evidence-today` | Runs both bounded evidence producers. |
+| `estate-movement` | Caller-selected roots, date window, digest ID, and optional prior manifest/control plane. |
+| `logs-tail` | Reads the latest local ledger lines. |
+
+For sequencing, expected results, failure handling, and recovery, use
+[routine local operation](../operations/local-routines.md),
+[failure and recovery](../operations/failure-recovery.md), and
+[systemd automation](../operations/systemd-automation.md).
