@@ -23,6 +23,38 @@ def test_snapshot_places_success(tmp_path):
     assert sqlite3.connect(target).execute("select count(*) from moz_historyvisits").fetchone()[0] == 1
 
 
+def test_direct_firefox_read_uses_one_bounded_query(tmp_path):
+    source = tmp_path / "places.sqlite"
+    _make_places(source)
+    visits = activity_trace.query_firefox_visits(
+        source,
+        activity_trace._parse_start("2023-11-14T00:00:00+00:00"),
+        activity_trace._parse_end_exclusive("2023-11-15T00:00:00+00:00"),
+    )
+    assert len(visits) == 1
+    assert visits[0][1].startswith("https://")
+
+
+def test_acquisition_reports_direct_and_backup_failure(tmp_path, monkeypatch):
+    source = tmp_path / "places.sqlite"
+    _make_places(source)
+    monkeypatch.setattr(activity_trace, "query_firefox_visits", lambda *args, **kwargs: (_ for _ in ()).throw(sqlite3.OperationalError("locked")))
+    monkeypatch.setattr(activity_trace, "snapshot_places", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("timed out")))
+    with pytest.raises(activity_trace.FirefoxAcquisitionError) as exc:
+        activity_trace.acquire_firefox_visits(source, activity_trace._parse_start("2023-11-14"), activity_trace._parse_end_exclusive("2023-11-15"))
+    assert exc.value.details["direct_read"]["error"] == "OperationalError"
+    assert exc.value.details["online_backup"]["error"] == "RuntimeError"
+
+
+def test_collect_counts_firefox_visits(tmp_path, monkeypatch):
+    source = tmp_path / "places.sqlite"; _make_places(source)
+    monkeypatch.setattr(activity_trace, "discover_firefox_places", lambda _: source)
+    monkeypatch.setattr(activity_trace, "discover_buckets", lambda _: {})
+    result = activity_trace.collect_activity(start="2023-11-14", end="2023-11-15", out=tmp_path / "safe.jsonl", raw_root=tmp_path / "raw")
+    assert result["firefox_status"] == "ok"
+    assert result["counts"]["firefox_visit"] == 1
+
+
 def test_collect_activity_degrades_locked_firefox_and_redacts(tmp_path, monkeypatch):
     out = tmp_path / "safe.jsonl"; raw = tmp_path / "raw"
     buckets = {"aw-watcher-window_test": {}, "aw-watcher-afk_test": {}}

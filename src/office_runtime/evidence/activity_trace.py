@@ -9,10 +9,11 @@ import argparse
 import configparser
 import hashlib
 import json
+import multiprocessing
 import os
 import sqlite3
 import tempfile
-import threading
+import time
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -39,6 +40,15 @@ def _iso(value: datetime) -> str:
 
 def _timestamp(value: str) -> float:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+class FirefoxAcquisitionError(RuntimeError):
+    def __init__(self, direct_error: Exception, backup_error: Exception):
+        self.details = {
+            "direct_read": {"error": type(direct_error).__name__, "message": str(direct_error)},
+            "online_backup": {"error": type(backup_error).__name__, "message": str(backup_error)},
+        }
+        super().__init__(f"direct read failed ({type(direct_error).__name__}); online backup failed ({type(backup_error).__name__})")
 
 
 def private_root() -> Path:
@@ -140,40 +150,111 @@ def discover_firefox_places(profile_ini: Path | None = None) -> Path:
     raise FileNotFoundError("Firefox profile has no places.sqlite")
 
 
-def snapshot_places(source: Path, destination: Path, *, retries: int = 3, sleep: float = 0.2) -> None:
-    """Create a consistent SQLite online backup without touching Firefox."""
-    import time
+def _backup_worker(source: str, destination: str, result_queue: Any) -> None:
+    """Run in a process so an uninterruptible SQLite backup can be terminated."""
+    source_db = target_db = None
+    progress_calls = 0
+    last_progress: tuple[int, int, int] | None = None
+    try:
+        source_db = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=0.5)
+        source_db.execute("PRAGMA busy_timeout=500")
+        target_db = sqlite3.connect(destination)
 
+        def progress(status: int, remaining: int, total: int) -> None:
+            nonlocal progress_calls, last_progress
+            progress_calls += 1
+            last_progress = (status, remaining, total)
+
+        source_db.backup(target_db, pages=128, sleep=0.2, progress=progress)
+        result_queue.put({"status": "ok", "progress_calls": progress_calls, "last_progress": last_progress})
+    except (sqlite3.Error, OSError) as exc:
+        result_queue.put({"status": "error", "error": type(exc).__name__, "message": str(exc), "progress_calls": progress_calls, "last_progress": last_progress})
+    finally:
+        if target_db is not None:
+            target_db.close()
+        if source_db is not None:
+            source_db.close()
+
+
+def snapshot_places(source: Path, destination: Path, *, retries: int = 3, timeout_seconds: float = 10.0) -> dict[str, Any]:
+    """Create a bounded, consistent SQLite backup without touching Firefox.
+
+    The worker is a process rather than a thread: SQLite backup can remain
+    blocked in native code beyond a Python join timeout. A timed-out worker is
+    explicitly terminated and joined before the temporary snapshot is removed.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
-    last: Exception | None = None
-    def backup_once(result: list[Exception]) -> None:
-        source_db = target_db = None
-        try:
-            source_db = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=0.5)
-            source_db.execute("PRAGMA busy_timeout=500")
-            target_db = sqlite3.connect(str(destination))
-            source_db.backup(target_db, pages=128, sleep=sleep)
-        except (sqlite3.Error, OSError) as exc:
-            result.append(exc)
-        finally:
-            if target_db is not None:
-                target_db.close()
-            if source_db is not None:
-                source_db.close()
-
-    for _ in range(max(1, retries)):
-        errors: list[Exception] = []
-        worker = threading.Thread(target=backup_once, args=(errors,), daemon=True)
-        worker.start(); worker.join(timeout=2.0)
-        if worker.is_alive():
-            last = TimeoutError("Firefox SQLite snapshot exceeded 2 second bound")
+    deadline = time.monotonic() + timeout_seconds
+    last: dict[str, Any] = {"error": "RuntimeError", "message": "backup not attempted"}
+    for attempt in range(1, max(1, retries) + 1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             break
-        if not errors and destination.exists() and destination.stat().st_size:
-            return
-        last = errors[0] if errors else RuntimeError("empty Firefox SQLite snapshot")
         destination.unlink(missing_ok=True)
-        time.sleep(sleep)
-    raise RuntimeError(f"Firefox SQLite snapshot unavailable: {last}")
+        context = multiprocessing.get_context("fork")
+        result_queue = context.Queue(maxsize=1)
+        worker = context.Process(target=_backup_worker, args=(str(source), str(destination), result_queue))
+        started = time.monotonic()
+        worker.start()
+        worker.join(remaining)
+        elapsed = time.monotonic() - started
+        if worker.is_alive():
+            worker.terminate()
+            worker.join(2.0)
+            result_queue.close()
+            destination.unlink(missing_ok=True)
+            raise RuntimeError(f"Firefox SQLite snapshot timed out after {elapsed:.3f}s with no completed backup")
+        result: dict[str, Any] = {}
+        try:
+            result = result_queue.get(timeout=0.2)
+        except Exception:
+            result = {}
+        finally:
+            result_queue.close()
+        if result.get("status") == "ok" and destination.exists() and destination.stat().st_size:
+            result.update({"attempt": attempt, "elapsed_seconds": round(elapsed, 3)})
+            return result
+        last = result or {"error": "RuntimeError", "message": f"backup worker exited {worker.exitcode}"}
+        destination.unlink(missing_ok=True)
+        if attempt < retries:
+            time.sleep(min(0.2, max(0.0, deadline - time.monotonic())))
+    raise RuntimeError(f"Firefox SQLite snapshot unavailable: {last.get('error')}: {last.get('message')}")
+
+
+def query_firefox_visits(source: Path, start: datetime, end: datetime, *, busy_timeout_ms: int = 1000) -> list[tuple[float, str, str, int]]:
+    """Read one bounded query in SQLite's consistent read transaction semantics.
+
+    A single SELECT sees one SQLite snapshot. This is used only when Firefox
+    permits a normal read-only connection; no immutable mode or file copying is
+    used, so committed WAL content remains part of normal SQLite visibility.
+    """
+    db = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=busy_timeout_ms / 1000)
+    try:
+        db.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
+        query = "SELECT visit_date / 1000000.0, url, title, visit_type FROM moz_historyvisits JOIN moz_places ON moz_places.id = moz_historyvisits.place_id WHERE visit_date >= ? AND visit_date < ? ORDER BY visit_date"
+        return list(db.execute(query, (start.timestamp() * 1e6, end.timestamp() * 1e6)))
+    finally:
+        db.close()
+
+
+def acquire_firefox_visits(source: Path, start: datetime, end: datetime) -> tuple[list[tuple[float, str, str, int]], dict[str, Any]]:
+    """Prefer a bounded direct read; fall back to a bounded online backup."""
+    direct_failure: Exception | None = None
+    try:
+        visits = query_firefox_visits(source, start, end)
+        return visits, {"strategy": "direct_read", "status": "ok"}
+    except (sqlite3.Error, OSError) as direct_error:
+        direct_failure = direct_error
+        direct = {"error": type(direct_error).__name__, "message": str(direct_error)}
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="office-activity-") as temp:
+            snapshot = Path(temp) / "places.sqlite"
+            backup = snapshot_places(source, snapshot)
+            visits = query_firefox_visits(snapshot, start, end)
+    except (sqlite3.Error, OSError, RuntimeError) as backup_error:
+        raise FirefoxAcquisitionError(direct_failure or RuntimeError("direct read failed"), backup_error) from backup_error
+    return visits, {"strategy": "online_backup", "status": "ok", "direct_read_error": direct, "backup": backup}
 
 
 def _raw_record(handle: Any, source: str, payload: Any) -> None:
@@ -233,18 +314,16 @@ def collect_activity(*, start: str, end: str, out: Path, aw_url: str = "http://1
         firefox_status = "degraded"
         try:
             places = discover_firefox_places(profile_ini)
-            with tempfile.TemporaryDirectory(prefix="office-activity-", dir=str(run_dir)) as temp:
-                snapshot = Path(temp) / "places.sqlite"
-                snapshot_places(places, snapshot)
-                db = sqlite3.connect(str(snapshot))
-                query = "SELECT visit_date / 1000000.0, url, title, visit_type FROM moz_historyvisits JOIN moz_places ON moz_places.id = moz_historyvisits.place_id WHERE visit_date >= ? AND visit_date < ? ORDER BY visit_date"
-                for timestamp, url, title, visit_type in db.execute(query, (start_dt.timestamp() * 1e6, end_dt.timestamp() * 1e6)):
-                    visits.append(float(timestamp)); _raw_record(raw, "firefox_visit", {"timestamp": timestamp, "url": url, "title": title, "visit_type": visit_type})
-                db.close()
+            firefox_visits, acquisition = acquire_firefox_visits(places, start_dt, end_dt)
+            for timestamp, url, title, visit_type in firefox_visits:
+                visits.append(float(timestamp)); counts["firefox_visit"] += 1; _raw_record(raw, "firefox_visit", {"timestamp": timestamp, "url": url, "title": title, "visit_type": visit_type})
             firefox_status = "ok"
-            health.append({"kind": "activity_source_health", "source": "firefox", "status": "ok", "profile": str(places), "rows": len(visits)})
+            health.append({"kind": "activity_source_health", "source": "firefox", "status": "ok", "profile": str(places), "rows": len(visits), "acquisition": acquisition})
         except Exception as exc:
-            health.append({"kind": "activity_source_health", "source": "firefox", "status": "degraded", "error": type(exc).__name__, "message": str(exc)[:240]})
+            row = {"kind": "activity_source_health", "source": "firefox", "status": "degraded", "error": type(exc).__name__, "message": str(exc)[:240]}
+            if isinstance(exc, FirefoxAcquisitionError):
+                row["acquisition"] = exc.details
+            health.append(row)
 
     # Join only by a boolean; no URL/title crosses into the safe artifact.
     for row in rows:
