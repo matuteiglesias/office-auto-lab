@@ -126,7 +126,7 @@ def _clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
             return False
         return bool(str(value).strip())
 
-    default_false_columns = {"is_primary", "enabled"}
+    default_false_columns = {"is_primary", "enabled", "cap_repo"}
 
     def is_material_row(row: pd.Series) -> bool:
         values = [(str(column), value) for column, value in row.items() if has_value(value)]
