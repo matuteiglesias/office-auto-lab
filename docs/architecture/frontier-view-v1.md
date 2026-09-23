@@ -1,7 +1,9 @@
 # Frontier view v1
 
 **Status:** first governed slice  
-**Owner:** `src/office_runtime/office/frontier_view.py`
+**Audience:** maintainers, Office/runtime engineers, Frontier renderer consumers  
+**Owner:** `src/office_runtime/office/frontier_view.py`  
+**Verified against:** live Control Tower `relationship_agenda_v1` contract observed 2026-09-22 and `tests/test_frontier_view_v1.py`
 
 ## Purpose
 
