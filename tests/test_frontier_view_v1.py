@@ -84,6 +84,21 @@ def fixture() -> pd.DataFrame:
             "2026-09-21",
             "Answered.",
         ],
+        [
+            "ag_drop",
+            "rel_d",
+            "Dani Example",
+            "WATCH",
+            "DROP",
+            "P3",
+            "Do not pursue this agenda item.",
+            "The source explicitly closed the loop.",
+            "2026-09-20",
+            "Dropped.",
+            "Thread D",
+            "2026-09-22",
+            "Dropped by source judgment.",
+        ],
     )
 
 
@@ -110,10 +125,15 @@ class FrontierViewTests(unittest.TestCase):
             generated_at="2026-09-22T23:00:00Z",
             include_closed=True,
         )
-        self.assertNotIn("agenda:ag_done", {item["id"] for item in active["items"]})
+        active_ids = {item["id"] for item in active["items"]}
+        self.assertNotIn("agenda:ag_done", active_ids)
+        self.assertNotIn("agenda:ag_drop", active_ids)
         done = next(item for item in full["items"] if item["id"] == "agenda:ag_done")
+        dropped = next(item for item in full["items"] if item["id"] == "agenda:ag_drop")
         self.assertEqual(done["bucket"], "CLOSED")
         self.assertEqual(done["resolution_note"], "Answered.")
+        self.assertEqual(dropped["source_state"], "DROP")
+        self.assertEqual(dropped["bucket"], "CLOSED")
 
     def test_duplicate_ids_fail_closed(self) -> None:
         bad = pd.concat([fixture(), fixture().iloc[[0]]], ignore_index=True)
