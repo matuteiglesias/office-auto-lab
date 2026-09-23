@@ -94,7 +94,7 @@ audit: docs-check runtime-contracts
 	$(MAKE) imports
 	git diff --check
 
-parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts
+parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts
 	python3 -m compileall -q -x '/editorial/' src/office_runtime
 	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
