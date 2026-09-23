@@ -41,6 +41,7 @@ BUCKET_BY_STATE = {
     "WAIT": "WAITING",
     "HOLD": "HOLD",
     "DONE": "CLOSED",
+    "DROP": "CLOSED",
 }
 
 BUCKET_ORDER = {
