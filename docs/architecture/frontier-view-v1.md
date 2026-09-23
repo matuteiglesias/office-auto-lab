@@ -53,6 +53,7 @@ It derives only a presentation bucket:
 | WAIT | WAITING |
 | HOLD | HOLD |
 | DONE | CLOSED |
+| DROP | CLOSED |
 | anything else | OTHER + warning |
 
 Bucket is projection-only. It is not written back to Sheets.
