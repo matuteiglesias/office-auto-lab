@@ -9,7 +9,7 @@ GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 # Supported product acceptance: Office v2 CORE plus declared sidecars only.
-smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts runtime-contracts repo-scans
+smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts editorial-contracts runtime-contracts repo-scans
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
