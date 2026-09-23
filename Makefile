@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -26,6 +26,7 @@ import office_runtime.office.principal; \
 import office_runtime.office.execution; \
 import office_runtime.office.reentry_v2; \
 import office_runtime.office.generation_v2; \
+import office_runtime.office.frontier_view; \
 import office_runtime.office.invariants; \
 import office_runtime.office.run_records; \
 import office_runtime.office.io; \
@@ -56,6 +57,9 @@ reentry-v2-contracts:
 
 generation-v2-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_generation_v2 tests.test_generation_run_records tests.test_battletest_projection
+
+frontier-view-v1-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_frontier_view_v1
 
 run-record-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_run_record_health tests.test_generation_invariants
@@ -101,6 +105,11 @@ office-v2-generate:
 
 office-v2-shadow:
 	PYTHONPATH=src python3 src/office_runtime/scripts/run_generation_v2.py --shadow --trigger shadow-check
+
+# Read-only Event & Institutional Frontier projection. Optional export path is
+# controlled by FRONTIER_VIEW_EXPORT_PATH; this never mutates Control Tower.
+frontier-view-v1:
+	PYTHONPATH=src python3 src/office_runtime/scripts/compile_frontier_view_v1.py
 
 # Run Record Owner projection. This never mutates Carry/priority state.
 runtime-health-v2:
