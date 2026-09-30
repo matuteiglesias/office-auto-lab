@@ -141,6 +141,23 @@ class ControlSnapshotV2Tests(unittest.TestCase):
         snapshot = build_snapshot(frames, observed_at="2026-09-14T22:00:00Z")
         self.assertEqual(snapshot["tables"]["support_artifacts_v2"]["row_count"], 1)
 
+    def test_blank_capability_checkbox_rows_are_ignored_but_enabled_rows_fail(self) -> None:
+        frames = valid_frames()
+        capabilities = frames["Capabilities_v2"]
+        blank_default = pd.DataFrame([[pd.NA, "FALSE"]], columns=capabilities.columns)
+        frames["Capabilities_v2"] = pd.concat([capabilities, blank_default], ignore_index=True)
+
+        issues = validate_tables(frames)
+        self.assertFalse(any(issue["code"] == "blank_primary_key" for issue in issues))
+        snapshot = build_snapshot(frames, observed_at="2026-09-14T22:00:00Z")
+        self.assertEqual(snapshot["tables"]["Capabilities_v2"]["row_count"], 2)
+
+        frames["Capabilities_v2"].loc[len(frames["Capabilities_v2"]) - 1, "cap_repo"] = "TRUE"
+        issues = validate_tables(frames)
+        self.assertTrue(any(issue["code"] == "blank_primary_key" for issue in issues))
+        with self.assertRaises(ControlSnapshotError):
+            build_snapshot(frames)
+
 
 if __name__ == "__main__":
     unittest.main()
