@@ -99,6 +99,8 @@ class SystemdInstallTests(unittest.TestCase):
                 str(repo_context),
                 "--surface-context-json",
                 str(surface_context),
+                "--producer-receipt-runner",
+                str(ROOT / "src/office_runtime/scripts/install_systemd.py"),
                 "--out",
                 str(out),
             ]
@@ -113,6 +115,7 @@ class SystemdInstallTests(unittest.TestCase):
             self.assertIn(f'OFFICE_EVIDENCE_ROOTS="{ROOT}"', runtime_env)
             self.assertIn(f'OFFICE_REPO_CONTEXT_JSON="{repo_context.resolve()}"', runtime_env)
             self.assertIn(f'OFFICE_SURFACE_CONTEXT_JSON="{surface_context.resolve()}"', runtime_env)
+            self.assertIn('OFFICE_PRODUCER_RECEIPT_RUNNER=', runtime_env)
 
             for name in UNIT_NAMES:
                 text = (unit_dir / name).read_text(encoding="utf-8")

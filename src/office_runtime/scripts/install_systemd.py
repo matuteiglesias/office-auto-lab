@@ -103,6 +103,7 @@ def runtime_env(
     *,
     repo_context_json: Path | None = None,
     surface_context_json: Path | None = None,
+    producer_receipt_runner: Path | None = None,
 ) -> str:
     values = {
         "OFFICE_ROOT": str(repo_root),
@@ -114,6 +115,10 @@ def runtime_env(
         values["OFFICE_REPO_CONTEXT_JSON"] = str(repo_context_json)
     if surface_context_json is not None:
         values["OFFICE_SURFACE_CONTEXT_JSON"] = str(surface_context_json)
+    if producer_receipt_runner is not None:
+        values["OFFICE_PRODUCER_RECEIPT_RUNNER"] = str(
+            _absolute_existing(producer_receipt_runner, "producer receipt runner", file_only=True)
+        )
     return "\n".join(f"{key}={_env_quote(value)}" for key, value in values.items()) + "\n"
 
 
@@ -139,6 +144,7 @@ def render(
     evidence_out_root: str = "artifacts/evidence",
     repo_context_json: Path | None = None,
     surface_context_json: Path | None = None,
+    producer_receipt_runner: Path | None = None,
 ) -> None:
     root, python, roots, repo_context, surface_context = validate_configuration(
         repo_root,
@@ -161,6 +167,7 @@ def render(
             evidence_out_root,
             repo_context_json=repo_context,
             surface_context_json=surface_context,
+            producer_receipt_runner=producer_receipt_runner,
         ),
         encoding="utf-8",
     )
@@ -181,6 +188,7 @@ def install(args: argparse.Namespace) -> int:
         evidence_out_root=args.evidence_out_root,
         repo_context_json=args.repo_context_json,
         surface_context_json=args.surface_context_json,
+        producer_receipt_runner=args.producer_receipt_runner,
     )
     _systemctl("daemon-reload")
     timers_to_enable: list[str] = []
@@ -206,6 +214,7 @@ def render_only(args: argparse.Namespace) -> int:
         evidence_out_root=args.evidence_out_root,
         repo_context_json=args.repo_context_json,
         surface_context_json=args.surface_context_json,
+        producer_receipt_runner=args.producer_receipt_runner,
     )
     print(out)
     return 0
@@ -239,6 +248,12 @@ def _add_runtime_args(parser: argparse.ArgumentParser) -> None:
         type=Path,
         default=None,
         help="Optional absolute path to registry:estate-surfaces@1 owned by projects.",
+    )
+    parser.add_argument(
+        "--producer-receipt-runner",
+        type=Path,
+        default=None,
+        help="Optional central producer_local_receipt.py path for local receipt adoption.",
     )
 
 

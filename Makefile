@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement producer-receipt-estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -133,6 +133,18 @@ estate-movement:
 	@test -n "$(END)" || (echo "END is required" >&2; exit 2)
 	@test -n "$(DIGEST_ID)" || (echo "DIGEST_ID is required" >&2; exit 2)
 	PYTHONPATH=src python3 -m office_runtime.cli estate movement --digest-id "$(DIGEST_ID)" --roots $(ROOTS) --start "$(START)" --end "$(END)" --out-root "$(ESTATE_OUT_DIR)" $(if $(PREVIOUS_MANIFEST),--previous-manifest "$(PREVIOUS_MANIFEST)") $(if $(CONTROL_PLANE),--control-plane "$(CONTROL_PLANE)")
+
+PROJECTS_ROOT ?=
+
+producer-receipt-estate-movement:
+	@test -n "$(PROJECTS_ROOT)" || (echo "PROJECTS_ROOT is required" >&2; exit 2)
+	"$(PROJECTS_ROOT)/scripts/producer_local_receipt.py" \
+		--producer producer.local.estate-movement-digest \
+		--cwd "$(CURDIR)" \
+		--evidence-manifest "$(ESTATE_OUT_DIR)/$(DIGEST_ID)/manifest.json" \
+		--evidence-changed "$(ESTATE_OUT_DIR)/$(DIGEST_ID)/manifest.json" \
+		--enforce-evidence \
+		-- make estate-movement ROOTS="$(ROOTS)" START="$(START)" END="$(END)" DIGEST_ID="$(DIGEST_ID)" ESTATE_OUT_DIR="$(ESTATE_OUT_DIR)" $(if $(PREVIOUS_MANIFEST),PREVIOUS_MANIFEST="$(PREVIOUS_MANIFEST)") $(if $(CONTROL_PLANE),CONTROL_PLANE="$(CONTROL_PLANE)")
 
 logs-tail:
 	@tail -n 30 artifacts/logs/daily/*.ledger.log

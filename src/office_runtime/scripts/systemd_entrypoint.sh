@@ -10,6 +10,29 @@ if [[ ! -x "${OFFICE_RUN}" ]]; then
   exit 2
 fi
 
+run_receipted() {
+  local producer_id="$1"
+  shift
+  local evidence_args=()
+  while [[ "$#" -gt 0 && "$1" != "--" ]]; do
+    evidence_args+=("$1")
+    shift
+  done
+  if [[ "$#" -eq 0 ]]; then
+    echo "receipt command separator is required" >&2
+    exit 2
+  fi
+  shift
+  if [[ -n "${OFFICE_PRODUCER_RECEIPT_RUNNER:-}" ]]; then
+    exec "${OFFICE_PYTHON}" "${OFFICE_PRODUCER_RECEIPT_RUNNER}" \
+      --producer "${producer_id}" \
+      --cwd "${OFFICE_ROOT}" \
+      "${evidence_args[@]}" \
+      -- "$@"
+  fi
+  exec "$@"
+}
+
 routine="${1:-}"
 
 run_v2_generation() {
@@ -52,6 +75,44 @@ run_v2_generation() {
   return "${status}"
 }
 
+run_evidence_daily() {
+  local today="$1"
+  local out_root="$2"
+  local git_out="${out_root}/git_trace/${today}_${today}.jsonl"
+  local files_out="${out_root}/fs_trace/${today}_${today}.jsonl"
+  local activity_out="${out_root}/activity_trace/${today}_${today}.jsonl"
+  local roots=()
+
+  : "${OFFICE_EVIDENCE_ROOTS:?OFFICE_EVIDENCE_ROOTS must contain colon-separated absolute paths}"
+  IFS=':' read -r -a roots <<< "${OFFICE_EVIDENCE_ROOTS}"
+  if [[ "${#roots[@]}" -eq 0 ]]; then
+    echo "no evidence roots configured" >&2
+    return 2
+  fi
+  for root in "${roots[@]}"; do
+    if [[ "${root}" != /* || ! -e "${root}" ]]; then
+      echo "invalid configured evidence root: ${root}" >&2
+      return 2
+    fi
+  done
+
+  "${OFFICE_RUN}" evidence git \
+    --roots "${roots[@]}" \
+    --start "${today}" \
+    --end "${today}" \
+    --out "${git_out}"
+  "${OFFICE_RUN}" evidence files \
+    --roots "${roots[@]}" \
+    --start "${today}" \
+    --end "${today}" \
+    --out "${files_out}" \
+    --max-depth "${OFFICE_EVIDENCE_MAX_DEPTH:-8}"
+  "${OFFICE_RUN}" evidence activity \
+    --start "${today}" \
+    --end "${today}" \
+    --out "${activity_out}"
+}
+
 case "${routine}" in
   office-v2-generation)
     run_v2_generation generation
@@ -60,42 +121,28 @@ case "${routine}" in
     run_v2_generation shadow
     ;;
   office-compile)
-    exec "${OFFICE_RUN}" office compile
+    run_receipted producer.local.office-compile \
+      --evidence-changed "artifacts/v2/current.json" \
+      --evidence-json 'artifacts/v2/current.json#/schema_version=ops.office-current-pointer.v2' \
+      -- "${BASH_SOURCE[0]}" office-compile-inner
+    ;;
+  office-compile-inner)
+    run_v2_generation generation
     ;;
   staff-briefs)
     exec "${OFFICE_RUN}" staff briefs
     ;;
   evidence-daily)
-    : "${OFFICE_EVIDENCE_ROOTS:?OFFICE_EVIDENCE_ROOTS must contain colon-separated absolute paths}"
-    IFS=':' read -r -a roots <<< "${OFFICE_EVIDENCE_ROOTS}"
-    if [[ "${#roots[@]}" -eq 0 ]]; then
-      echo "no evidence roots configured" >&2
-      exit 2
-    fi
-    for root in "${roots[@]}"; do
-      if [[ "${root}" != /* || ! -e "${root}" ]]; then
-        echo "invalid configured evidence root: ${root}" >&2
-        exit 2
-      fi
-    done
-
     today="$(date +%F)"
     out_root="${OFFICE_EVIDENCE_OUT_ROOT:-artifacts/evidence}"
-    "${OFFICE_RUN}" evidence git \
-      --roots "${roots[@]}" \
-      --start "${today}" \
-      --end "${today}" \
-      --out "${out_root}/git_trace/${today}_${today}.jsonl"
-    "${OFFICE_RUN}" evidence files \
-      --roots "${roots[@]}" \
-      --start "${today}" \
-      --end "${today}" \
-      --out "${out_root}/fs_trace/${today}_${today}.jsonl" \
-      --max-depth "${OFFICE_EVIDENCE_MAX_DEPTH:-8}"
-    exec "${OFFICE_RUN}" evidence activity \
-      --start "${today}" \
-      --end "${today}" \
-      --out "${out_root}/activity_trace/${today}_${today}.jsonl"
+    run_receipted producer.local.office-evidence-daily \
+      --evidence-changed "${out_root}/git_trace/${today}_${today}.jsonl" \
+      --evidence-changed "${out_root}/fs_trace/${today}_${today}.jsonl" \
+      --evidence-changed "${out_root}/activity_trace/${today}_${today}.jsonl" \
+      -- "${BASH_SOURCE[0]}" evidence-daily-inner "${today}" "${out_root}"
+    ;;
+  evidence-daily-inner)
+    run_evidence_daily "$2" "$3"
     ;;
   *)
     echo "unsupported scheduled routine: ${routine:-<empty>}" >&2
