@@ -77,6 +77,11 @@ class SystemdInstallTests(unittest.TestCase):
         self.assertNotIn("|| true", entrypoint)
         self.assertIn("set -euo pipefail", entrypoint)
 
+    def test_receipted_inner_entrypoints_are_invoked_through_bash(self) -> None:
+        entrypoint = (ROOT / "src/office_runtime/scripts/systemd_entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn('-- bash "${BASH_SOURCE[0]}" office-compile-inner', entrypoint)
+        self.assertIn('-- bash "${BASH_SOURCE[0]}" evidence-daily-inner', entrypoint)
+
     def test_render_from_arbitrary_checkout_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

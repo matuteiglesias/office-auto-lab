@@ -124,7 +124,7 @@ case "${routine}" in
     run_receipted producer.local.office-compile \
       --evidence-changed "artifacts/v2/current.json" \
       --evidence-json 'artifacts/v2/current.json#/schema_version=ops.office-current-pointer.v2' \
-      -- "${BASH_SOURCE[0]}" office-compile-inner
+      -- bash "${BASH_SOURCE[0]}" office-compile-inner
     ;;
   office-compile-inner)
     run_v2_generation generation
@@ -139,7 +139,7 @@ case "${routine}" in
       --evidence-changed "${out_root}/git_trace/${today}_${today}.jsonl" \
       --evidence-changed "${out_root}/fs_trace/${today}_${today}.jsonl" \
       --evidence-changed "${out_root}/activity_trace/${today}_${today}.jsonl" \
-      -- "${BASH_SOURCE[0]}" evidence-daily-inner "${today}" "${out_root}"
+      -- bash "${BASH_SOURCE[0]}" evidence-daily-inner "${today}" "${out_root}"
     ;;
   evidence-daily-inner)
     run_evidence_daily "$2" "$3"
