@@ -82,6 +82,12 @@ class SystemdInstallTests(unittest.TestCase):
         self.assertIn('-- bash "${BASH_SOURCE[0]}" office-compile-inner', entrypoint)
         self.assertIn('-- bash "${BASH_SOURCE[0]}" evidence-daily-inner', entrypoint)
 
+    def test_generation_lock_cleanup_survives_function_return(self) -> None:
+        entrypoint = (ROOT / "src/office_runtime/scripts/systemd_entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn('generation_lock_dir=""', entrypoint)
+        self.assertIn('generation_lock_dir="${OFFICE_ROOT}/artifacts/locks/office-v2-generation.lock"', entrypoint)
+        self.assertNotIn('local lock_dir=', entrypoint)
+
     def test_render_from_arbitrary_checkout_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

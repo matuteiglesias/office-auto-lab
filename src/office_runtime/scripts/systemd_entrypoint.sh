@@ -10,6 +10,8 @@ if [[ ! -x "${OFFICE_RUN}" ]]; then
   exit 2
 fi
 
+generation_lock_dir=""
+
 run_receipted() {
   local producer_id="$1"
   shift
@@ -37,22 +39,22 @@ routine="${1:-}"
 
 run_v2_generation() {
   local mode="${1:-generation}"
-  local lock_dir="${OFFICE_ROOT}/artifacts/locks/office-v2-generation.lock"
   local generation_script="${OFFICE_ROOT}/src/office_runtime/scripts/run_generation_v2.py"
   local status
+  generation_lock_dir="${OFFICE_ROOT}/artifacts/locks/office-v2-generation.lock"
 
   if [[ ! -f "${generation_script}" ]]; then
     echo "Office v2 generation runtime is missing: ${generation_script}" >&2
     return 78
   fi
-  mkdir -p "$(dirname "${lock_dir}")"
-  if ! mkdir "${lock_dir}" 2>/dev/null; then
-    echo "Office v2 generation skipped: another generation is running (lock=${lock_dir})" >&2
+  mkdir -p "$(dirname "${generation_lock_dir}")"
+  if ! mkdir "${generation_lock_dir}" 2>/dev/null; then
+    echo "Office v2 generation skipped: another generation is running (lock=${generation_lock_dir})" >&2
     return 75
   fi
   cleanup_lock() {
-    if ! rmdir "${lock_dir}" 2>/dev/null; then
-      echo "warning: could not remove Office v2 generation lock: ${lock_dir}" >&2
+    if [[ -n "${generation_lock_dir}" ]] && ! rmdir "${generation_lock_dir}" 2>/dev/null; then
+      echo "warning: could not remove Office v2 generation lock: ${generation_lock_dir}" >&2
     fi
     return 0
   }
