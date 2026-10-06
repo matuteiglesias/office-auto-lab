@@ -4,8 +4,17 @@ import subprocess
 import sys
 import unittest
 
+from office_runtime.editorial.contracts import (
+    STORY_CLUSTER_SCHEMA,
+    ActivityEvidence,
+    StoryCluster,
+    validate_dev_candidate,
+)
 from office_runtime.editorial.intelligence.interfaces import EditorialIntelligence, ModelStageOutput
 from office_runtime.editorial.intelligence.validation import IntelligenceContractError
+
+
+DEV_PROFILE = {"profile_id": "dev", "strategy": "dev_projection"}
 
 
 def evidence(eid: str, *, status: str = "merged", source_ref: str | None = None) -> dict:
@@ -18,6 +27,7 @@ def evidence(eid: str, *, status: str = "merged", source_ref: str | None = None)
 
 def story(*refs: str, eligibility: str = "eligible", freshness: str = "recent") -> dict:
     return {
+        "schema_version": STORY_CLUSTER_SCHEMA,
         "story_id": "story:abc",
         "evidence_refs": list(refs),
         "cluster_kind": "related_work" if len(refs) > 1 else "single_event",
@@ -25,6 +35,10 @@ def story(*refs: str, eligibility: str = "eligible", freshness: str = "recent") 
         "freshness_class": freshness,
         "repository_refs": ["example/repo"],
         "public_eligibility": eligibility,
+        "related_context_refs": [],
+        "measured_results": [],
+        "open_questions": [],
+        "status_language_constraints": [],
     }
 
 
@@ -45,7 +59,13 @@ def angle(*refs: str, angle_type: str = "lesson", required: list[str] | None = N
     }
 
 
-def decision(*refs: str, disposition: str = "stage", gates: dict | None = None, draft: str | None = None) -> dict:
+def decision(
+    *refs: str,
+    disposition: str = "stage",
+    gates: dict | None = None,
+    draft: str | None = None,
+    expires_at: str | None = None,
+) -> dict:
     return {
         "angle_id": "angle:1",
         "machine_disposition": disposition,
@@ -68,6 +88,7 @@ def decision(*refs: str, disposition: str = "stage", gates: dict | None = None, 
         },
         "topic_tags": ["reliability"],
         "language": "en",
+        "expires_at": expires_at,
     }
 
 
@@ -113,9 +134,12 @@ class EditorialIntelligenceTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_strong_story_survives_as_transferable_candidate(self) -> None:
+    def test_strong_story_survives_as_canonical_transferable_candidate(self) -> None:
         ev = {"ev:1": evidence("ev:1")}
-        engine = EditorialIntelligence(FakeProducer([angle("ev:1")]), FakeJudge([decision("ev:1")]))
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([decision("ev:1")]),
+        )
         result = engine.run_story(
             story=story("ev:1"),
             evidence_by_id=ev,
@@ -125,10 +149,48 @@ class EditorialIntelligenceTests(unittest.TestCase):
         self.assertEqual(len(result.angles), 1)
         self.assertEqual(len(result.candidates), 1)
         candidate = result.candidates[0]
-        self.assertEqual(candidate["candidate_family"], "lesson")
+        self.assertEqual(validate_dev_candidate(candidate, DEV_PROFILE), candidate)
+        self.assertEqual(candidate["candidate_family"], "LESSON")
+        self.assertEqual(candidate["disclosure_risk"], "pass")
         self.assertIn("ev:1", candidate["evidence_refs"])
         self.assertEqual(candidate["quality"]["external_usefulness"], 4)
         self.assertNotIn("Added retry handling", candidate["text"])
+
+    def test_canonical_story_and_evidence_dataclasses_cross_local_interface(self) -> None:
+        ev = ActivityEvidence(
+            evidence_id="ev:1",
+            source_kind="github_pr",
+            source_ref="https://github.com/example/repo/pull/1",
+            observed_at="2026-10-06T12:00:00Z",
+            event_at="2026-10-06T11:00:00Z",
+            status="merged",
+            title="Preserve retry provenance",
+            summary="A bounded reliability change.",
+            repository_ref="example/repo",
+            visibility="public",
+            public_eligibility="eligible",
+        )
+        st = StoryCluster(
+            story_id="story:abc",
+            evidence_refs=("ev:1",),
+            cluster_kind="single_event",
+            working_summary="Bounded reliability work",
+            freshness_class="recent",
+            repository_refs=("example/repo",),
+            public_eligibility="eligible",
+        )
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([decision("ev:1")]),
+        )
+        result = engine.run_story(
+            story=st,
+            evidence_by_id={"ev:1": ev},
+            policy={"policy_ref": "policy@test"},
+            generated_at="2026-10-06T12:00:00Z",
+        )
+        self.assertEqual(len(result.candidates), 1)
+        self.assertEqual(result.candidates[0]["work_refs"], [ev.source_ref])
 
     def test_zero_angle_abstention_is_success(self) -> None:
         engine = EditorialIntelligence(FakeProducer([]), FakeJudge([]))
@@ -168,33 +230,59 @@ class EditorialIntelligenceTests(unittest.TestCase):
         )
         self.assertEqual(result.candidates, ())
         self.assertEqual(result.judgments[0]["machine_disposition"], "drop")
-        self.assertIn("hard_gate:disclosure_risk", result.judgments[0]["deterministic_rejection_reasons"])
+        self.assertIn(
+            "hard_gate:disclosure_risk",
+            result.judgments[0]["deterministic_rejection_reasons"],
+        )
 
-    def test_in_progress_required_status_wording_is_enforced(self) -> None:
-        produced = angle("ev:1", required=["in progress"])
+    def test_in_progress_completion_language_is_rejected_deterministically(self) -> None:
         judged = decision("ev:1", draft="This shipped a reliable retry boundary.")
-        engine = EditorialIntelligence(FakeProducer([produced]), FakeJudge([judged]))
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([judged]),
+        )
         result = engine.run_story(
             story=story("ev:1"),
             evidence_by_id={"ev:1": evidence("ev:1", status="in_progress")},
             policy={"policy_ref": "policy@test"},
         )
         self.assertEqual(result.candidates, ())
-        self.assertEqual(result.judgments[0]["gates"]["status_truth_risk"], "FAIL")
+        self.assertEqual(result.judgments[0]["gates"]["status_truth_risk"], "fail")
+
+    def test_timely_candidate_without_expiry_is_dropped_not_fabricated(self) -> None:
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([decision("ev:1")]),
+        )
+        result = engine.run_story(
+            story=story("ev:1", freshness="timely"),
+            evidence_by_id={"ev:1": evidence("ev:1")},
+            policy={"policy_ref": "policy@test"},
+        )
+        self.assertEqual(result.candidates, ())
+        self.assertIn(
+            "timely_candidate_missing_expiry",
+            result.judgments[0]["deterministic_rejection_reasons"],
+        )
 
     def test_multi_evidence_synthesis_preserves_lineage(self) -> None:
         produced = angle("ev:1", "ev:2", angle_type="synthesis")
-        produced["candidate_family"] = "synthesis"
         judged = decision("ev:1", "ev:2")
         judged["candidate_family"] = "synthesis"
-        engine = EditorialIntelligence(FakeProducer([produced]), FakeJudge([judged]))
+        engine = EditorialIntelligence(
+            FakeProducer([produced]),
+            FakeJudge([judged]),
+        )
         result = engine.run_story(
             story=story("ev:1", "ev:2"),
-            evidence_by_id={"ev:1": evidence("ev:1"), "ev:2": evidence("ev:2")},
+            evidence_by_id={
+                "ev:1": evidence("ev:1"),
+                "ev:2": evidence("ev:2"),
+            },
             policy={"policy_ref": "policy@test"},
         )
         self.assertEqual(len(result.candidates), 1)
-        self.assertEqual(result.candidates[0]["candidate_family"], "synthesis")
+        self.assertEqual(result.candidates[0]["candidate_family"], "SYNTHESIS")
         self.assertEqual(result.candidates[0]["evidence_refs"], ["ev:1", "ev:2"])
 
 
