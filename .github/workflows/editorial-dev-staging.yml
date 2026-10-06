@@ -1,0 +1,105 @@
+name: Editorial dev staging
+
+on:
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Optional exact owner/repo#PR. Empty uses the overlapping lookback."
+        required: false
+        type: string
+      lookback_hours:
+        description: "Overlapping lookback when no exact PR is supplied."
+        required: false
+        default: "96"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editorial-dev-staging
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: src
+  EDITORIAL_ESTATE_GITHUB_TOKEN: ${{ secrets.EDITORIAL_ESTATE_GITHUB_TOKEN }}
+  EDITORIAL_MODEL_API_KEY: ${{ secrets.EDITORIAL_MODEL_API_KEY }}
+  EDITORIAL_GOOGLE_CREDENTIALS_JSON: ${{ secrets.EDITORIAL_GOOGLE_CREDENTIALS_JSON }}
+  EDITORIAL_DEV_SHEET_ID: ${{ vars.EDITORIAL_DEV_SHEET_ID }}
+  EDITORIAL_DEV_BUNDLE_PROVIDER: ${{ vars.EDITORIAL_DEV_BUNDLE_PROVIDER }}
+  EDITORIAL_RUNTIME_PROFILE: ${{ vars.EDITORIAL_RUNTIME_PROFILE || 'office' }}
+  LOOKBACK_HOURS: ${{ inputs.lookback_hours || '96' }}
+  EXACT_PR: ${{ inputs.pr || '' }}
+
+jobs:
+  stage:
+    name: stage dev inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+
+      - name: Install declared runtime profile
+        run: python src/office_runtime/scripts/install_profile.py "${EDITORIAL_RUNTIME_PROFILE}"
+
+      - name: Preflight staging configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${EDITORIAL_ESTATE_GITHUB_TOKEN}" || {
+            echo "::error::EDITORIAL_ESTATE_GITHUB_TOKEN is required; repository GITHUB_TOKEN is not estate scope."
+            exit 2
+          }
+          test -n "${EDITORIAL_GOOGLE_CREDENTIALS_JSON}" || {
+            echo "::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON is required for unattended Sheet projection."
+            exit 2
+          }
+          test -n "${EDITORIAL_DEV_SHEET_ID}" || {
+            echo "::error::EDITORIAL_DEV_SHEET_ID repository variable is required."
+            exit 2
+          }
+          test -n "${EDITORIAL_DEV_BUNDLE_PROVIDER}" || {
+            echo "::error::EDITORIAL_DEV_BUNDLE_PROVIDER must point at the integrated evidence/candidate producer."
+            exit 2
+          }
+
+      - name: Run repository-owned staging entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--apply-sheet)
+          if [[ -n "${EXACT_PR}" ]]; then
+            args+=(--pr "${EXACT_PR}")
+          else
+            args+=(--lookback-hours "${LOOKBACK_HOURS}")
+          fi
+          python src/office_runtime/scripts/run_editorial_dev_staging.py "${args[@]}"
+
+      - name: Publish run summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f artifacts/editorial/run-summary.md ]]; then
+            cat artifacts/editorial/run-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "Editorial staging did not produce a run summary." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload immutable run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editorial-dev-staging-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/editorial/runs/*.json
+            artifacts/editorial/run-summary.md
+          if-no-files-found: warn
+          retention-days: 14

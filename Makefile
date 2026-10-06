@@ -18,6 +18,9 @@ import office_runtime.capture; \
 import office_runtime.capture.lifecycle; \
 import office_runtime.editorial; \
 import office_runtime.editorial.contracts; \
+import office_runtime.editorial.staging; \
+import office_runtime.editorial.staging.runtime; \
+import office_runtime.editorial.staging.sheets; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
@@ -68,7 +71,7 @@ freshness-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_staff_packet_freshness
 
 editorial-contracts:
-	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts
+	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts tests.test_editorial_evidence_spine tests.test_editorial_staging
 
 dependency-contracts:
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check

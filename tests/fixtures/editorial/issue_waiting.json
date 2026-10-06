@@ -1,0 +1,9 @@
+{
+  "number": 77,
+  "state": "open",
+  "title": "Wait for upstream API contract",
+  "html_url": "https://github.com/example/project/issues/77",
+  "created_at": "2026-10-05T11:00:00Z",
+  "updated_at": "2026-10-05T17:00:00Z",
+  "labels": [{"name": "status: waiting"}]
+}
