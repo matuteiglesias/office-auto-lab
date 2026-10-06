@@ -6,6 +6,7 @@ from office_runtime.editorial.intelligence.batch import (
     BatchConfig,
     FallbackPool,
     compile_daily_batch,
+    failed_daily_batch,
 )
 
 
@@ -123,6 +124,16 @@ class EditorialBatchTests(unittest.TestCase):
         )
         self.assertEqual(result.selected_candidates, ())
         self.assertEqual(result.rejected[0]["reason"], "expired")
+
+    def test_fatal_failure_is_distinct_from_inventory_shortage(self) -> None:
+        result = failed_daily_batch(
+            batch_date="2026-10-06",
+            reason="model_contract_failure",
+        )
+        self.assertEqual(result.batch["inventory_status"], "FAILED")
+        self.assertEqual(result.batch["candidate_ids"], [])
+        self.assertEqual(result.batch["shortage_reasons"], ["fatal:model_contract_failure"])
+        self.assertEqual(result.selected_candidates, ())
 
     def test_ceiling_and_invalid_config_are_deterministic(self) -> None:
         config = BatchConfig(target=12, floor=5, ceiling=12)
