@@ -10,11 +10,12 @@ CONSTRAINTS_PATH = Path("requirements/constraints.txt")
 PROFILE_PATHS = {
     "office": Path("requirements/profiles/office.txt"),
     "capture": Path("requirements/profiles/capture.txt"),
+    "editorial": Path("requirements/profiles/editorial.txt"),
     "full": Path("requirements/profiles/full.txt"),
 }
 TEST_TOOLING_PATH = Path("requirements/test.txt")
 CORE_PROFILES = ("office",)
-SIDECAR_PROFILES = ("capture",)
+SIDECAR_PROFILES = ("capture", "editorial")
 ACTIVE_PROFILES = CORE_PROFILES + SIDECAR_PROFILES + ("full",)
 _EXACT_PIN = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
 _BARE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -98,11 +99,11 @@ def validate_profiles(repo_root: Path) -> None:
                 f"{profile!r} has packages without canonical constraints: {unconstrained}"
             )
 
-    expected_full = set(loaded["office"]) | set(loaded["capture"])
+    expected_full = set().union(*(set(loaded[name]) for name in CORE_PROFILES + SIDECAR_PROFILES))
     actual_full = set(loaded["full"])
     if actual_full != expected_full:
         raise DependencyProfileError(
-            "full profile must equal the union of active office + capture profiles; "
+            "full profile must equal the union of active core + sidecar profiles; "
             f"missing={sorted(expected_full - actual_full)} extra={sorted(actual_full - expected_full)}"
         )
 

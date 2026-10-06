@@ -3,3 +3,5 @@ requests
 google-api-python-client
 google-auth
 openai
+google-adk
+pydantic
