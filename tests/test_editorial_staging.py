@@ -5,6 +5,14 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from office_runtime.editorial.contracts import (
+    ActivityEvidence,
+    AngleCard,
+    DailyBatch,
+    PolicyIdentity,
+)
+from office_runtime.editorial.run_bundle import build_run_bundle
+from office_runtime.editorial.story import cluster_stories
 from office_runtime.editorial.staging.runtime import (
     EditorialStagingError,
     inventory_status,
@@ -26,108 +34,77 @@ from office_runtime.editorial.staging.sheets import (
 
 def _bundle(
     *,
-    run_id: str = "run-1",
     candidate_id: str = "candidate-1",
     text: str = "Retries need failure provenance, not just another attempt.",
+    window_end: str = "2026-10-06T10:00:00Z",
 ) -> dict:
-    evidence_id = f"evidence:{candidate_id}"
-    story_id = f"story:{candidate_id}"
-    angle_id = f"angle:{candidate_id}"
-    return {
-        "schema_version": "office_runtime.editorial.run_bundle.v1",
-        "run_id": run_id,
+    evidence = ActivityEvidence(
+        evidence_id=f"evidence:{candidate_id}",
+        source_kind="github_pr",
+        source_ref="https://github.com/matuteiglesias/office-auto-lab/pull/52",
+        observed_at="2026-10-06T10:00:00Z",
+        event_at="2026-10-06T09:30:00Z",
+        status="merged",
+        title="Fixture PR",
+        summary="Fixture evidence.",
+        repository_ref="matuteiglesias/office-auto-lab",
+        visibility="public",
+        public_eligibility="eligible",
+        artifact_refs=("https://github.com/matuteiglesias/office-auto-lab/pull/52",),
+        source_metadata={"source_tier": "1"},
+    )
+    story = cluster_stories([evidence], as_of="2026-10-06T10:00:00Z")[0]
+    angle = AngleCard(
+        angle_id=f"angle:{candidate_id}",
+        story_id=story.story_id,
+        angle_type="lesson",
+        claim="Retries need failure provenance.",
+        tension_or_hook="Retrying everything hides the actual fault boundary.",
+        transferable_lesson="Classify failure before retrying.",
+        evidence_refs=(evidence.evidence_id,),
+        audience=("software engineers",),
+        career_signals=("reliability",),
+        why_interesting="It changes recovery semantics.",
+        risk_class="low",
+    )
+    candidate = {
+        "schema_version": "office_runtime.editorial.candidate.v1",
+        "candidate_id": candidate_id,
         "profile_id": "dev",
-        "started_at": "2026-10-06T10:00:00Z",
-        "finished_at": "2026-10-06T10:01:00Z",
-        "policy": {
-            "policy_ref": "weekly-ops-governance@abc123",
-            "content_hash": "sha256:policy",
+        "text": text,
+        "risk_class": "low",
+        "evidence_refs": [evidence.evidence_id],
+        "work_refs": ["matuteiglesias/office-auto-lab#52"],
+        "story_id": story.story_id,
+        "angle_id": angle.angle_id,
+        "candidate_family": "LESSON",
+        "semantic_fingerprint": f"fingerprint:{candidate_id}",
+        "language": "en",
+        "topic_tags": ["reliability"],
+        "career_signals": ["reliability"],
+        "proof_object_refs": [],
+        "freshness_class": "timely",
+        "generated_at": "2026-10-06T10:00:30Z",
+        "expires_at": "2026-10-09T10:00:00Z",
+        "machine_disposition": "stage",
+        "quality": {
+            "evidence": 4,
+            "specificity": 4,
+            "external_usefulness": 4,
+            "novelty": 3,
+            "professional_signal": 4,
         },
-        "retrieval": {
-            "intended_sources": ["github_estate"],
-            "actual_sources": ["github:matuteiglesias/office-auto-lab"],
-            "time_windows": [{"since": "2026-10-03T10:00:00Z", "until": "2026-10-06T10:00:00Z"}],
-            "access_failures": [],
-        },
-        "evidence": [
-            {
-                "schema_version": "office_runtime.editorial.activity_evidence.v1",
-                "evidence_id": evidence_id,
-                "source_kind": "github_pr",
-                "source_ref": "matuteiglesias/office-auto-lab#52",
-                "observed_at": "2026-10-06T10:00:00Z",
-                "event_at": "2026-10-06T09:30:00Z",
-                "status": "merged",
-                "title": "Fixture PR",
-                "summary": "Fixture evidence.",
-                "repository_ref": "matuteiglesias/office-auto-lab",
-                "visibility": "public",
-                "public_eligibility": "eligible",
-                "artifact_refs": [],
-                "source_tier": "1",
-            }
-        ],
-        "stories": [
-            {
-                "schema_version": "office_runtime.editorial.story_cluster.v1",
-                "story_id": story_id,
-                "evidence_refs": [evidence_id],
-                "cluster_kind": "single_event",
-                "working_summary": "A retry design lesson.",
-                "freshness_class": "timely",
-                "repository_refs": ["matuteiglesias/office-auto-lab"],
-                "public_eligibility": "eligible",
-            }
-        ],
-        "angles": [
-            {
-                "schema_version": "office_runtime.editorial.angle.v1",
-                "angle_id": angle_id,
-                "story_id": story_id,
-                "angle_type": "lesson",
-                "claim": "Retries need failure provenance.",
-                "tension_or_hook": "Retrying everything hides the actual fault boundary.",
-                "transferable_lesson": "Classify failure before retrying.",
-                "evidence_refs": [evidence_id],
-                "audience": ["software engineers"],
-                "career_signals": ["reliability"],
-                "why_interesting": "It changes recovery semantics.",
-                "risk_class": "low",
-            }
-        ],
-        "candidates": [
-            {
-                "schema_version": "office_runtime.editorial.candidate.v1",
-                "candidate_id": candidate_id,
-                "profile_id": "dev",
-                "text": text,
-                "risk_class": "low",
-                "evidence_refs": [evidence_id],
-                "work_refs": ["matuteiglesias/office-auto-lab#52"],
-                "story_id": story_id,
-                "angle_id": angle_id,
-                "candidate_family": "LESSON",
-                "semantic_fingerprint": f"fingerprint:{candidate_id}",
-                "language": "en",
-                "topic_tags": ["reliability"],
-                "career_signals": ["reliability"],
-                "proof_object_refs": [],
-                "freshness_class": "timely",
-                "generated_at": "2026-10-06T10:00:30Z",
-                "expires_at": "2026-10-09T10:00:00Z",
-                "machine_disposition": "stage",
-                "quality": {
-                    "evidence": 4,
-                    "specificity": 4,
-                    "external_usefulness": 4,
-                    "novelty": 3,
-                    "professional_signal": 4,
-                },
-            }
-        ],
-        "batch": {
+        "disclosure_risk": "pass",
+        "repetition_risk": "pass",
+        "status_truth_risk": "pass",
+        "claim": angle.claim,
+        "source_event_refs": [evidence.evidence_id],
+        "repository_refs": [evidence.repository_ref],
+    }
+    batch = DailyBatch.from_mapping(
+        {
             "schema_version": "office_runtime.editorial.daily_batch.v1",
-            "batch_id": f"batch:{run_id}",
+            "batch_id": f"batch:{candidate_id}",
             "profile_id": "dev",
             "batch_date": "2026-10-06",
             "target_count": 8,
@@ -138,11 +115,42 @@ def _bundle(
             "source_tier_counts": {"1": 1},
             "diversity_summary": {"repositories": 1, "families": 1},
             "shortage_reasons": ["fixture contains one defensible candidate"],
-        },
-        "provider_runs": [],
-        "errors": [],
-        "status": "DEGRADED_INVENTORY",
+        }
+    )
+    policy = PolicyIdentity.from_mapping(
+        {
+            "authority": "weekly-ops-governance",
+            "source_ref": "github:weekly-ops-governance:editorial-policy",
+            "source_revision": "0123456789abcdef0123456789abcdef01234567",
+            "content_sha256": "a" * 64,
+        }
+    )
+    retrieval = {
+        "intended_sources": ["github_pr"],
+        "actual_sources": ["github_pr"],
+        "time_windows": [
+            {
+                "scope": "matuteiglesias/office-auto-lab",
+                "since": "2026-10-03T10:00:00Z",
+                "until": window_end,
+            }
+        ],
+        "failures": [],
+        "scope_status": "complete",
     }
+    return build_run_bundle(
+        profile_id="dev",
+        started_at="2026-10-06T10:00:00Z",
+        finished_at="2026-10-06T10:01:00Z",
+        policy=policy,
+        retrieval=retrieval,
+        evidence=[evidence],
+        stories=[story],
+        angles=[angle],
+        candidates=[candidate],
+        batch=batch,
+        status="DEGRADED_INVENTORY",
+    ).to_dict()
 
 
 class EditorialSheetProjectionTests(unittest.TestCase):
@@ -193,12 +201,12 @@ class EditorialSheetProjectionTests(unittest.TestCase):
 
     def test_later_run_preserves_existing_human_queue_state(self) -> None:
         gateway = InMemorySheetGateway()
-        first = _bundle(run_id="run-1", candidate_id="candidate-1")
+        first = _bundle(candidate_id="candidate-1", window_end="2026-10-06T10:00:00Z")
         project_run_bundle(first, gateway, run_bundle_ref="artifacts/editorial/runs/run-1.json")
         gateway.set_cell(QUEUE_TAB, "candidate-1", "draft_editable", "Edited after run one")
         gateway.set_cell(QUEUE_TAB, "candidate-1", "decision", "APPROVE")
 
-        second = _bundle(run_id="run-2", candidate_id="candidate-2")
+        second = _bundle(candidate_id="candidate-2", window_end="2026-10-06T11:00:00Z")
         result = project_run_bundle(second, gateway, run_bundle_ref="artifacts/editorial/runs/run-2.json")
         self.assertEqual(result.queue_created, 1)
 
@@ -247,7 +255,7 @@ class EditorialSheetProjectionTests(unittest.TestCase):
         gateway = InMemorySheetGateway()
         bundle = _bundle()
         project_run_bundle(bundle, gateway, run_bundle_ref="artifacts/editorial/runs/run-1.json")
-        gateway.set_cell(RUNS_TAB, "run-1", "profile_id", "other")
+        gateway.set_cell(RUNS_TAB, bundle["run_id"], "profile_id", "other")
         with self.assertRaises(SheetIdentityConflict):
             project_run_bundle(bundle, gateway, run_bundle_ref="artifacts/editorial/runs/run-1.json")
 
