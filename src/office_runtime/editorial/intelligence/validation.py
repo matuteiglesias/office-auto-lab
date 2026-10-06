@@ -247,7 +247,11 @@ def semantic_fingerprint(*, claim: str, family: str, evidence_refs: Sequence[str
 
 
 def _candidate_id(*, story_id: str, angle_id: str, fingerprint: str) -> str:
-    raw = f"{story_id}|{angle_id}|{fingerprint}".encode("utf-8")
+    # The model-generated angle ID is lineage, not semantic identity. Keep the
+    # candidate stable across harmless wording/angle-ID regeneration by binding
+    # identity to the stable story plus semantic fingerprint.
+    del angle_id
+    raw = f"{story_id}|{fingerprint}".encode("utf-8")
     return "cand:" + hashlib.sha256(raw).hexdigest()[:24]
 
 
