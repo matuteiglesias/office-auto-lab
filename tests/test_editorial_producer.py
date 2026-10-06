@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from office_runtime.editorial import producer
 from office_runtime.editorial.contracts import ActivityEvidence
+from office_runtime.editorial.story import cluster_stories
 from office_runtime.editorial.intelligence.interfaces import IntelligenceResult
 from office_runtime.editorial.run_bundle import validate_run_bundle
 
@@ -100,6 +101,41 @@ class _FakeIntelligence:
 
 
 class EditorialProducerTests(unittest.TestCase):
+    def test_model_story_selection_is_bounded_and_prioritizes_recent_eligible_work(self) -> None:
+        evidence = tuple(
+            ActivityEvidence(
+                evidence_id=f"github:example/project:pr:{index}:merge:sha{index}",
+                source_kind="github_pr",
+                source_ref=f"https://github.com/example/project/pull/{index}",
+                observed_at="2026-10-06T12:00:00Z",
+                event_at=f"2026-10-{index:02d}T10:00:00Z",
+                status="merged",
+                title=f"Change {index}",
+                summary=f"Summary {index}",
+                repository_ref="example/project",
+                visibility="public",
+                public_eligibility="eligible",
+                artifact_refs=(f"https://github.com/example/project/pull/{index}",),
+            )
+            for index in range(1, 16)
+        )
+        stories = cluster_stories(evidence, as_of="2026-10-16T00:00:00Z")
+        evidence_by_id = {item.evidence_id: item.to_dict() for item in evidence}
+        selected = producer._select_model_stories(stories, evidence_by_id, 12)
+
+        self.assertEqual(len(selected), 12)
+        selected_times = [
+            max(evidence_by_id[ref]["event_at"] for ref in story.evidence_refs)
+            for story in selected
+        ]
+        self.assertEqual(selected_times[0], "2026-10-15T10:00:00Z")
+        self.assertEqual(selected_times[-1], "2026-10-04T10:00:00Z")
+
+    def test_model_story_limit_fails_closed_outside_hard_bound(self) -> None:
+        with patch.dict(os.environ, {"EDITORIAL_MAX_STORIES_PER_RUN": "13"}, clear=False):
+            with self.assertRaises(producer.EditorialProducerError):
+                producer._max_model_stories()
+
     def test_exact_pr_composes_valid_bundle_without_reimplementing_staging(self) -> None:
         env = {
             "EDITORIAL_ANGLE_MODEL": "fixture-model",
