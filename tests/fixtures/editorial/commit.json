@@ -1,0 +1,9 @@
+{
+  "sha": "89abcdef0123456789abcdef0123456789abcdef",
+  "html_url": "https://github.com/example/project/commit/89abcdef0123456789abcdef0123456789abcdef",
+  "commit": {
+    "message": "Record source failures explicitly\n\nKeep inaccessible scope unknown.",
+    "committer": {"date": "2026-10-05T16:00:00Z"},
+    "author": {"date": "2026-10-05T15:59:00Z"}
+  }
+}
