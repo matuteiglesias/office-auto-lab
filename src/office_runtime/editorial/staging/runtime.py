@@ -10,6 +10,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from office_runtime.editorial.contracts import ContractError, RUN_BUNDLE_SCHEMA
+from office_runtime.editorial.run_bundle import atomic_write_run_bundle, validate_run_bundle
 from office_runtime.editorial.staging.sheets import (
     GoogleSheetsGateway,
     ProjectionResult,
@@ -18,7 +20,6 @@ from office_runtime.editorial.staging.sheets import (
     project_run_bundle,
 )
 
-RUN_BUNDLE_SCHEMA = "office_runtime.editorial.run_bundle.v1"
 DEFAULT_LOOKBACK_HOURS = 96
 MAX_WINDOW_HOURS = 24 * 14
 _PROVIDER_ENV = "EDITORIAL_DEV_BUNDLE_PROVIDER"
@@ -161,30 +162,16 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return payload
 
 
-def _validate_bundle(bundle: Mapping[str, Any]) -> None:
-    if bundle.get("schema_version") != RUN_BUNDLE_SCHEMA:
+def _validate_bundle(bundle: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        validated = validate_run_bundle(bundle)
+    except ContractError as exc:
+        raise EditorialStagingError(f"invalid canonical editorial run bundle: {exc}") from exc
+    if validated.get("schema_version") != RUN_BUNDLE_SCHEMA:
         raise EditorialStagingError("unsupported editorial run-bundle schema_version")
-    required = (
-        "run_id",
-        "profile_id",
-        "started_at",
-        "finished_at",
-        "policy",
-        "retrieval",
-        "evidence",
-        "stories",
-        "angles",
-        "candidates",
-        "batch",
-        "provider_runs",
-        "errors",
-        "status",
-    )
-    missing = [key for key in required if key not in bundle]
-    if missing:
-        raise EditorialStagingError(f"run bundle missing required sections: {missing}")
-    if bundle.get("profile_id") != "dev":
+    if validated.get("profile_id") != "dev":
         raise EditorialStagingError("run bundle profile_id must be 'dev'")
+    return validated
 
 
 def _load_provider(entrypoint: str) -> Callable[[Mapping[str, Any]], Mapping[str, Any]]:
@@ -242,23 +229,13 @@ def _safe_run_id(bundle: Mapping[str, Any]) -> str:
 
 
 def write_bundle_artifact(bundle: Mapping[str, Any], out_dir: Path) -> Path:
-    _validate_bundle(bundle)
+    validated = _validate_bundle(bundle)
     out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / f"{_safe_run_id(bundle)}.json"
-    if target.exists():
-        existing = _load_json(target)
-        if dict(existing) != dict(bundle):
-            raise EditorialStagingError(
-                f"refusing to overwrite conflicting run bundle artifact {target}"
-            )
-        return target
-    temp = target.with_suffix(".json.tmp")
-    temp.write_text(
-        json.dumps(bundle, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temp.replace(target)
-    return target
+    target = out_dir / f"{_safe_run_id(validated)}.json"
+    try:
+        return atomic_write_run_bundle(target, validated)
+    except ContractError as exc:
+        raise EditorialStagingError(f"cannot write immutable canonical run bundle: {exc}") from exc
 
 
 def _relative_artifact_ref(path: Path) -> str:
@@ -307,8 +284,9 @@ def make_summary(
         "retrieval_sources_reached": retrieval.get("sources_reached")
         or retrieval.get("actual_sources")
         or [],
-        "evidence_count": len(bundle.get("evidence", []))
-        if isinstance(bundle.get("evidence"), list)
+        "evidence_count": len(bundle.get("evidence", {}).get("items", []))
+        if isinstance(bundle.get("evidence"), Mapping)
+        and isinstance(bundle.get("evidence", {}).get("items"), list)
         else 0,
         "story_count": len(bundle.get("stories", []))
         if isinstance(bundle.get("stories"), list)
