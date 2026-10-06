@@ -6,12 +6,16 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Mapping, Sequence
 
+from office_runtime.editorial.contracts import DAILY_BATCH_SCHEMA, ContractError, validate_daily_batch
+
 from .validation import GATE_NAMES, QUALITY_NAMES, semantic_fingerprint as _semantic_fingerprint
 
-DAILY_BATCH_SCHEMA = "office_runtime.editorial.daily_batch.v1"
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = frozenset(
-    {"a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "with"}
+    {
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+        "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "with",
+    }
 )
 
 
@@ -54,7 +58,7 @@ def semantic_fingerprint(candidate: Mapping[str, Any]) -> str:
     if isinstance(existing, str) and existing.strip():
         return existing.strip()
     claim = candidate.get("claim") or candidate.get("text")
-    family = candidate.get("candidate_family", "field_note")
+    family = candidate.get("candidate_family", "FIELD_NOTE")
     refs = candidate.get("evidence_refs", [])
     if not isinstance(claim, str) or not isinstance(family, str) or not isinstance(refs, list):
         raise ValueError("candidate lacks fields needed for semantic fingerprint")
@@ -139,9 +143,14 @@ def compile_daily_batch(
         if len(fallback_requests) >= min(len(fallback_pools), config.max_fallback_passes):
             shortages.append("eligible_fallback_pools_exhausted")
         reason_counts = Counter(item["reason"] for item in rejected)
-        shortages.extend(f"rejected_{reason}:{count}" for reason, count in sorted(reason_counts.items()))
+        shortages.extend(
+            f"rejected_{reason}:{count}"
+            for reason, count in sorted(reason_counts.items())
+        )
 
-    source_tiers = Counter(str(candidate.get("source_tier", "unknown")) for candidate in selected)
+    source_tiers = Counter(
+        str(candidate.get("source_tier", "unknown")) for candidate in selected
+    )
     repos = sorted(
         {
             repo
@@ -163,10 +172,9 @@ def compile_daily_batch(
             for signal in _string_values(candidate.get("career_signals"))
         }
     )
-    batch_id = f"editorial:dev:{day.isoformat()}"
     batch = {
         "schema_version": DAILY_BATCH_SCHEMA,
-        "batch_id": batch_id,
+        "batch_id": f"editorial:{profile_id}:{day.isoformat()}",
         "profile_id": profile_id,
         "batch_date": day.isoformat(),
         "target_count": config.target,
@@ -183,6 +191,10 @@ def compile_daily_batch(
         },
         "shortage_reasons": shortages,
     }
+    try:
+        batch = validate_daily_batch(batch)
+    except ContractError as exc:
+        raise ValueError(f"compiled daily batch violates canonical contract: {exc}") from exc
     return BatchCompilation(
         batch=batch,
         selected_candidates=tuple(selected),
@@ -208,7 +220,7 @@ def failed_daily_batch(
         raise ValueError("failed batch requires a non-empty reason")
     batch = {
         "schema_version": DAILY_BATCH_SCHEMA,
-        "batch_id": f"editorial:dev:{day.isoformat()}",
+        "batch_id": f"editorial:{profile_id}:{day.isoformat()}",
         "profile_id": profile_id,
         "batch_date": day.isoformat(),
         "target_count": config.target,
@@ -225,6 +237,10 @@ def failed_daily_batch(
         },
         "shortage_reasons": [f"fatal:{reason.strip()}"],
     }
+    try:
+        batch = validate_daily_batch(batch)
+    except ContractError as exc:
+        raise ValueError(f"failed daily batch violates canonical contract: {exc}") from exc
     return BatchCompilation(
         batch=batch,
         selected_candidates=(),
@@ -246,8 +262,10 @@ def _rejection_reason(
 ) -> str | None:
     if candidate.get("machine_disposition") != "stage":
         return "not_stageable"
-    gates = candidate.get("gates")
-    if isinstance(gates, Mapping) and any(gates.get(name) == "FAIL" for name in GATE_NAMES):
+    if any(
+        str(candidate.get(name, "unknown")).lower() != "pass"
+        for name in GATE_NAMES
+    ):
         return "hard_gate_failed"
     expires_at = candidate.get("expires_at")
     if isinstance(expires_at, str) and expires_at.strip():
@@ -280,7 +298,10 @@ def _rank_key(candidate: Mapping[str, Any], selected: Sequence[Mapping[str, Any]
     existing_families = {str(item.get("candidate_family")) for item in selected}
     repos = set(_string_values(candidate.get("repository_refs")))
     family = str(candidate.get("candidate_family", ""))
-    diversity_bonus = (2 if repos - existing_repos else 0) + (1 if family not in existing_families else 0)
+    diversity_bonus = (
+        (2 if repos - existing_repos else 0)
+        + (1 if family not in existing_families else 0)
+    )
     quality = candidate.get("quality")
     quality_total = 0
     if isinstance(quality, Mapping):
@@ -290,7 +311,8 @@ def _rank_key(candidate: Mapping[str, Any], selected: Sequence[Mapping[str, Any]
             if isinstance(quality.get(name, 0), int)
         )
     freshness = {"timely": 3, "recent": 2, "evergreen": 1}.get(
-        str(candidate.get("freshness_class", "")), 0
+        str(candidate.get("freshness_class", "")),
+        0,
     )
     return (
         quality_total,
