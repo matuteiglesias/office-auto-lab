@@ -32,6 +32,8 @@ env:
   EDITORIAL_DEV_SHEET_ID: ${{ vars.EDITORIAL_DEV_SHEET_ID }}
   EDITORIAL_DEV_BUNDLE_PROVIDER: ${{ vars.EDITORIAL_DEV_BUNDLE_PROVIDER || 'office_runtime.editorial.producer:produce_bundle' }}
   EDITORIAL_RUNTIME_PROFILE: ${{ vars.EDITORIAL_RUNTIME_PROFILE || 'editorial' }}
+  EDITORIAL_REPOSITORIES: ${{ vars.EDITORIAL_REPOSITORIES }}
+  EDITORIAL_MAX_STORIES_PER_RUN: ${{ vars.EDITORIAL_MAX_STORIES_PER_RUN || '12' }}
   LOOKBACK_HOURS: ${{ inputs.lookback_hours || '96' }}
   EXACT_PR: ${{ inputs.pr || '' }}
 
@@ -72,6 +74,12 @@ jobs:
             echo "::error::EDITORIAL_DEV_BUNDLE_PROVIDER must point at the integrated evidence/candidate producer."
             exit 2
           }
+          if [[ -z "${EXACT_PR}" ]]; then
+            test -n "${EDITORIAL_REPOSITORIES}" || {
+              echo "::error::EDITORIAL_REPOSITORIES repository variable is required for scheduled/lookback staging."
+              exit 2
+            }
+          fi
 
       - name: Run repository-owned staging entrypoint
         shell: bash
