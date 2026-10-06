@@ -1,9 +1,12 @@
 # Editorial projection subsystem
 
-**Status:** W0 contract seed
-**Audience:** editorial projection maintainers and agents
-**Owner:** office-auto-lab maintainers
-**Verified against:** contract seed only; no live X mutation is authorized by this document
+**Status:** W0 authority/contract seed; dev-profile W1 staging is specified in `docs/spec/editorial-v1/`  
+**Audience:** editorial projection maintainers and agents  
+**Owner:** office-auto-lab maintainers  
+**Verified against:** W0 contract seed plus Editorial Dev Staging v1 specification; no live X mutation is authorized by this document
+
+> **Canonical dev-staging spec:** [`docs/spec/editorial-v1/README.md`](../spec/editorial-v1/README.md).  
+> This document remains authoritative for the shared profile/authority boundary and future live-publication promotion gates. The v1 bundle is authoritative for the `dev` profile's daily evidence-to-candidate staging behavior.
 
 ## Purpose
 
@@ -17,11 +20,19 @@ Goal: low-cost projection of software, data, research-engineering, and maintenan
 
 Primary evidence:
 - recent GitHub commits, merged PRs, releases, and explicit issue decisions;
+- broader governed activity evidence as admitted by the dev-staging contracts;
 - when recent work is weak, a governed historical-dev-work bench may provide candidates.
 
-The projector translates technical work into one externally legible lesson or artifact. It must not become a commit feed and must retain exact work references behind every candidate.
+The projector translates technical work into externally legible lessons, artifacts, questions, failures, tradeoffs, measurements, field notes, or syntheses. It must not become a commit feed and must retain exact work references behind every candidate.
 
-The dev account handle is deployment configuration, not repository policy; `X_DEV_ACCOUNT_HANDLE` resolves the public handle and a separate credential set resolves mutation authority.
+The dev profile is now deliberately split into two semantic capabilities:
+
+1. **staging** — continuously maintain an evidence-backed candidate inventory and human-editable queue;
+2. **publication** — later select/schedule/publish candidates under explicit publication policy.
+
+W1 implements staging only. A staged candidate is not approval and creates no external side effect.
+
+The dev account handle is deployment configuration, not repository policy; `X_DEV_ACCOUNT_HANDLE` resolves the public handle and a separate credential set resolves future mutation authority.
 
 ## Profile B — argentina_econ
 
@@ -59,40 +70,62 @@ The projector must not optimize for conflict. It should prefer the strongest evi
 
 ## Shared pipeline
 
+The durable semantic pipeline is:
+
 ```text
-weekly governance / constitution
+slow editorial governance / constitution
         ↓
 profile-specific evidence retrieval
         ↓
-candidate generation
+structured evidence + story/angle generation
         ↓
 independent editorial judgment
         ↓
-deterministic policy gate
-   ┌────┴────┐
- publish   skip/hold
-   ↓
-exact X post identity + run evidence
-   ↓
+deterministic staging gates
+        ↓
+candidate inventory + immutable run evidence
+        ↓
+human/policy queue
+        ↓
+future publication policy / publisher
+        ↓
+exact X post identity + mutation evidence
+        ↓
 24h / 72h metrics
-   ↓
-weekly bounded experiment review
+        ↓
+bounded experiment review
 ```
+
+For `dev`, the W1 boundary stops at the queue. For future live mutation, publication remains separately gated by the promotion sequence below.
 
 The shared pipeline is intentionally small. Profile-specific retrieval and epistemic requirements remain separate.
 
 ## Authority boundaries
 
 ### `weekly-ops-governance`
+
 Owns slow editorial policy: public identity thesis, prohibited material, allowed experiment dimensions, auto-publication risk ceiling, kill switch, and changes to the approved idea bank's governance rules.
 
+Time-bounded launch-week issues are historical once their stated window expires; unattended runtime must pin a current policy/constitution rather than assume an old issue remains current.
+
 ### `office-auto-lab`
-Owns scheduled execution, retrieval orchestration, candidate/judge execution, deterministic gates, X adapters, metrics retrieval, run evidence, and bounded weekly experiment evaluation.
+
+Owns scheduled execution, retrieval orchestration, candidate/judge execution, deterministic gates, run evidence, queue projection, future X adapters, metrics retrieval, and bounded experiment evaluation after each capability is explicitly promoted.
+
+### `projects`
+
+Owns GitHub-estate identity, producer/surface governance, and advisory estate context. It must not become an Editorial runtime dependency or execute participating repositories.
 
 ### Upstream product repositories
-Keep ownership of their own source identities and semantics. Editorial copies/references their exact public evidence; it must not reconstruct or silently reinterpret upstream truth.
+
+Keep ownership of their own source identities and semantics. Editorial copies/references their exact evidence; it must not reconstruct or silently reinterpret upstream truth.
+
+### Google Sheet staging surface
+
+Owns high-frequency human editorial state only after it is materialized and governed. Machine-generated provenance remains in Office run evidence. The staging producer must preserve human-owned queue fields.
 
 ### X
+
 Is an external publication adapter, not an authority for editorial state.
 
 ## Initial package boundary
@@ -100,77 +133,99 @@ Is an external publication adapter, not an authority for editorial state.
 ```text
 src/office_runtime/editorial/
     contracts.py
-    evidence/          # W1
-    synthesis/         # W1
-    judgment/          # W1
-    policy_gate.py     # W1
-    run_bundle/        # W1
-    experiments/       # W2+
-    adapters/x/        # W2/W3
+    evidence/
+    synthesis/
+    judgment/
+    policy_gate.py
+    run_bundle/
+    staging/
+    adapters/
+        sheets/
+        x/              # future publication wave
 
 config/editorial/
     profiles.json
     constitution.*     # owned upstream / pinned identity, not invented by runtime
+
+docs/spec/editorial-v1/
+    README.md
+    PRODUCT.md
+    ARCHITECTURE.md
+    CONTRACTS.md
+    ACCEPTANCE.md
+    DEVELOPMENT_DAG.md
+    OPERATIONS.md
 ```
 
-Do not create a generic multi-channel publishing framework yet. X is the only proven external publication consumer.
+Do not create a generic multi-channel publishing framework yet. X is the first proven external publication consumer, while LinkedIn/long-form remain future downstream consumers of stable candidate artifacts.
+
+## Framework boundary
+
+Agent/orchestration frameworks are implementation details.
+
+The `dev` W1 implementation may use Google ADK for the structured angle/editor workflow, while another domain subsystem such as Media Monitor may use another framework. Downstream components depend on Office Editorial contracts, not ADK session objects or provider-specific types.
 
 ## W0 hardening conclusions for the parent runtime
 
-The new public-mutation workload exposes several existing infrastructure gaps. They should be handled explicitly rather than hidden inside Editorial.
+### 1. Dependency authority
 
-### 1. Dependency profiles — upgrade required before routine live mutation
+Editorial must use the repository's canonical dependency constraints/profile machinery. Do not add an ad-hoc requirements file.
 
-The repository currently has overlapping `requirements.txt`, `requirements-auto-checker.txt`, and `requirements-repo-health.txt` with different pinning. Existing issue #20 already owns this concern. Editorial must not create a fourth ad-hoc dependency file. W1 dry-run code may stay stdlib-only where practical; external OpenAI/X clients should enter through the eventual reproducible runtime profile.
+### 2. Python CI
 
-### 2. Python CI — upgrade required
-
-The repository's only GitHub Actions workflow currently builds the docs site. Before autonomous public mutation, a core Python workflow must verify at least:
+Before autonomous public mutation, core CI must verify:
 - imports/compile;
 - Editorial contract/gate tests;
 - mutation duplicate protection and fail-closed tests;
-- supported dependency profile(s) once #20 resolves them.
+- supported dependency profiles.
 
-This belongs with runtime hardening, not inside the X adapter.
+W1 staging should already test contract validation, idempotent projection, and human-state preservation.
 
-### 3. Run bundles — reuse pattern, do not generalize prematurely
+### 3. Run bundles
 
-Repo Health already has a strong domain-specific run-bundle pattern: canonical JSON, policy identity/hash, referential validation, reconciled counters, and derived status. Editorial should implement `editorial.run_bundle.v1` using the same design principles.
+Editorial implements `editorial.run_bundle.v1` using canonical JSON, stable IDs, pinned policy identity, referential validation, reconciled counters/status, and atomic evidence writes.
 
-Do **not** extract a universal run-bundle framework in W0. After Editorial proves a second real use, compare the two implementations and promote only genuinely common primitives (canonical JSON/hash helpers, safe run IDs, atomic writes) if maintenance duplication is real.
+Do not extract a universal run-bundle framework merely because another subsystem has similar mechanics.
 
-### 4. Capability descriptors — reuse design principle locally
+### 4. Capability descriptors
 
-Repo Health capability descriptors are intentionally repo-health-local. Editorial should expose its own bounded capability identity/inputs/outputs/side effects/failure/evidence. Do not widen the Repo Health plugin loader into a general agent framework.
+Editorial exposes its own bounded capability identity/inputs/outputs/side effects/failure/evidence. Do not widen unrelated plugin loaders into a generic agent framework.
 
-### 5. Scheduling — GitHub Actions first
+### 5. Scheduling
 
-Tracked systemd units remain tied to one local checkout path (existing issue #19). That should be fixed for Office hygiene, but it need not block Editorial. The first unattended Editorial scheduler should be GitHub Actions because it provides isolated runs, secrets, logs, artifacts, and a clear mutation environment.
+GitHub Actions remains the first unattended Editorial scheduler because it provides isolated runs, secrets, logs, artifacts, and a clear mutation environment. Scheduler choice must not define producer identity.
 
-Local systemd may later become a recovery/manual operator path after #19 is resolved.
+### 6. Secrets and account separation
 
-### 6. Secrets and account separation — hard requirement
-
-Use distinct secret namespaces/credentials per X profile. The runtime must prove the authenticated X account identity before publishing and refuse an account/profile mismatch.
+Use distinct secret namespaces/credentials per future X profile. The runtime must prove authenticated X account identity before publishing and refuse an account/profile mismatch.
 
 No secret value, token, private source payload, or raw credential-bearing response may enter run bundles or logs.
 
 ## Promotion gates
 
 - **W0**: contracts/profile boundaries only; no external mutation.
-- **W1**: dry-run retrieval → candidates → judge → deterministic gate → run bundle.
-- **W2**: read-only X account identity/recent-post/metrics integration; prove two-account routing without publishing.
+- **W1**: unattended evidence retrieval → story/angles → independent editorial judgment → daily candidate inventory → immutable run bundle → human-editable staging queue. **No X mutation.**
+- **W2**: read-only X account identity/recent-post/metrics integration and publisher-policy contract; prove account routing without publishing.
 - **W3**: one explicitly authorized live post per profile, with exact post ID, duplicate protection, kill switch, and account-identity proof.
-- **W4**: routine `publish_if_safe` only after W3 evidence and explicit promotion.
+- **W4**: routine publication only after W3 evidence and explicit promotion.
 
 ## Stop rules
 
-Stop rather than publish when:
+Stop rather than stage/publish when the relevant boundary cannot be proven.
+
+For staging:
+- policy identity cannot be pinned;
+- evidence is stale, incomplete, private, or not inspectable enough for the claim;
+- source status needed by the copy is unknown;
+- generated evidence refs do not resolve;
+- human/machine Sheet ownership is ambiguous;
+- duplicate/idempotency state is uncertain;
+- privacy/sensitive-topic gate fails.
+
+For future publication, additionally stop when:
 - the selected profile cannot be cryptographically/operationally tied to the expected authenticated X identity;
-- the evidence pack is stale, incomplete, private, or not inspectable enough for the claim;
-- Argentina-econ lacks a current-claim/owned-evidence/approved-idea triangle;
+- Argentina-econ lacks its current-claim/owned-evidence/approved-idea triangle;
 - scientific status is ambiguous;
-- candidate risk exceeds the low-risk auto-publication ceiling;
-- the policy identity cannot be pinned;
-- duplicate detection is uncertain;
+- candidate risk exceeds the publication ceiling;
+- cadence/duplicate policy is uncertain;
 - the kill switch is active.
