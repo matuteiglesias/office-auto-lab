@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from typing import Any, Iterable, Mapping, Sequence
+from datetime import date, datetime
+from typing import Any, Mapping, Sequence
 
 from .validation import GATE_NAMES, QUALITY_NAMES, semantic_fingerprint as _semantic_fingerprint
 
@@ -188,6 +188,48 @@ def compile_daily_batch(
         selected_candidates=tuple(selected),
         fallback_requests=tuple(fallback_requests),
         rejected=tuple(rejected),
+    )
+
+
+def failed_daily_batch(
+    *,
+    batch_date: str | date,
+    reason: str,
+    profile_id: str = "dev",
+    config: BatchConfig = BatchConfig(),
+) -> BatchCompilation:
+    """Represent a fatal compiler/runtime failure without confusing it with shortage."""
+
+    config.validate()
+    day = date.fromisoformat(batch_date) if isinstance(batch_date, str) else batch_date
+    if not isinstance(day, date):
+        raise TypeError("batch_date must be ISO date text or date")
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("failed batch requires a non-empty reason")
+    batch = {
+        "schema_version": DAILY_BATCH_SCHEMA,
+        "batch_id": f"editorial:dev:{day.isoformat()}",
+        "profile_id": profile_id,
+        "batch_date": day.isoformat(),
+        "target_count": config.target,
+        "floor_count": config.floor,
+        "ceiling_count": config.ceiling,
+        "inventory_status": "FAILED",
+        "candidate_ids": [],
+        "source_tier_counts": {},
+        "diversity_summary": {
+            "repository_refs": [],
+            "candidate_families": [],
+            "career_signals": [],
+            "source_event_count": 0,
+        },
+        "shortage_reasons": [f"fatal:{reason.strip()}"],
+    }
+    return BatchCompilation(
+        batch=batch,
+        selected_candidates=(),
+        fallback_requests=(),
+        rejected=(),
     )
 
 
