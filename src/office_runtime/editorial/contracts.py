@@ -175,3 +175,541 @@ def _string_list(value: Any, label: str) -> list[str]:
     if any(not isinstance(item, str) or not item.strip() for item in value):
         raise ContractError(f"{label} must contain only non-empty strings")
     return list(value)
+
+
+# Editorial Dev Staging v1 durable contracts.  Keep validate_candidate() above as
+# the stable W0 seam; W1 callers opt into validate_dev_candidate().
+import re as _editorial_re
+from dataclasses import dataclass as _editorial_dataclass, field as _editorial_field
+from datetime import datetime as _editorial_datetime
+
+ACTIVITY_EVIDENCE_SCHEMA = "office_runtime.editorial.activity_evidence.v1"
+STORY_CLUSTER_SCHEMA = "office_runtime.editorial.story_cluster.v1"
+ANGLE_SCHEMA = "office_runtime.editorial.angle.v1"
+DAILY_BATCH_SCHEMA = "office_runtime.editorial.daily_batch.v1"
+RUN_BUNDLE_SCHEMA = "editorial.run_bundle.v1"
+
+EVIDENCE_SOURCE_KINDS = frozenset({
+    "github_pr", "github_release", "github_commit", "github_issue_decision",
+    "office_run_evidence", "producer_receipt", "durable_artifact",
+    "historical_dev_work",
+})
+EVIDENCE_STATUSES = frozenset({
+    "completed", "merged", "released", "in_progress", "failed", "waiting",
+    "dropped", "superseded", "unknown",
+})
+VISIBILITIES = frozenset({"public", "private", "internal", "unknown"})
+PUBLIC_ELIGIBILITY = frozenset({"eligible", "restricted", "unknown"})
+ANGLE_TYPES = frozenset({
+    "lesson", "artifact", "question", "failure", "tradeoff", "measurement",
+    "field_note", "synthesis",
+})
+CANDIDATE_FAMILIES = frozenset(value.upper() for value in ANGLE_TYPES)
+FRESHNESS_CLASSES = frozenset({"timely", "recent", "evergreen"})
+MACHINE_DISPOSITIONS = frozenset({"stage", "hold", "drop"})
+GATE_RESULTS = frozenset({"pass", "hold", "fail", "unknown"})
+INVENTORY_STATUSES = frozenset({"HEALTHY", "DEGRADED_INVENTORY", "FAILED"})
+RUN_STATUSES = frozenset({
+    "RETRIEVAL_ONLY", "HEALTHY", "DEGRADED_INVENTORY",
+    "PARTIAL_SOURCE_FAILURE", "FAILED",
+})
+QUALITY_DIMENSIONS = (
+    "evidence", "specificity", "external_usefulness", "novelty",
+    "professional_signal",
+)
+_EDITORIAL_HEX_64 = _editorial_re.compile(r"^[0-9a-f]{64}$")
+
+
+def _editorial_strings(value: Any, label: str, *, allow_empty: bool = False) -> list[str]:
+    if not isinstance(value, list) or (not allow_empty and not value):
+        qualifier = "" if allow_empty else " non-empty"
+        raise ContractError(f"{label} must be a{qualifier} string array")
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ContractError(f"{label} must contain only non-empty strings")
+    return [item.strip() for item in value]
+
+
+def _editorial_timestamp(value: Any, label: str) -> str:
+    text = _string(value, label)
+    try:
+        parsed = _editorial_datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ContractError(f"{label} must be ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise ContractError(f"{label} must include a timezone")
+    return text
+
+
+def _editorial_date(value: Any, label: str) -> str:
+    text = _string(value, label)
+    try:
+        _editorial_datetime.strptime(text, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ContractError(f"{label} must be YYYY-MM-DD") from exc
+    return text
+
+
+def validate_activity_evidence(value: Any) -> dict[str, Any]:
+    evidence = _mapping(value, "activity evidence")
+    required = {
+        "schema_version", "evidence_id", "source_kind", "source_ref",
+        "observed_at", "event_at", "status", "title", "summary",
+        "repository_ref", "visibility", "public_eligibility", "artifact_refs",
+    }
+    missing = required - set(evidence)
+    if missing:
+        raise ContractError(f"activity evidence missing keys: {sorted(missing)}")
+    if evidence["schema_version"] != ACTIVITY_EVIDENCE_SCHEMA:
+        raise ContractError("unsupported activity evidence schema_version")
+    for key in ("evidence_id", "source_ref", "title", "summary", "repository_ref"):
+        _string(evidence[key], key)
+    _editorial_timestamp(evidence["observed_at"], "observed_at")
+    _editorial_timestamp(evidence["event_at"], "event_at")
+    if evidence["source_kind"] not in EVIDENCE_SOURCE_KINDS:
+        raise ContractError("source_kind is invalid")
+    if evidence["status"] not in EVIDENCE_STATUSES:
+        raise ContractError("status is invalid")
+    if evidence["visibility"] not in VISIBILITIES:
+        raise ContractError("visibility is invalid")
+    if evidence["public_eligibility"] not in PUBLIC_ELIGIBILITY:
+        raise ContractError("public_eligibility is invalid")
+    _editorial_strings(evidence["artifact_refs"], "artifact_refs", allow_empty=True)
+    metadata = _mapping(evidence.get("source_metadata", {}), "source_metadata")
+    for key, item in metadata.items():
+        _string(key, "source_metadata key")
+        if item is not None and not isinstance(item, (str, int, float, bool)):
+            raise ContractError("source_metadata values must be JSON scalars")
+    return dict(evidence)
+
+
+def validate_story_cluster(value: Any) -> dict[str, Any]:
+    story = _mapping(value, "story cluster")
+    required = {
+        "schema_version", "story_id", "evidence_refs", "cluster_kind",
+        "working_summary", "freshness_class", "repository_refs",
+        "public_eligibility",
+    }
+    missing = required - set(story)
+    if missing:
+        raise ContractError(f"story cluster missing keys: {sorted(missing)}")
+    if story["schema_version"] != STORY_CLUSTER_SCHEMA:
+        raise ContractError("unsupported story cluster schema_version")
+    _string(story["story_id"], "story_id")
+    refs = _editorial_strings(story["evidence_refs"], "evidence_refs")
+    if len(refs) != len(set(refs)):
+        raise ContractError("story evidence_refs must be unique")
+    _string(story["cluster_kind"], "cluster_kind")
+    _string(story["working_summary"], "working_summary")
+    if story["freshness_class"] not in FRESHNESS_CLASSES:
+        raise ContractError("freshness_class is invalid")
+    _editorial_strings(story["repository_refs"], "repository_refs")
+    if story["public_eligibility"] not in PUBLIC_ELIGIBILITY:
+        raise ContractError("public_eligibility is invalid")
+    for key in (
+        "related_context_refs", "measured_results", "open_questions",
+        "status_language_constraints",
+    ):
+        _editorial_strings(story.get(key, []), key, allow_empty=True)
+    return dict(story)
+
+
+def validate_angle(value: Any) -> dict[str, Any]:
+    angle = _mapping(value, "angle")
+    required = {
+        "schema_version", "angle_id", "story_id", "angle_type", "claim",
+        "tension_or_hook", "transferable_lesson", "evidence_refs", "audience",
+        "career_signals", "why_interesting", "risk_class",
+    }
+    missing = required - set(angle)
+    if missing:
+        raise ContractError(f"angle missing keys: {sorted(missing)}")
+    if angle["schema_version"] != ANGLE_SCHEMA:
+        raise ContractError("unsupported angle schema_version")
+    for key in (
+        "angle_id", "story_id", "claim", "tension_or_hook",
+        "transferable_lesson", "why_interesting",
+    ):
+        _string(angle[key], key)
+    if angle["angle_type"] not in ANGLE_TYPES:
+        raise ContractError("angle_type is invalid")
+    if angle["risk_class"] not in RISK_CLASSES:
+        raise ContractError("angle risk_class is invalid")
+    _editorial_strings(angle["evidence_refs"], "evidence_refs")
+    _editorial_strings(angle["audience"], "audience")
+    _editorial_strings(angle["career_signals"], "career_signals", allow_empty=True)
+    for key in ("proof_object_refs", "required_status_wording"):
+        _editorial_strings(angle.get(key, []), key, allow_empty=True)
+    for key in ("counterpoint", "expiry_hint"):
+        if angle.get(key) is not None:
+            _string(angle[key], key)
+    return dict(angle)
+
+
+def validate_dev_candidate(value: Any, profile: Mapping[str, Any]) -> dict[str, Any]:
+    candidate = validate_candidate(value, profile)
+    if profile.get("strategy") != "dev_projection":
+        raise ContractError("dev candidate extensions require dev_projection")
+    required = {
+        "story_id", "angle_id", "candidate_family", "semantic_fingerprint",
+        "language", "topic_tags", "career_signals", "proof_object_refs",
+        "freshness_class", "generated_at", "expires_at", "machine_disposition",
+        "quality", "disclosure_risk", "repetition_risk", "status_truth_risk",
+    }
+    missing = required - set(candidate)
+    if missing:
+        raise ContractError(
+            f"dev editorial candidate missing extension keys: {sorted(missing)}"
+        )
+    for key in ("story_id", "angle_id", "semantic_fingerprint", "language"):
+        _string(candidate[key], key)
+    if candidate["candidate_family"] not in CANDIDATE_FAMILIES:
+        raise ContractError("candidate_family is invalid")
+    for key in ("topic_tags", "career_signals", "proof_object_refs"):
+        _editorial_strings(candidate[key], key, allow_empty=True)
+    if candidate["freshness_class"] not in FRESHNESS_CLASSES:
+        raise ContractError("candidate freshness_class is invalid")
+    _editorial_timestamp(candidate["generated_at"], "generated_at")
+    if candidate["expires_at"] is not None:
+        _editorial_timestamp(candidate["expires_at"], "expires_at")
+    if candidate["freshness_class"] == "timely" and candidate["expires_at"] is None:
+        raise ContractError("timely candidates require expires_at")
+    if candidate["machine_disposition"] not in MACHINE_DISPOSITIONS:
+        raise ContractError("machine_disposition is invalid")
+    quality = _mapping(candidate["quality"], "quality")
+    if set(quality) != set(QUALITY_DIMENSIONS):
+        raise ContractError(
+            f"quality dimensions must be exactly {list(QUALITY_DIMENSIONS)!r}"
+        )
+    for key in QUALITY_DIMENSIONS:
+        score = quality[key]
+        if (
+            not isinstance(score, int)
+            or isinstance(score, bool)
+            or not 0 <= score <= 4
+        ):
+            raise ContractError(f"quality.{key} must be an integer from 0 to 4")
+    for gate in ("disclosure_risk", "repetition_risk", "status_truth_risk"):
+        if candidate[gate] not in GATE_RESULTS:
+            raise ContractError(f"{gate} is invalid")
+    if candidate["machine_disposition"] == "stage" and any(
+        candidate[gate] != "pass"
+        for gate in ("disclosure_risk", "repetition_risk", "status_truth_risk")
+    ):
+        raise ContractError(
+            "stage disposition requires all deterministic gates to pass"
+        )
+    return dict(candidate)
+
+
+def validate_daily_batch(value: Any) -> dict[str, Any]:
+    batch = _mapping(value, "daily batch")
+    required = {
+        "schema_version", "batch_id", "profile_id", "batch_date",
+        "target_count", "floor_count", "ceiling_count", "inventory_status",
+        "candidate_ids", "source_tier_counts", "diversity_summary",
+        "shortage_reasons",
+    }
+    missing = required - set(batch)
+    if missing:
+        raise ContractError(f"daily batch missing keys: {sorted(missing)}")
+    if batch["schema_version"] != DAILY_BATCH_SCHEMA:
+        raise ContractError("unsupported daily batch schema_version")
+    _string(batch["batch_id"], "batch_id")
+    _string(batch["profile_id"], "profile_id")
+    _editorial_date(batch["batch_date"], "batch_date")
+    for key in ("target_count", "floor_count", "ceiling_count"):
+        count = batch[key]
+        if (
+            not isinstance(count, int)
+            or isinstance(count, bool)
+            or count < 0
+        ):
+            raise ContractError(f"{key} must be a non-negative integer")
+    if not batch["floor_count"] <= batch["target_count"] <= batch["ceiling_count"]:
+        raise ContractError(
+            "daily batch counts must satisfy floor <= target <= ceiling"
+        )
+    if batch["inventory_status"] not in INVENTORY_STATUSES:
+        raise ContractError("inventory_status is invalid")
+    ids = _editorial_strings(
+        batch["candidate_ids"],
+        "candidate_ids",
+        allow_empty=True,
+    )
+    if len(ids) != len(set(ids)) or len(ids) > batch["ceiling_count"]:
+        raise ContractError(
+            "candidate_ids must be unique and within ceiling_count"
+        )
+    if (
+        batch["inventory_status"] == "HEALTHY"
+        and len(ids) < batch["floor_count"]
+    ):
+        raise ContractError("HEALTHY batch must reach floor_count")
+    if (
+        batch["inventory_status"] == "DEGRADED_INVENTORY"
+        and len(ids) >= batch["floor_count"]
+    ):
+        raise ContractError(
+            "DEGRADED_INVENTORY is only valid below floor_count"
+        )
+    tiers = _mapping(batch["source_tier_counts"], "source_tier_counts")
+    if any(
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+        for value in tiers.values()
+    ):
+        raise ContractError(
+            "source_tier_counts values must be non-negative integers"
+        )
+    _mapping(batch["diversity_summary"], "diversity_summary")
+    _editorial_strings(
+        batch["shortage_reasons"],
+        "shortage_reasons",
+        allow_empty=True,
+    )
+    return dict(batch)
+
+
+def validate_policy_identity(value: Any) -> dict[str, str]:
+    policy = _mapping(value, "policy identity")
+    required = {
+        "authority", "source_ref", "source_revision", "content_sha256",
+    }
+    missing = required - set(policy)
+    if missing:
+        raise ContractError(f"policy identity missing keys: {sorted(missing)}")
+    authority = _string(policy["authority"], "policy.authority")
+    source_ref = _string(policy["source_ref"], "policy.source_ref")
+    revision = _string(policy["source_revision"], "policy.source_revision")
+    if revision.lower() in {"latest", "head", "main", "master", "current"}:
+        raise ContractError(
+            "policy source_revision must be immutable, not a moving ref"
+        )
+    digest = _string(
+        policy["content_sha256"],
+        "policy.content_sha256",
+    ).lower()
+    if not _EDITORIAL_HEX_64.fullmatch(digest):
+        raise ContractError(
+            "policy content_sha256 must be a lowercase SHA-256 digest"
+        )
+    return {
+        "authority": authority,
+        "source_ref": source_ref,
+        "source_revision": revision,
+        "content_sha256": digest,
+    }
+
+
+@_editorial_dataclass(frozen=True)
+class ActivityEvidence:
+    evidence_id: str
+    source_kind: str
+    source_ref: str
+    observed_at: str
+    event_at: str
+    status: str
+    title: str
+    summary: str
+    repository_ref: str
+    visibility: str
+    public_eligibility: str
+    artifact_refs: tuple[str, ...] = ()
+    source_metadata: Mapping[str, Any] = _editorial_field(default_factory=dict)
+    schema_version: str = ACTIVITY_EVIDENCE_SCHEMA
+
+    @classmethod
+    def from_mapping(cls, value: Any) -> "ActivityEvidence":
+        payload = validate_activity_evidence(value)
+        return cls(
+            evidence_id=payload["evidence_id"],
+            source_kind=payload["source_kind"],
+            source_ref=payload["source_ref"],
+            observed_at=payload["observed_at"],
+            event_at=payload["event_at"],
+            status=payload["status"],
+            title=payload["title"],
+            summary=payload["summary"],
+            repository_ref=payload["repository_ref"],
+            visibility=payload["visibility"],
+            public_eligibility=payload["public_eligibility"],
+            artifact_refs=tuple(payload["artifact_refs"]),
+            source_metadata=dict(payload.get("source_metadata", {})),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "evidence_id": self.evidence_id,
+            "source_kind": self.source_kind,
+            "source_ref": self.source_ref,
+            "observed_at": self.observed_at,
+            "event_at": self.event_at,
+            "status": self.status,
+            "title": self.title,
+            "summary": self.summary,
+            "repository_ref": self.repository_ref,
+            "visibility": self.visibility,
+            "public_eligibility": self.public_eligibility,
+            "artifact_refs": list(self.artifact_refs),
+            "source_metadata": dict(self.source_metadata),
+        }
+
+
+@_editorial_dataclass(frozen=True)
+class StoryCluster:
+    story_id: str
+    evidence_refs: tuple[str, ...]
+    cluster_kind: str
+    working_summary: str
+    freshness_class: str
+    repository_refs: tuple[str, ...]
+    public_eligibility: str
+    related_context_refs: tuple[str, ...] = ()
+    measured_results: tuple[str, ...] = ()
+    open_questions: tuple[str, ...] = ()
+    status_language_constraints: tuple[str, ...] = ()
+    schema_version: str = STORY_CLUSTER_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "story_id": self.story_id,
+            "evidence_refs": list(self.evidence_refs),
+            "cluster_kind": self.cluster_kind,
+            "working_summary": self.working_summary,
+            "freshness_class": self.freshness_class,
+            "repository_refs": list(self.repository_refs),
+            "public_eligibility": self.public_eligibility,
+            "related_context_refs": list(self.related_context_refs),
+            "measured_results": list(self.measured_results),
+            "open_questions": list(self.open_questions),
+            "status_language_constraints": list(self.status_language_constraints),
+        }
+
+
+@_editorial_dataclass(frozen=True)
+class AngleCard:
+    angle_id: str
+    story_id: str
+    angle_type: str
+    claim: str
+    tension_or_hook: str
+    transferable_lesson: str
+    evidence_refs: tuple[str, ...]
+    audience: tuple[str, ...]
+    career_signals: tuple[str, ...]
+    why_interesting: str
+    risk_class: str
+    proof_object_refs: tuple[str, ...] = ()
+    required_status_wording: tuple[str, ...] = ()
+    counterpoint: str | None = None
+    expiry_hint: str | None = None
+    schema_version: str = ANGLE_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "angle_id": self.angle_id,
+            "story_id": self.story_id,
+            "angle_type": self.angle_type,
+            "claim": self.claim,
+            "tension_or_hook": self.tension_or_hook,
+            "transferable_lesson": self.transferable_lesson,
+            "evidence_refs": list(self.evidence_refs),
+            "audience": list(self.audience),
+            "career_signals": list(self.career_signals),
+            "why_interesting": self.why_interesting,
+            "risk_class": self.risk_class,
+            "proof_object_refs": list(self.proof_object_refs),
+            "required_status_wording": list(self.required_status_wording),
+            "counterpoint": self.counterpoint,
+            "expiry_hint": self.expiry_hint,
+        }
+
+
+@_editorial_dataclass(frozen=True)
+class DevCandidate:
+    payload: Mapping[str, Any]
+
+    @classmethod
+    def from_mapping(
+        cls,
+        value: Any,
+        profile: Mapping[str, Any],
+    ) -> "DevCandidate":
+        return cls(validate_dev_candidate(value, profile))
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.payload)
+
+
+@_editorial_dataclass(frozen=True)
+class DailyBatch:
+    payload: Mapping[str, Any]
+
+    @classmethod
+    def from_mapping(cls, value: Any) -> "DailyBatch":
+        return cls(validate_daily_batch(value))
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.payload)
+
+
+@_editorial_dataclass(frozen=True)
+class PolicyIdentity:
+    authority: str
+    source_ref: str
+    source_revision: str
+    content_sha256: str
+
+    @classmethod
+    def from_mapping(cls, value: Any) -> "PolicyIdentity":
+        return cls(**validate_policy_identity(value))
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "authority": self.authority,
+            "source_ref": self.source_ref,
+            "source_revision": self.source_revision,
+            "content_sha256": self.content_sha256,
+        }
+
+
+@_editorial_dataclass(frozen=True)
+class EditorialRunBundle:
+    run_id: str
+    profile_id: str
+    started_at: str
+    finished_at: str
+    policy: Mapping[str, Any]
+    retrieval: Mapping[str, Any]
+    evidence: Mapping[str, Any]
+    stories: tuple[Mapping[str, Any], ...]
+    angles: tuple[Mapping[str, Any], ...]
+    candidates: tuple[Mapping[str, Any], ...]
+    batch: Mapping[str, Any] | None
+    provider_runs: tuple[Mapping[str, Any], ...]
+    errors: tuple[Mapping[str, Any], ...]
+    status: str
+    schema_version: str = RUN_BUNDLE_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "run_id": self.run_id,
+            "profile_id": self.profile_id,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "policy": dict(self.policy),
+            "retrieval": dict(self.retrieval),
+            "evidence": dict(self.evidence),
+            "stories": [dict(item) for item in self.stories],
+            "angles": [dict(item) for item in self.angles],
+            "candidates": [dict(item) for item in self.candidates],
+            "batch": dict(self.batch) if self.batch is not None else None,
+            "provider_runs": [dict(item) for item in self.provider_runs],
+            "errors": [dict(item) for item in self.errors],
+            "status": self.status,
+        }
