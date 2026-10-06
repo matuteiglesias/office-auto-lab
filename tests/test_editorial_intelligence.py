@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 
@@ -94,7 +95,23 @@ class FakeJudge:
 
 class EditorialIntelligenceTests(unittest.TestCase):
     def test_core_path_does_not_import_adk(self) -> None:
-        self.assertNotIn("google.adk", sys.modules)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; "
+                    "import office_runtime.editorial.intelligence.batch; "
+                    "import office_runtime.editorial.intelligence.interfaces; "
+                    "import office_runtime.editorial.intelligence.validation; "
+                    "assert 'google.adk' not in sys.modules"
+                ),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_strong_story_survives_as_transferable_candidate(self) -> None:
         ev = {"ev:1": evidence("ev:1")}
