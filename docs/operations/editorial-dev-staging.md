@@ -98,10 +98,14 @@ Values are never committed or logged.
 - secret `EDITORIAL_MODEL_API_KEY`: opaque model credential made available to the integrated producer adapter. The adapter remains responsible for provider-specific interpretation.
 - secret `EDITORIAL_GOOGLE_CREDENTIALS_JSON`: Google service-account JSON with access to the staging workbook. Application Default Credentials are also supported outside Actions.
 - variable `EDITORIAL_DEV_SHEET_ID`: workbook ID.
-- variable `EDITORIAL_DEV_BUNDLE_PROVIDER`: integrated `module:function` producer adapter.
-- variable `EDITORIAL_RUNTIME_PROFILE`: dependency profile installed by the scheduled job; defaults to the currently available `office` profile. Set it to the parallel intelligence branch's `editorial` profile only after that profile is integrated.
+- variable `EDITORIAL_DEV_BUNDLE_PROVIDER`: integrated `module:function` producer adapter; defaults to `office_runtime.editorial.producer:produce_bundle`.
+- variable `EDITORIAL_RUNTIME_PROFILE`: dependency profile installed by the scheduled job; defaults to `editorial`.
+- variable `EDITORIAL_REPOSITORIES`: explicit comma-separated repository allowlist used by scheduled/lookback staging. It is required whenever no exact PR is supplied; an empty value fails closed.
+- variable `EDITORIAL_MAX_STORIES_PER_RUN`: maximum number of story clusters sent through model stages in one run. Default and hard v1 maximum are 12.
 
-There are intentionally no `X_*` secrets in this workflow. `EDITORIAL_MODEL_API_KEY` is deliberately provider-neutral; the eventual producer adapter owns any mapping to provider-specific environment/configuration required by ADK.
+There are intentionally no `X_*` secrets in this workflow. `EDITORIAL_MODEL_API_KEY` is deliberately provider-neutral; the producer adapter owns the mapping to provider-specific environment/configuration required by ADK.
+
+Scheduled lookback is deliberately fail-closed and bounded: it cannot run without an explicit repository allowlist, and retrieval may observe more evidence than the model layer processes. Story clusters are deterministically prioritized for model work and capped at 12 per run so a busy 96-hour window cannot create unbounded ADK fan-out. The complete retrieved evidence/story graph remains in the governed run bundle; the cap affects model processing, not provenance.
 
 ## Offline acceptance covered here
 
