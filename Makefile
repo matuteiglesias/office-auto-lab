@@ -71,7 +71,7 @@ freshness-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_staff_packet_freshness
 
 editorial-contracts:
-	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts tests.test_editorial_staging
+	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts tests.test_editorial_evidence_spine tests.test_editorial_staging
 
 dependency-contracts:
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check
