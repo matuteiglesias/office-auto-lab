@@ -5,7 +5,7 @@
 **Owner:** office-auto-lab maintainers  
 **Verified against:** W0 contract seed plus Editorial Dev Staging v1 specification; no live X mutation is authorized by this document
 
-> **Canonical dev-staging spec:** [`docs/spec/editorial-v1/README.md`](../spec/editorial-v1/README.md).  
+> **Canonical dev-staging spec:** `docs/spec/editorial-v1/README.md`.  
 > This document remains authoritative for the shared profile/authority boundary and future live-publication promotion gates. The v1 bundle is authoritative for the `dev` profile's daily evidence-to-candidate staging behavior.
 
 ## Purpose
