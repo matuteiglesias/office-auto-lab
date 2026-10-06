@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -303,6 +304,17 @@ def _cmd_capture_lifecycle(args: argparse.Namespace) -> int:
     return 0 if result.get("status") == "ok" else 1
 
 
+def _cmd_editorial_dev_stage(args: argparse.Namespace) -> int:
+    from office_runtime.editorial.staging.runtime import EditorialStagingError, execute_stage_namespace
+    from office_runtime.editorial.staging.sheets import SheetProjectionError
+
+    try:
+        return execute_stage_namespace(args)
+    except (EditorialStagingError, SheetProjectionError) as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="office_runtime.cli",
@@ -398,6 +410,18 @@ def build_parser() -> argparse.ArgumentParser:
     ev_activity.add_argument("--profile-ini", type=Path, default=None)
     ev_activity.add_argument("--raw-root", type=Path, default=None)
     ev_activity.set_defaults(handler=_cmd_evidence_activity)
+
+    editorial = subparsers.add_parser("editorial", help="Editorial staging surfaces.")
+    editorial_sub = editorial.add_subparsers(dest="editorial_cmd", required=True)
+    editorial_dev = editorial_sub.add_parser("dev", help="Dev-profile editorial surfaces.")
+    editorial_dev_sub = editorial_dev.add_subparsers(dest="editorial_dev_cmd", required=True)
+    editorial_stage = editorial_dev_sub.add_parser(
+        "stage", help="Produce or project one bounded Editorial Dev Staging run."
+    )
+    from office_runtime.editorial.staging.runtime import add_stage_arguments
+
+    add_stage_arguments(editorial_stage)
+    editorial_stage.set_defaults(handler=_cmd_editorial_dev_stage)
 
     estate = subparsers.add_parser("estate", help="Read-only estate evidence projections.")
     estate_sub = estate.add_subparsers(dest="estate_cmd", required=True)
