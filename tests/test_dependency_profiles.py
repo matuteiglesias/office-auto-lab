@@ -24,17 +24,20 @@ class DependencyProfileTests(unittest.TestCase):
     def test_profiles_validate_and_full_is_exact_active_union(self) -> None:
         validate_profiles(ROOT)
         loaded = {name: set(load_profile(ROOT, name)) for name in PROFILE_PATHS}
-        expected = loaded["office"] | loaded["capture"]
+        expected = loaded["office"] | loaded["capture"] | loaded["editorial"]
         self.assertEqual(loaded["full"], expected)
         self.assertEqual(CORE_PROFILES, ("office",))
-        self.assertEqual(SIDECAR_PROFILES, ("capture",))
-        self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "full"))
-        self.assertEqual(set(PROFILE_PATHS), {"office", "capture", "full"})
+        self.assertEqual(SIDECAR_PROFILES, ("capture", "editorial"))
+        self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "editorial", "full"))
+        self.assertEqual(set(PROFILE_PATHS), {"office", "capture", "editorial", "full"})
+        self.assertEqual(loaded["editorial"], {"google-adk", "pydantic"})
 
     def test_constraints_are_exact_and_cover_every_declared_surface(self) -> None:
         constraints = load_constraints(ROOT)
         self.assertIn("pandas", constraints)
         self.assertIn("openai", constraints)
+        self.assertIn("google-adk", constraints)
+        self.assertIn("pydantic", constraints)
         self.assertIn("pytest", constraints)
         for profile in PROFILE_PATHS:
             self.assertTrue(set(load_profile(ROOT, profile)).issubset(constraints))

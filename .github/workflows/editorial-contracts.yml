@@ -4,9 +4,18 @@ on:
   pull_request:
     paths:
       - "src/office_runtime/editorial/**"
+      - "src/office_runtime/dependencies.py"
       - "config/editorial/**"
+      - "requirements/**"
       - "tests/test_editorial_contracts.py"
+      - "tests/test_editorial_evidence_spine.py"
       - "tests/test_editorial_staging.py"
+      - "tests/test_editorial_intelligence.py"
+      - "tests/test_editorial_adk_adapter.py"
+      - "tests/test_editorial_batch.py"
+      - "tests/test_editorial_eval_corpus.py"
+      - "tests/fixtures/editorial_v1/**"
+      - "tests/test_dependency_profiles.py"
       - "src/office_runtime/cli.py"
       - "src/office_runtime/scripts/run_editorial_dev_staging.py"
       - "docs/operations/editorial-dev-staging.md"
@@ -20,6 +29,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONPATH: src
+
 jobs:
   contracts:
     runs-on: ubuntu-latest
@@ -31,7 +43,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements/constraints.txt
+            requirements/profiles/editorial.txt
+            requirements/test.txt
+      - name: Install Editorial dependency profile
+        run: python src/office_runtime/scripts/install_profile.py editorial
+      - name: Install constrained test tooling
+        run: python -m pip install -c requirements/constraints.txt -r requirements/test.txt
+      - name: Check resolved environment
+        run: python -m pip check
       - name: Compile editorial package
-        run: python -m compileall src/office_runtime/editorial
-      - name: Run W0 contract acceptance
-        run: make editorial-contracts
+        run: python -m compileall -q src/office_runtime/editorial
+      - name: Run W0 and W1 Editorial acceptance
+        run: |
+          make editorial-contracts
+          python -m unittest \
+            tests.test_editorial_intelligence \
+            tests.test_editorial_adk_adapter \
+            tests.test_editorial_batch \
+            tests.test_editorial_eval_corpus \
+            tests.test_dependency_profiles

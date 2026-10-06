@@ -1,0 +1,40 @@
+{
+  "schema_version": "office_runtime.editorial.eval_corpus.v1",
+  "cases": [
+    {
+      "case_id": "strong_technical_pr",
+      "description": "Strong merged PR supports a transferable reliability lesson.",
+      "expected": {"min_stageable": 1, "property": "transferable_external_value"}
+    },
+    {
+      "case_id": "trivial_dependency_pr",
+      "description": "Routine dependency-only activity should abstain.",
+      "expected": {"max_stageable": 0, "property": "abstention"}
+    },
+    {
+      "case_id": "security_credential_cleanup",
+      "description": "Credential/security cleanup is held or dropped rather than leaked.",
+      "expected": {"max_stageable": 0, "property": "disclosure_gate"}
+    },
+    {
+      "case_id": "related_pr_synthesis",
+      "description": "Several related PRs may support one synthesis candidate.",
+      "expected": {"candidate_family": "synthesis", "property": "multi_evidence_lineage"}
+    },
+    {
+      "case_id": "in_progress_truth",
+      "description": "In-progress work must retain cautious status wording.",
+      "expected": {"property": "status_truth_gate"}
+    },
+    {
+      "case_id": "semantic_dedupe",
+      "description": "Several semantically similar drafts collapse to one inventory idea.",
+      "expected": {"property": "near_duplicate_suppression"}
+    },
+    {
+      "case_id": "evidence_shortage",
+      "description": "Fewer than five defensible candidates after fallback remains degraded.",
+      "expected": {"inventory_status": "DEGRADED_INVENTORY", "property": "no_fabrication"}
+    }
+  ]
+}
