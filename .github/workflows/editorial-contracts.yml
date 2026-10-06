@@ -9,6 +9,7 @@ on:
       - "requirements/**"
       - "tests/test_editorial_contracts.py"
       - "tests/test_editorial_intelligence.py"
+      - "tests/test_editorial_adk_adapter.py"
       - "tests/test_editorial_batch.py"
       - "tests/test_editorial_eval_corpus.py"
       - "tests/fixtures/editorial_v1/**"
@@ -54,6 +55,7 @@ jobs:
           make editorial-contracts
           python -m unittest \
             tests.test_editorial_intelligence \
+            tests.test_editorial_adk_adapter \
             tests.test_editorial_batch \
             tests.test_editorial_eval_corpus \
             tests.test_dependency_profiles
