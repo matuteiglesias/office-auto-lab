@@ -257,6 +257,18 @@ def inventory_status(bundle: Mapping[str, Any]) -> str:
     return str(status) if status is not None else "FAILED"
 
 
+def _policy_summary_ref(policy: Any) -> str | None:
+    if not isinstance(policy, Mapping):
+        return None
+    authority = policy.get("authority")
+    source_ref = policy.get("source_ref")
+    revision = policy.get("source_revision")
+    digest = policy.get("content_sha256")
+    if all(isinstance(value, str) and value for value in (authority, source_ref, revision, digest)):
+        return f"{authority}:{source_ref}@{revision}#sha256:{digest[:12]}"
+    return None
+
+
 def make_summary(
     bundle: Mapping[str, Any],
     *,
@@ -273,11 +285,7 @@ def make_summary(
     return {
         "run_id": bundle.get("run_id"),
         "profile_id": bundle.get("profile_id"),
-        "policy_ref": (
-            bundle.get("policy", {}).get("policy_ref")
-            if isinstance(bundle.get("policy"), Mapping)
-            else None
-        ),
+        "policy_ref": _policy_summary_ref(bundle.get("policy")),
         "retrieval_sources_attempted": retrieval.get("sources_attempted")
         or retrieval.get("intended_sources")
         or [],
