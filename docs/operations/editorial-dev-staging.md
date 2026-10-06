@@ -1,5 +1,10 @@
 # Editorial Dev Staging v1 — operational implementation
 
+**Status:** implementation candidate
+**Audience:** Editorial runtime maintainers and operators
+**Owner:** office-auto-lab maintainers
+**Verified against:** PR #52 spec head `f7edaeff729fae1fc006772777aa1c92f60298de`
+
 This document describes the W1 staging/runtime implementation owned by this branch. The semantic authority remains `docs/spec/editorial-v1/`.
 
 ## Sheet contract and ownership
