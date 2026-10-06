@@ -30,6 +30,8 @@ _POLICY_AUTHORITY = "weekly-ops-governance"
 _POLICY_SOURCE_REF = "github:matuteiglesias/weekly-ops-governance:docs/05_full_context/editorial-dev-constitution-v1.md"
 _POLICY_SOURCE_REVISION = "3a9628f5c60593f826effdea10b9eb7e45540698"
 _POLICY_SHA256 = "fe12a92328dffb91d57c3b1d7d21b496e3a735435e1f379cc977f0497806a60e"
+_DEFAULT_MAX_MODEL_STORIES = 12
+_HARD_MAX_MODEL_STORIES = 12
 
 
 class EditorialProducerError(RuntimeError):
@@ -154,7 +156,52 @@ def _repositories(request: Mapping[str, Any]) -> list[str]:
         raise EditorialProducerError(
             "lookback staging requires EDITORIAL_REPOSITORIES; exact PR mode does not"
         )
+    if len(repositories) != len(set(repositories)):
+        raise EditorialProducerError("EDITORIAL_REPOSITORIES must not contain duplicates")
     return repositories
+
+
+def _max_model_stories() -> int:
+    raw = os.environ.get("EDITORIAL_MAX_STORIES_PER_RUN", str(_DEFAULT_MAX_MODEL_STORIES)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise EditorialProducerError("EDITORIAL_MAX_STORIES_PER_RUN must be an integer") from exc
+    if value < 1 or value > _HARD_MAX_MODEL_STORIES:
+        raise EditorialProducerError(
+            f"EDITORIAL_MAX_STORIES_PER_RUN must be between 1 and {_HARD_MAX_MODEL_STORIES}"
+        )
+    return value
+
+
+def _parse_event_time(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise EditorialProducerError("evidence event_at must be timezone-aware")
+    return parsed.astimezone(timezone.utc)
+
+
+def _select_model_stories(
+    stories: tuple[StoryCluster, ...],
+    evidence_by_id: Mapping[str, Mapping[str, Any]],
+    limit: int,
+) -> tuple[StoryCluster, ...]:
+    eligibility_rank = {"eligible": 0, "unknown": 1, "restricted": 2}
+    freshness_rank = {"timely": 0, "recent": 1, "evergreen": 2}
+
+    def priority(story: StoryCluster) -> tuple[int, int, float, str]:
+        latest = max(
+            _parse_event_time(str(evidence_by_id[ref]["event_at"]))
+            for ref in story.evidence_refs
+        )
+        return (
+            eligibility_rank.get(story.public_eligibility, 3),
+            freshness_rank.get(story.freshness_class, 3),
+            -latest.timestamp(),
+            story.story_id,
+        )
+
+    return tuple(sorted(stories, key=priority)[:limit])
 
 
 def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -212,6 +259,12 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
 
     stories = cluster_stories(evidence, as_of=started_at)
     evidence_by_id = {item.evidence_id: item.to_dict() for item in evidence}
+    max_model_stories = _max_model_stories()
+    model_stories = _select_model_stories(stories, evidence_by_id, max_model_stories)
+    retrieval["story_count"] = len(stories)
+    retrieval["model_story_limit"] = max_model_stories
+    retrieval["model_story_count"] = len(model_stories)
+    retrieval["model_story_omitted_count"] = max(0, len(stories) - len(model_stories))
     context = ({"context_id": "policy", "policy": policy_text},)
     provider_runs: list[Mapping[str, Any]] = []
     angles: list[AngleCard] = []
@@ -225,7 +278,7 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
                 angle_model=angle_model,
                 judge_model=judge_model,
             )
-            for story in stories:
+            for story in model_stories:
                 result = intelligence.run_story(
                     story=story.to_dict(),
                     evidence_by_id=evidence_by_id,
