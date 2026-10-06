@@ -5,6 +5,9 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol, Sequence
 
+from office_runtime.editorial.contracts import ContractError
+from office_runtime.editorial.run_bundle import validate_run_bundle
+
 RUNS_TAB = "RUNS"
 CANDIDATES_TAB = "CANDIDATES"
 QUEUE_TAB = "QUEUE"
@@ -168,13 +171,19 @@ def _index(records: list[Mapping[str, Any]], key: str, label: str) -> dict[str, 
 
 
 def _safe_policy_ref(policy: Mapping[str, Any]) -> str:
+    authority = policy.get("authority")
+    source_ref = policy.get("source_ref")
+    revision = policy.get("source_revision")
+    digest = policy.get("content_sha256")
+    if all(
+        isinstance(value, str) and value.strip()
+        for value in (authority, source_ref, revision, digest)
+    ):
+        return f"{authority}:{source_ref}@{revision}#sha256:{digest[:12]}"
     for key in ("policy_ref", "ref", "identity", "commit_ref"):
         value = policy.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    content_hash = policy.get("content_hash") or policy.get("sha256")
-    if isinstance(content_hash, str) and content_hash.strip():
-        return content_hash.strip()
     return _canonical(policy)
 
 
@@ -186,6 +195,8 @@ def _safe_retrieval_summary(retrieval: Mapping[str, Any]) -> str:
         "sources_reached",
         "time_windows",
         "access_failures",
+        "failures",
+        "scope_status",
         "unknown_scope",
         "incomplete_scope",
     )
@@ -278,6 +289,9 @@ def _source_tier(candidate: Mapping[str, Any], evidence: dict[str, Mapping[str, 
             item = evidence.get(str(ref))
             if item and item.get("source_tier") is not None:
                 return _as_text(item.get("source_tier"))
+            metadata = item.get("source_metadata") if item else None
+            if isinstance(metadata, Mapping) and metadata.get("source_tier") is not None:
+                return _as_text(metadata.get("source_tier"))
     return ""
 
 
@@ -325,7 +339,12 @@ def _build_candidate_rows(bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
     candidates = _index(_records(bundle.get("candidates"), "candidates"), "candidate_id", "candidate")
     angles = _index(_records(bundle.get("angles"), "angles"), "angle_id", "angle")
     stories = _index(_records(bundle.get("stories"), "stories"), "story_id", "story")
-    evidence = _index(_records(bundle.get("evidence"), "evidence"), "evidence_id", "evidence")
+    evidence_graph = _mapping(bundle.get("evidence"), "evidence")
+    evidence = _index(
+        _records(evidence_graph.get("items"), "evidence.items"),
+        "evidence_id",
+        "evidence",
+    )
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -411,10 +430,12 @@ def project_run_bundle(
     *,
     run_bundle_ref: str,
 ) -> ProjectionResult:
-    """Project a completed run bundle without overwriting human-owned queue state."""
+    """Project a completed canonical run bundle without overwriting human-owned queue state."""
 
-    if bundle.get("schema_version") != "office_runtime.editorial.run_bundle.v1":
-        raise SheetProjectionError("unsupported run bundle schema_version")
+    try:
+        bundle = validate_run_bundle(bundle)
+    except ContractError as exc:
+        raise SheetProjectionError(f"invalid canonical run bundle: {exc}") from exc
     _assert_nonempty(bundle, "run_id", "profile_id", "started_at")
 
     # Validate the entire workbook shape before the first mutation.
