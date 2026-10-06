@@ -594,7 +594,7 @@ class GoogleSheetsGateway:
         width = len(_EXPECTED[tab][0])
         end = cls._end_column(width)
         if row_number is None:
-            return f"'{escaped}'!A1:{end}10000"
+            return f"'{escaped}'!A:{end}"
         return f"'{escaped}'!A{row_number}:{end}{row_number}"
 
     def read_rows(self, tab: str) -> list[list[str]]:
