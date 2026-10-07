@@ -118,11 +118,34 @@ def _contact_packet(
         state = "none-needed"
         primary = None
 
+    if state == "verified-person":
+        resolution_plan = [
+            "Use the process-verified contact; no additional contact search is required."
+        ]
+    elif state == "organization-channel":
+        resolution_plan = [
+            "Use the verified organization/application channel.",
+            "Do not search for a personal contact unless the opportunity would materially benefit from one.",
+        ]
+    elif state == "unresolved-recommended":
+        resolution_plan = [
+            "Search recent Gmail for the exact ATS source-contact name plus company/process.",
+            "Check CRM/PERSONAS for an exact person/company match without changing relationship state.",
+            "Check Google Contacts only when organization/process evidence disambiguates the address.",
+            "If still unresolved, use an official company recruiting/team source before open-web person search.",
+            "Stop rather than invent a warm path; missing contact alone does not block a direct application.",
+        ]
+    else:
+        resolution_plan = [
+            "Do not spend time searching for a contact; the current application path does not require one."
+        ]
+
     return {
         "state": state,
         "contact_recommended": contact_recommended,
         "primary": primary,
         "alternatives": verified[1:] if primary else verified,
+        "resolution_plan": resolution_plan,
     }
 
 
