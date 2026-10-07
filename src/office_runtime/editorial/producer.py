@@ -74,6 +74,17 @@ def _model_names() -> tuple[str, str]:
     return angle, judge
 
 
+def _force_one_safe_candidate() -> bool:
+    raw = os.environ.get("EDITORIAL_FORCE_ONE_SAFE_CANDIDATE", "0").strip().lower()
+    if raw in {"", "0", "false", "no", "off"}:
+        return False
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    raise EditorialProducerError(
+        "EDITORIAL_FORCE_ONE_SAFE_CANDIDATE must be a boolean-like value"
+    )
+
+
 @contextlib.contextmanager
 def _model_credentials() -> Iterator[None]:
     configured = os.environ.get("EDITORIAL_MODEL_API_KEY")
@@ -301,10 +312,13 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
 
     try:
         angle_model, judge_model = _model_names()
+        force_one_safe_candidate = _force_one_safe_candidate()
+        retrieval["force_one_safe_candidate"] = force_one_safe_candidate
         with _model_credentials():
             intelligence = build_adk_editorial_intelligence(
                 angle_model=angle_model,
                 judge_model=judge_model,
+                force_one_safe_candidate=force_one_safe_candidate,
             )
             for story in model_stories:
                 result = intelligence.run_story(

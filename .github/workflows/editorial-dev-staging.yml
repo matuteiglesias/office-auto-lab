@@ -35,6 +35,7 @@ env:
   EDITORIAL_REPOSITORIES: ${{ vars.EDITORIAL_REPOSITORIES || '@owned' }}
   EDITORIAL_GITHUB_OWNER: ${{ vars.EDITORIAL_GITHUB_OWNER || 'matuteiglesias' }}
   EDITORIAL_MAX_STORIES_PER_RUN: ${{ vars.EDITORIAL_MAX_STORIES_PER_RUN || '12' }}
+  EDITORIAL_FORCE_ONE_SAFE_CANDIDATE: ${{ vars.EDITORIAL_FORCE_ONE_SAFE_CANDIDATE || '0' }}
   LOOKBACK_HOURS: ${{ inputs.lookback_hours || '96' }}
   EXACT_PR: ${{ inputs.pr || '' }}
 

@@ -30,7 +30,10 @@ class DependencyProfileTests(unittest.TestCase):
         self.assertEqual(SIDECAR_PROFILES, ("capture", "editorial"))
         self.assertEqual(ACTIVE_PROFILES, ("office", "capture", "editorial", "full"))
         self.assertEqual(set(PROFILE_PATHS), {"office", "capture", "editorial", "full"})
-        self.assertEqual(loaded["editorial"], {"google-adk", "pydantic"})
+        self.assertEqual(
+            loaded["editorial"],
+            {"google-adk", "pydantic", "google-api-python-client", "google-auth"},
+        )
 
     def test_constraints_are_exact_and_cover_every_declared_surface(self) -> None:
         constraints = load_constraints(ROOT)

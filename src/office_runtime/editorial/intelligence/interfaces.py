@@ -40,9 +40,16 @@ class EditorialIntelligence:
     bounded provider metadata suitable for run evidence.
     """
 
-    def __init__(self, angle_producer: AngleProducer, editor_judge: EditorJudge) -> None:
+    def __init__(
+        self,
+        angle_producer: AngleProducer,
+        editor_judge: EditorJudge,
+        *,
+        force_one_safe_candidate: bool = False,
+    ) -> None:
         self._angle_producer = angle_producer
         self._editor_judge = editor_judge
+        self._force_one_safe_candidate = force_one_safe_candidate
 
     def run_story(
         self,
@@ -97,6 +104,7 @@ class EditorialIntelligence:
             raw_output=judged.payload,
             evidence_by_id=evidence_by_id,
             generated_at=generated_at,
+            force_one_safe_candidate=self._force_one_safe_candidate,
         )
         return IntelligenceResult(
             angles=tuple(angles),

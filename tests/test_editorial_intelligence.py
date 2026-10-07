@@ -265,6 +265,54 @@ class EditorialIntelligenceTests(unittest.TestCase):
             result.judgments[0]["deterministic_rejection_reasons"],
         )
 
+    def test_force_one_safe_candidate_promotes_only_soft_rejection(self) -> None:
+        judged = decision("ev:1", disposition="drop")
+        judged["rationale"] = "Useful but below the normal editorial bar."
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([judged]),
+            force_one_safe_candidate=True,
+        )
+        result = engine.run_story(
+            story=story("ev:1"),
+            evidence_by_id={"ev:1": evidence("ev:1")},
+            policy={"policy_ref": "policy@test"},
+            generated_at="2026-10-06T12:00:00Z",
+        )
+        self.assertEqual(len(result.candidates), 1)
+        candidate = result.candidates[0]
+        self.assertTrue(candidate["forced_pipeline_acceptance"])
+        self.assertIn("FORCED_PIPELINE_ACCEPTANCE", candidate["editorial_warning"])
+        self.assertEqual(candidate["machine_disposition"], "stage")
+        self.assertEqual(result.judgments[0]["machine_disposition"], "stage")
+        self.assertIn(
+            "forced_pipeline_acceptance_soft_override",
+            result.judgments[0]["deterministic_rejection_reasons"],
+        )
+
+    def test_force_one_safe_candidate_never_overrides_hard_gate(self) -> None:
+        judged = decision(
+            "ev:1",
+            disposition="drop",
+            gates={
+                "disclosure_risk": "FAIL",
+                "repetition_risk": "PASS",
+                "status_truth_risk": "PASS",
+            },
+        )
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([judged]),
+            force_one_safe_candidate=True,
+        )
+        result = engine.run_story(
+            story=story("ev:1"),
+            evidence_by_id={"ev:1": evidence("ev:1")},
+            policy={"policy_ref": "policy@test"},
+        )
+        self.assertEqual(result.candidates, ())
+        self.assertEqual(result.judgments[0]["machine_disposition"], "drop")
+
     def test_multi_evidence_synthesis_preserves_lineage(self) -> None:
         produced = angle("ev:1", "ev:2", angle_type="synthesis")
         judged = decision("ev:1", "ev:2")

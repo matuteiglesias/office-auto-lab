@@ -121,7 +121,13 @@ evidence, specificity, external_usefulness, novelty, professional_signal.
 Record three independent hard gates as PASS/FAIL:
 disclosure_risk, repetition_risk, status_truth_risk.
 A failed hard gate must never be compensated by scores. Hold high-risk material.
-Use only supplied angle/evidence IDs. It is correct to drop every angle.
+
+Even for angles you would drop for soft editorial reasons, provide a concise draft_text
+when the angle is public-eligible, low/medium risk, and all three hard gates PASS.
+This allows an explicitly opt-in acceptance fallback to retain one row for human REVIEW
+without overriding safety gates. Keep scores and rationale honest; do not stage unsafe copy.
+
+Use only supplied angle/evidence IDs. In normal operation it is correct to drop every angle.
 """.strip()
 
 
@@ -224,10 +230,12 @@ def build_adk_editorial_intelligence(
     *,
     angle_model: str,
     judge_model: str,
+    force_one_safe_candidate: bool = False,
 ) -> EditorialIntelligence:
     """Build two independent ADK LLM stages behind the local Office seam."""
 
     return EditorialIntelligence(
         angle_producer=AdkAngleProducer(model=angle_model),
         editor_judge=AdkEditorJudge(model=judge_model),
+        force_one_safe_candidate=force_one_safe_candidate,
     )

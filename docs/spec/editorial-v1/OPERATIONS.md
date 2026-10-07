@@ -175,6 +175,27 @@ Recommended:
 
 A source failure and an inventory shortage are different conditions and should remain distinguishable.
 
+### Opt-in acceptance fallback
+
+For bounded W1 acceptance/debugging only, operators may set
+`EDITORIAL_FORCE_ONE_SAFE_CANDIDATE=1`.
+
+When enabled and the independent judge would otherwise stage zero candidates, the
+runtime may retain exactly one **soft-rejected** candidate only when:
+
+- the story is public-eligible;
+- disclosure, repetition, and status-truth hard gates all pass;
+- risk is low or medium;
+- status wording remains truthful;
+- timely material still has an expiry.
+
+The row remains human `REVIEW`, carries a
+`FORCED_PIPELINE_ACCEPTANCE` warning in the Sheet projection, and the batch remains
+`DEGRADED_INVENTORY`. This mode never compensates for a hard-gate failure and does
+not count as evidence that normal editorial inventory quality is healthy.
+
+The default is disabled.
+
 ## Retry and overlap
 
 Scheduled runs deliberately use overlapping retrieval windows.

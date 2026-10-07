@@ -20,6 +20,7 @@ from office_runtime.editorial.staging.runtime import (
     stage_bundle,
 )
 from office_runtime.editorial.staging.sheets import (
+    CANDIDATES_HEADERS,
     CANDIDATES_TAB,
     InMemorySheetGateway,
     QUEUE_HEADERS,
@@ -169,6 +170,22 @@ class EditorialSheetProjectionTests(unittest.TestCase):
         self.assertEqual(queue["decision"], "REVIEW")
         self.assertEqual(queue["target_surface"], "X")
         self.assertEqual(queue["publisher_status"], "")
+
+    def test_forced_candidate_warning_is_visible_in_candidate_projection(self) -> None:
+        gateway = InMemorySheetGateway()
+        bundle = _bundle()
+        bundle["candidates"][0]["forced_pipeline_acceptance"] = True
+        bundle["candidates"][0]["editorial_warning"] = (
+            "FORCED_PIPELINE_ACCEPTANCE: requires human REVIEW."
+        )
+        project_run_bundle(
+            bundle,
+            gateway,
+            run_bundle_ref="artifacts/editorial/runs/run-forced.json",
+        )
+        candidate = dict(zip(CANDIDATES_HEADERS, gateway.rows[CANDIDATES_TAB][1]))
+        self.assertIn("FORCED_PIPELINE_ACCEPTANCE", candidate["quality_summary"])
+        self.assertIn('"forced_pipeline_acceptance":true', candidate["quality_summary"])
 
     def test_retry_is_duplicate_safe(self) -> None:
         gateway = InMemorySheetGateway()
