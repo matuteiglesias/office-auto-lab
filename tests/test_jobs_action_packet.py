@@ -31,7 +31,7 @@ def test_beon_rejection_with_feedback_already_sent_waits() -> None:
             "source_type": "Recruiter inbound",
             "source_contact": "Florencia Vasquez",
             "next_action_min": "Reply asking for the main deciding factor or gap.",
-            "status_updated_on": "2026-10-07",
+            "followup_due_on": "2026-10-14",
         }
     )
     snapshot["contacts"] = [
@@ -56,7 +56,45 @@ def test_beon_rejection_with_feedback_already_sent_waits() -> None:
 
     assert packet["contact"]["state"] == "verified-person"
     assert packet["follow_up"]["state"] == "waiting-response"
+    assert packet["follow_up"]["due_on"] == "2026-10-14"
     assert packet["action"]["class"] == "CLOSE_OR_WAIT_FEEDBACK"
+
+
+
+
+def test_beon_bounded_relationship_followup_becomes_due_on_canonical_date() -> None:
+    snapshot = _base("JOB-209", "BEON.tech", "Data Engineer (Python)", "rejected")
+    snapshot["ats"].update(
+        {
+            "source_type": "Recruiter inbound",
+            "source_contact": "Florencia Vasquez",
+            "followup_due_on": "2026-10-14",
+            "next_action_min": "Use at most one bounded relationship follow-up.",
+        }
+    )
+    snapshot["contacts"] = [
+        {
+            "name": "Florencia Vasquez",
+            "email": "florencia.vasquez@beon.tech",
+            "role": "IT Recruiter",
+            "verification": "process-email",
+            "evidence_ref": "gmail:beon:feedback",
+        }
+    ]
+    snapshot["communications"] = [
+        {
+            "direction": "outbound",
+            "date": "2026-10-07",
+            "purpose": "feedback-request",
+            "evidence_ref": "gmail:beon:reply",
+        }
+    ]
+
+    packet = compile_action_packet(snapshot, as_of="2026-10-14")
+
+    assert packet["follow_up"]["state"] == "due"
+    assert packet["follow_up"]["due_on"] == "2026-10-14"
+    assert packet["action"]["class"] == "FOLLOW_UP"
 
 
 def test_telus_waiting_schedule_becomes_due_after_two_business_days() -> None:
@@ -65,7 +103,7 @@ def test_telus_waiting_schedule_becomes_due_after_two_business_days() -> None:
         {
             "source_type": "Recruiter process",
             "source_contact": "Gabrielly Oliveira / Delfina Heilmann",
-            "status_updated_on": "2026-10-05",
+            "followup_due_on": "2026-10-07",
             "next_action_min": "Follow up if still unscheduled.",
         }
     )
@@ -95,7 +133,7 @@ def test_telus_waiting_schedule_becomes_due_after_two_business_days() -> None:
 
 def test_telus_future_interview_suppresses_follow_up() -> None:
     snapshot = _base("JOB-210", "TELUS Digital", "Senior Data Scientist", "availability_submitted_waiting_schedule")
-    snapshot["ats"]["status_updated_on"] = "2026-10-05"
+    snapshot["ats"]["followup_due_on"] = "2026-10-07"
     snapshot["calendar"] = [
         {
             "date": "2026-10-09",
@@ -147,7 +185,7 @@ def test_unicef_deadline_packet_requires_materials_without_inventing_person() ->
     snapshot = _base("JOB-213", "UNICEF", "REACH Process Reengineering Consultant", "ready_deadline")
     snapshot["ats"].update(
         {
-            "deadline": "2026-10-08",
+            "action_due_on": "2026-10-08",
             "decision": "Go/no-go and apply",
             "next_action_min": "Complete the application before the deadline.",
         }
