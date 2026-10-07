@@ -47,6 +47,7 @@ authority:
     - Staff packet freshness evaluation
     - bounded editorial projection execution after explicit capability promotion
     - deterministic read-only job-search action packet compilation from normalized ATS/process evidence
+    - deterministic application-asset readiness compilation from a human-owned asset registry
   does_not_own:
     - human review decisions
     - GitHub estate authority or repository health/readiness semantics
@@ -79,6 +80,7 @@ interfaces:
     - artifact:ops.office-run-record@1
     - artifact:ops.runtime-health-projection@2
     - artifact:ops.job-action-packet@1
+    - artifact:ops.job-application-prep@1
 
 upstream:
   - repo.projects
