@@ -66,6 +66,34 @@ class JobActionPacketTests(unittest.TestCase):
         self.assertEqual(packet["action"]["state"], "followup_due")
         self.assertEqual(packet["contact"]["state"], "warm")
 
+    def test_followup_beats_generic_action_due(self) -> None:
+        payload = base_payload()
+        payload["job"]["process_status"] = "availability_submitted_waiting_schedule"
+        payload["enrichment"]["packet_state"] = "waiting_schedule"
+        payload["enrichment"]["action_due_on"] = "2026-10-07"
+        payload["enrichment"]["followup_due_on"] = "2026-10-07"
+        payload["enrichment"]["contact"] = {
+            "name": "Recruiter",
+            "route": "email: recruiter@example.com",
+        }
+        packet = compile_packet(payload)
+        self.assertEqual(packet["action"]["state"], "followup_due")
+
+    def test_closed_path_can_surface_relationship_followup(self) -> None:
+        payload = base_payload()
+        payload["as_of"] = "2026-10-14"
+        payload["job"]["process_status"] = "rejected"
+        payload["job"]["decision"] = "Close current search / keep relationship warm"
+        payload["enrichment"]["packet_state"] = "closed_followup"
+        payload["enrichment"]["followup_due_on"] = "2026-10-14"
+        payload["enrichment"]["contact"] = {
+            "name": "Recruiter",
+            "route": "email: recruiter@example.com",
+        }
+        packet = compile_packet(payload)
+        self.assertEqual(packet["action"]["state"], "followup_due")
+        self.assertIn("closed", packet["action"]["why_now"])
+
     def test_prepare_packet(self) -> None:
         payload = base_payload()
         payload["job"]["process_status"] = "ready_not_applied"
