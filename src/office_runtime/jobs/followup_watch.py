@@ -78,6 +78,8 @@ def compile_followup_watch(
             "follow_up_state": follow_up.get("state"),
             "follow_up_due_on": follow_up.get("due_on"),
             "deadline": job.get("deadline"),
+            "action_due_on": job.get("action_due_on"),
+            "followup_due_on": job.get("followup_due_on"),
             "reasons": sorted(reasons),
             "prep_ready": prep.get("ready_for_submission_materially") if prep else None,
             "prep_states": (
