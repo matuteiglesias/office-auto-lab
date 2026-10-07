@@ -23,6 +23,8 @@ import office_runtime.editorial.staging.runtime; \
 import office_runtime.editorial.staging.sheets; \
 import office_runtime.jobs; \
 import office_runtime.jobs.action_packet; \
+import office_runtime.jobs.application_prep; \
+import office_runtime.jobs.followup_watch; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
@@ -76,7 +78,7 @@ editorial-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts tests.test_editorial_evidence_spine tests.test_editorial_staging
 
 jobs-contracts:
-	PYTHONPATH=src python3 -m unittest tests.test_jobs_action_packet tests.test_jobs_application_prep
+	PYTHONPATH=src python3 -m unittest tests.test_jobs_action_packet tests.test_jobs_application_prep tests.test_jobs_followup_watch
 
 dependency-contracts:
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check
