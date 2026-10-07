@@ -216,3 +216,14 @@ For architecture details start with:
 - [`docs/architecture/reentry-v2.md`](docs/architecture/reentry-v2.md)
 - [`docs/architecture/coherent-generation-v2.md`](docs/architecture/coherent-generation-v2.md)
 - [`docs/architecture/run-record-health-v2.md`](docs/architecture/run-record-health-v2.md)
+
+
+## Job action packet sidecar
+
+`office_runtime.jobs.action_packet` is a deterministic read-only projection for
+job-search execution. It consumes one normalized ATS row plus optional
+contact/email/calendar/material facts and emits `ops.job-action-packet@1`.
+ATS 2026 remains canonical job state; the sidecar performs no application,
+email, calendar, or ATS mutation.
+
+See [docs/jobs/action-packet-v1.md](docs/jobs/action-packet-v1.md).
