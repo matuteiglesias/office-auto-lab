@@ -394,7 +394,15 @@ def _build_candidate_rows(bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
                 "semantic_fingerprint": candidate.get("semantic_fingerprint"),
                 "draft_original": candidate.get("text"),
                 "machine_disposition": candidate.get("machine_disposition"),
-                "quality_summary": candidate.get("quality", {}),
+                "quality_summary": (
+                    {
+                        "quality": candidate.get("quality", {}),
+                        "warning": candidate.get("editorial_warning"),
+                        "forced_pipeline_acceptance": True,
+                    }
+                    if candidate.get("forced_pipeline_acceptance") is True
+                    else candidate.get("quality", {})
+                ),
                 "expires_at": candidate.get("expires_at"),
                 "schema_version": CANDIDATES_SCHEMA,
             }
