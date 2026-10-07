@@ -190,6 +190,7 @@ def test_fractal_direct_application_does_not_block_on_missing_contact() -> None:
     packet = compile_action_packet(snapshot, as_of="2026-10-07")
 
     assert packet["contact"]["state"] == "none-needed"
+    assert packet["contact"]["resolution_plan"][0].startswith("Do not spend time")
     assert packet["follow_up"]["state"] == "blocked-on-application"
     assert packet["preparation"]["missing_materials"] == ["cover letter", "desired salary"]
 
@@ -217,6 +218,7 @@ def test_unverified_same_name_contact_is_not_promoted() -> None:
     assert packet["contact"]["state"] == "unresolved-recommended"
     assert packet["contact"]["primary"] is None
     assert packet["warnings"]
+    assert packet["contact"]["resolution_plan"][0].startswith("Search recent Gmail")
 
 
 def test_invalid_evidence_without_ref_fails_closed() -> None:
