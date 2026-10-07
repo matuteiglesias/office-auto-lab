@@ -229,6 +229,8 @@ Application materials are resolved through the human-owned `ATS 2026 / Assets` r
 
 `artifact:ops.job-followup-watch@1` aggregates those packets into a quiet attention set for immediate deadlines and due process follow-ups, with deterministic fingerprint suppression for unchanged states. See [`docs/jobs/followup-watch-v1.md`](docs/jobs/followup-watch-v1.md).
 
+The initial live dogfood across BEON, TELUS, ZS, UNICEF and Fractal River is recorded in [`docs/jobs/dogfood-2026-10-07.md`](docs/jobs/dogfood-2026-10-07.md).
+
 Validation:
 
 ```bash
