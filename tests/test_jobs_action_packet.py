@@ -29,15 +29,15 @@ def test_beon_rejection_with_feedback_already_sent_waits() -> None:
     snapshot["ats"].update(
         {
             "source_type": "Recruiter inbound",
-            "source_contact": "Florencia Vasquez",
+            "source_contact": "Recruiter One",
             "next_action_min": "Reply asking for the main deciding factor or gap.",
             "status_updated_on": "2026-10-07",
         }
     )
     snapshot["contacts"] = [
         {
-            "name": "Florencia Vasquez",
-            "email": "florencia.vasquez@beon.tech",
+            "name": "Recruiter One",
+            "email": "recruiter.one@example.com",
             "role": "IT Recruiter",
             "verification": "process-email",
             "evidence_ref": "gmail:beon:feedback",
@@ -64,22 +64,22 @@ def test_telus_waiting_schedule_becomes_due_after_two_business_days() -> None:
     snapshot["ats"].update(
         {
             "source_type": "Recruiter process",
-            "source_contact": "Gabrielly Oliveira / Delfina Heilmann",
+            "source_contact": "Recruiter One / Recruiter Two",
             "status_updated_on": "2026-10-05",
             "next_action_min": "Follow up if still unscheduled.",
         }
     )
     snapshot["contacts"] = [
         {
-            "name": "Gabrielly Oliveira",
-            "email": "gabrielly.oliveira@poatek.com",
+            "name": "Recruiter One",
+            "email": "recruiter.one@example.com",
             "role": "Recruiter",
             "verification": "process-email",
             "evidence_ref": "gmail:telus:availability-request",
         },
         {
-            "name": "Delfina Heilmann",
-            "email": "delfina.heilmann@gm2dev.com",
+            "name": "Recruiter Two",
+            "email": "recruiter.two@example.com",
             "role": "Recruiter",
             "verification": "process-email",
             "evidence_ref": "gmail:telus:prior-process",
@@ -115,15 +115,15 @@ def test_zs_ready_not_applied_keeps_application_and_relationship_distinct() -> N
     snapshot["ats"].update(
         {
             "source_type": "Job posting + warm contact",
-            "source_contact": "Tina Martinez",
+            "source_contact": "Recruiter One",
             "decision": "Prepare strong application",
             "next_action_min": "Finish the polished role-specific CV, then submit.",
         }
     )
     snapshot["contacts"] = [
         {
-            "name": "Tina Martinez",
-            "email": "tina.martinez@zs.com",
+            "name": "Recruiter One",
+            "email": "recruiter.one@example.com",
             "role": "Talent Acquisition",
             "verification": "ats-named+gmail",
             "evidence_ref": "gmail:zs:tina",
@@ -155,7 +155,7 @@ def test_unicef_deadline_packet_requires_materials_without_inventing_person() ->
     snapshot["contacts"] = [
         {
             "name": None,
-            "email": "contratacionesargentina@unicef.org",
+            "email": "applications@example.org",
             "role": "organizational channel",
             "verification": "organization-channel",
             "evidence_ref": "contacts:unicef:org-channel",
