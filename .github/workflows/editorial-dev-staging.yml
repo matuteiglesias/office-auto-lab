@@ -32,7 +32,8 @@ env:
   EDITORIAL_DEV_SHEET_ID: ${{ vars.EDITORIAL_DEV_SHEET_ID }}
   EDITORIAL_DEV_BUNDLE_PROVIDER: ${{ vars.EDITORIAL_DEV_BUNDLE_PROVIDER || 'office_runtime.editorial.producer:produce_bundle' }}
   EDITORIAL_RUNTIME_PROFILE: ${{ vars.EDITORIAL_RUNTIME_PROFILE || 'editorial' }}
-  EDITORIAL_REPOSITORIES: ${{ vars.EDITORIAL_REPOSITORIES }}
+  EDITORIAL_REPOSITORIES: ${{ vars.EDITORIAL_REPOSITORIES || '@owned' }}
+  EDITORIAL_GITHUB_OWNER: ${{ vars.EDITORIAL_GITHUB_OWNER || 'matuteiglesias' }}
   EDITORIAL_MAX_STORIES_PER_RUN: ${{ vars.EDITORIAL_MAX_STORIES_PER_RUN || '12' }}
   LOOKBACK_HOURS: ${{ inputs.lookback_hours || '96' }}
   EXACT_PR: ${{ inputs.pr || '' }}
