@@ -100,12 +100,13 @@ Values are never committed or logged.
 - variable `EDITORIAL_DEV_SHEET_ID`: workbook ID.
 - variable `EDITORIAL_DEV_BUNDLE_PROVIDER`: integrated `module:function` producer adapter; defaults to `office_runtime.editorial.producer:produce_bundle`.
 - variable `EDITORIAL_RUNTIME_PROFILE`: dependency profile installed by the scheduled job; defaults to `editorial`.
-- variable `EDITORIAL_REPOSITORIES`: explicit comma-separated repository allowlist used by scheduled/lookback staging. It is required whenever no exact PR is supplied; an empty value fails closed.
-- variable `EDITORIAL_MAX_STORIES_PER_RUN`: maximum number of story clusters sent through model stages in one run. Default and hard v1 maximum are 12.
+- variable `EDITORIAL_REPOSITORIES`: repository scope for scheduled/lookback staging. Use `@owned` to discover every non-archived repository owned by `EDITORIAL_GITHUB_OWNER` that the estate token can see, or provide an explicit comma-separated allowlist. The workflow defaults to `@owned`.
+- variable `EDITORIAL_GITHUB_OWNER`: expected owner login for `@owned` discovery; defaults to `matuteiglesias`.
+- variable `EDITORIAL_MAX_STORIES_PER_RUN`: maximum number of public-eligible story clusters sent through model stages in one run. Default and hard v1 maximum are 12.
 
 There are intentionally no `X_*` secrets in this workflow. `EDITORIAL_MODEL_API_KEY` is deliberately provider-neutral; the producer adapter owns the mapping to provider-specific environment/configuration required by ADK.
 
-Scheduled lookback is deliberately fail-closed and bounded: it cannot run without an explicit repository allowlist, and retrieval may observe more evidence than the model layer processes. Story clusters are deterministically prioritized for model work and capped at 12 per run so a busy 96-hour window cannot create unbounded ADK fan-out. The complete retrieved evidence/story graph remains in the governed run bundle; the cap affects model processing, not provenance.
+Scheduled lookback is deliberately broad in sensing but bounded in expensive judgment. With `EDITORIAL_REPOSITORIES=@owned`, the runtime discovers all non-archived repositories owned by the configured account that the estate-scoped token can see. It then retrieves only the bounded recent evidence windows supported by each GitHub adapter. The model layer receives only public-eligible stories and is capped at 12 per run, so private/internal repository activity can remain visible in governed retrieval evidence without being sent to the external model by default. The complete retrieved evidence/story graph remains in the governed run bundle; the cap and public-eligibility gate affect model processing, not provenance.
 
 ## Offline acceptance covered here
 
