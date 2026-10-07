@@ -115,3 +115,26 @@ def test_changed_state_can_notify_again() -> None:
     )
     assert second["notify"] is True
     assert second["attention"][0]["reasons"] == ["application-deadline"]
+
+
+def test_changed_canonical_due_date_changes_fingerprint() -> None:
+    packet = _action("JOB-210", "TELUS Digital", "FOLLOW_UP", "high", "due")
+    packet["job"]["followup_due_on"] = "2026-10-07"
+    first = compile_followup_watch(
+        action_packets=[packet],
+        prep_packets=[],
+        previous_fingerprints={},
+        as_of="2026-10-07",
+    )
+
+    changed = _action("JOB-210", "TELUS Digital", "FOLLOW_UP", "high", "due")
+    changed["job"]["followup_due_on"] = "2026-10-08"
+    second = compile_followup_watch(
+        action_packets=[changed],
+        prep_packets=[],
+        previous_fingerprints=first["fingerprints"],
+        as_of="2026-10-08",
+    )
+
+    assert first["fingerprints"]["JOB-210"] != second["fingerprints"]["JOB-210"]
+    assert second["notify"] is True
