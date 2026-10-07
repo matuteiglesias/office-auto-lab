@@ -110,7 +110,19 @@ def compile_packet(payload: dict[str, Any]) -> dict[str, Any]:
             or packet_state.startswith("closed")
             or decision.lower().startswith(("drop", "close"))
         )
-        if closed:
+        followup_is_due = followup_due is not None and followup_due <= as_of
+        if closed and followup_is_due:
+            action_state = "followup_due"
+            why_now = (
+                "The application path is closed, but a dated relationship "
+                f"follow-up is due by {followup_due.isoformat()}."
+            )
+            blocker = None if contact_route else "no contact route"
+            stop_condition = (
+                "Send one bounded relationship follow-up or explicitly retire "
+                "the residual follow-up."
+            )
+        elif closed:
             action_state = "closed"
             why_now = "The current application path is closed."
             blocker = None
@@ -118,16 +130,16 @@ def compile_packet(payload: dict[str, Any]) -> dict[str, Any]:
                 "Do no more application work; preserve only an explicitly dated "
                 "relationship follow-up when useful."
             )
+        elif followup_is_due:
+            action_state = "followup_due"
+            why_now = f"Follow-up is due by {followup_due.isoformat()}."
+            blocker = None if contact_route else "no contact route"
+            stop_condition = "Send one bounded follow-up or record why no follow-up is appropriate."
         elif action_due is not None and action_due <= as_of:
             action_state = "urgent_action"
             why_now = f"Action is due by {action_due.isoformat()}."
             blocker = _packet_blocker(packet_state)
             stop_condition = "Advance, submit, or explicitly decline before the action window passes."
-        elif followup_due is not None and followup_due <= as_of:
-            action_state = "followup_due"
-            why_now = f"Follow-up is due by {followup_due.isoformat()}."
-            blocker = None if contact_route else "no contact route"
-            stop_condition = "Send one bounded follow-up or record why no follow-up is appropriate."
         elif packet_state.startswith("missing_") or packet_state.startswith("prepare_"):
             action_state = "prepare_packet"
             why_now = "The opportunity is live but the application packet is not ready."
