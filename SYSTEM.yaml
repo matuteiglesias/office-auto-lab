@@ -26,6 +26,7 @@ lifecycle_classes:
       - src/office_runtime/capture
       - src/office_runtime/evidence
       - src/office_runtime/editorial
+      - src/office_runtime/jobs
       - src/office_runtime/estate_movement.py
     rule: adjacent producer or consumer with an explicit interface; cannot redefine Office governance semantics
 
@@ -45,6 +46,7 @@ authority:
     - canonical Office run records and derived runtime-health projection
     - Staff packet freshness evaluation
     - bounded editorial projection execution after explicit capability promotion
+    - deterministic read-only job action packet projection from normalized ATS plus optional external-authority evidence
   does_not_own:
     - human review decisions
     - GitHub estate authority or repository health/readiness semantics
@@ -75,6 +77,7 @@ interfaces:
     - artifact:ops.office-current-pointer@2
     - artifact:ops.office-run-record@1
     - artifact:ops.runtime-health-projection@2
+    - artifact:ops.job-action-packet@1
 
 upstream:
   - repo.projects
