@@ -227,6 +227,10 @@ Start from the governed Job Search Agenda when Context MCP is available, then ga
 
 Application materials are resolved through the human-owned `ATS 2026 / Assets` registry rather than fuzzy Drive search. The companion `artifact:ops.job-application-prep@1` distinguishes approved bases, review-required candidates, references and known gaps. See [`docs/jobs/application-prep-v1.md`](docs/jobs/application-prep-v1.md).
 
+`artifact:ops.job-followup-watch@1` aggregates action/prep packets into a quiet attention set for due follow-ups, immediate application action windows, and high-urgency material blockers. Deterministic fingerprints suppress unchanged repeat alerts. See [`docs/jobs/followup-watch-v1.md`](docs/jobs/followup-watch-v1.md).
+
+The initial live dogfood is recorded in [`docs/jobs/dogfood-2026-10-07.md`](docs/jobs/dogfood-2026-10-07.md).
+
 Validation:
 
 ```bash
