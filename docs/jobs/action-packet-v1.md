@@ -118,3 +118,7 @@ Dogfood this contract over additional ATS rows. A new rule is justified only aft
 Potential later stages, if evidence supports them: deterministic post-submission follow-up states; interview-preparation packet; application evidence bundle / CV variant selection; Office-owned daily follow-up watch; bounded draft preparation for a verified contact.
 
 None of these changes ATS authority or grants autonomous submission/sending.
+
+## Canonical ATS action fields
+
+When present, the human-owned ATS `Current` action layer is the preferred timing/process hint source: `action_due_on`, `followup_due_on`, `contact_name`, `contact_route`, `packet_state`, `material_base`, and `last_external_touch_on`. The compiler prefers exact ATS due dates over inferred timing. Gmail/Calendar remain the live evidence used to detect a response or already-scheduled next stage; `Assets` owns durable application-asset readiness.
