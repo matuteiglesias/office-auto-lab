@@ -68,14 +68,15 @@ Accepted verification labels are deliberately narrow: `process-email`, `ats-name
 For `availability_submitted_waiting_schedule` / `waiting_schedule`:
 
 - an existing future Calendar event suppresses follow-up and returns `scheduled`;
-- without a future event, two business days after the recorded process-state update returns `due`;
-- earlier than that returns `waiting`.
+- when ATS supplies an explicit `followup_due_on`, that date controls `waiting` / `due`;
+- otherwise, two business days after the recorded process-state update returns `due`;
+- earlier than the applicable threshold returns `waiting`.
 
 This is a conservative first rule, not universal recruiting etiquette.
 
 ### Rejection / closure
 
-A rejected row only receives residual follow-up when ATS explicitly asks for it. If a feedback/relationship message has already been sent, the state becomes `waiting-response`. Otherwise closed processes do not create recurring follow-up work.
+A rejected row only receives residual follow-up when ATS explicitly asks for it. If a feedback/relationship message has already been sent, the state becomes `waiting-response`. When ATS also carries an explicit `followup_due_on`, the packet preserves that date and may surface one final `due` relationship follow-up when the date arrives. A relevant future Calendar event suppresses that reminder. Otherwise closed processes do not create recurring follow-up work.
 
 ## Application preparation
 
