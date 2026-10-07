@@ -118,11 +118,34 @@ def _contact_packet(
         state = "none-needed"
         primary = None
 
+    if state == "verified-person":
+        resolution_plan = [
+            "Use the process-verified contact; no additional contact search is required."
+        ]
+    elif state == "organization-channel":
+        resolution_plan = [
+            "Use the verified organization/application channel.",
+            "Do not search for a personal contact unless the opportunity would materially benefit from one.",
+        ]
+    elif state == "unresolved-recommended":
+        resolution_plan = [
+            "Search recent Gmail for the exact ATS source-contact name plus company/process.",
+            "Check CRM/PERSONAS for an exact person/company match without changing relationship state.",
+            "Check Google Contacts only when organization/process evidence disambiguates the address.",
+            "If still unresolved, use an official company recruiting/team source before open-web person search.",
+            "Stop rather than invent a warm path; missing contact alone does not block a direct application.",
+        ]
+    else:
+        resolution_plan = [
+            "Do not spend time searching for a contact; the current application path does not require one."
+        ]
+
     return {
         "state": state,
         "contact_recommended": contact_recommended,
         "primary": primary,
         "alternatives": verified[1:] if primary else verified,
+        "resolution_plan": resolution_plan,
     }
 
 
@@ -338,17 +361,20 @@ def compile_action_packet(
     available = sorted(set(str(x) for x in materials.get("available", []) if str(x)))
     missing = sorted(set(required) - set(available))
     deadline = _iso_date(ats.get("deadline"), field="ats.deadline")
+    action_due = _iso_date(ats.get("action_due_on"), field="ats.action_due_on")
+    followup_due = _iso_date(ats.get("followup_due_on"), field="ats.followup_due_on")
+    effective_action_due = deadline or action_due
     process_status = str(ats.get("process_status") or "")
 
-    if deadline and deadline < observed and process_status not in CLOSED_STATUSES:
+    if effective_action_due and effective_action_due < observed and process_status not in CLOSED_STATUSES:
         action_class = "DEADLINE_MISSED_REVIEW"
         urgency = "critical"
-    elif deadline and deadline <= observed + timedelta(days=1) and process_status in READY_STATUSES:
+    elif effective_action_due and effective_action_due <= observed + timedelta(days=1) and process_status in READY_STATUSES:
         action_class = "APPLY_NOW"
         urgency = "critical"
     elif process_status in READY_STATUSES:
         action_class = "PREPARE_APPLICATION"
-        urgency = "high" if deadline else "normal"
+        urgency = "high" if effective_action_due else "normal"
     elif follow_up["state"] == "due":
         action_class = "FOLLOW_UP"
         urgency = "high"
@@ -398,6 +424,8 @@ def compile_action_packet(
             "decision": ats.get("decision"),
             "process_status": process_status,
             "deadline": deadline.isoformat() if deadline else None,
+            "action_due_on": action_due.isoformat() if action_due else None,
+            "followup_due_on": followup_due.isoformat() if followup_due else None,
         },
         "action": {
             "class": action_class,
