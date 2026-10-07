@@ -67,6 +67,20 @@ jobs:
             echo "::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON is required for unattended Sheet projection."
             exit 2
           }
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          try:
+              credentials = json.loads(os.environ["EDITORIAL_GOOGLE_CREDENTIALS_JSON"])
+          except json.JSONDecodeError:
+              print("::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON must be valid JSON.")
+              raise SystemExit(2)
+          if not isinstance(credentials, dict):
+              print("::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON must decode to an object.")
+              raise SystemExit(2)
+          PY
           test -n "${EDITORIAL_ANGLE_MODEL}" || {
             echo "::error::EDITORIAL_ANGLE_MODEL repository variable is required."
             exit 2
