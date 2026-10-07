@@ -15,6 +15,11 @@ class _FakeGitHub:
     def __init__(self, transport) -> None:
         self.transport = transport
 
+    def list_owned_repositories(self, *, owner):
+        if owner != "matuteiglesias":
+            raise AssertionError(owner)
+        return ("matuteiglesias/a", "matuteiglesias/b")
+
     def fetch_pull_request(self, repository_ref, number, *, observed_at=None):
         return ActivityEvidence(
             evidence_id=f"github:{repository_ref}:pr:{number}:merge:abc123",
@@ -101,6 +106,57 @@ class _FakeIntelligence:
 
 
 class EditorialProducerTests(unittest.TestCase):
+    def test_owned_scope_uses_runtime_discovery_instead_of_manual_repo_list(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EDITORIAL_REPOSITORIES": "@owned",
+                "EDITORIAL_GITHUB_OWNER": "matuteiglesias",
+            },
+            clear=False,
+        ):
+            repositories, mode = producer._repositories({}, _FakeGitHub(None))
+        self.assertEqual(mode, "owned")
+        self.assertEqual(
+            repositories,
+            ["matuteiglesias/a", "matuteiglesias/b"],
+        )
+
+    def test_private_or_unknown_stories_are_not_sent_to_model_by_default(self) -> None:
+        public = ActivityEvidence(
+            evidence_id="github:example/public:commit:abc",
+            source_kind="github_commit",
+            source_ref="https://github.com/example/public/commit/abc",
+            observed_at="2026-10-06T12:00:00Z",
+            event_at="2026-10-06T10:00:00Z",
+            status="completed",
+            title="Public work",
+            summary="Public work",
+            repository_ref="example/public",
+            visibility="public",
+            public_eligibility="eligible",
+            artifact_refs=("https://github.com/example/public/commit/abc",),
+        )
+        private = ActivityEvidence(
+            evidence_id="github:example/private:commit:def",
+            source_kind="github_commit",
+            source_ref="https://github.com/example/private/commit/def",
+            observed_at="2026-10-06T12:00:00Z",
+            event_at="2026-10-06T11:00:00Z",
+            status="completed",
+            title="GitHub commit def",
+            summary="GitHub commit def",
+            repository_ref="example/private",
+            visibility="private",
+            public_eligibility="restricted",
+            artifact_refs=("https://github.com/example/private/commit/def",),
+        )
+        stories = cluster_stories((public, private), as_of="2026-10-06T12:00:00Z")
+        evidence_by_id = {item.evidence_id: item.to_dict() for item in (public, private)}
+        selected = producer._select_model_stories(stories, evidence_by_id, 12)
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0].repository_refs, ("example/public",))
+
     def test_model_story_selection_is_bounded_and_prioritizes_recent_eligible_work(self) -> None:
         evidence = tuple(
             ActivityEvidence(
