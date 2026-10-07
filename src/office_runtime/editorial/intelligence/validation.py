@@ -127,6 +127,30 @@ def validate_judgments(
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
 
+    if force_one_safe_candidate and not values and angles:
+        angle = sorted(angles, key=lambda item: str(item["angle_id"]))[0]
+        if angle.get("risk_class") in {"low", "medium"}:
+            draft_parts = [
+                str(angle.get("claim", "")).strip(),
+                str(angle.get("transferable_lesson", "")).strip(),
+            ]
+            values = [
+                {
+                    "angle_id": angle["angle_id"],
+                    "machine_disposition": "drop",
+                    "rationale": "No judge decision was returned; acceptance mode retains one bounded review fixture.",
+                    "draft_text": " ".join(part for part in draft_parts if part),
+                    "candidate_family": angle["angle_type"],
+                    "evidence_refs": list(angle["evidence_refs"]),
+                    "risk_class": angle["risk_class"],
+                    "quality": {name: 0 for name in QUALITY_NAMES},
+                    "gates": {name: "PASS" for name in GATE_NAMES},
+                    "topic_tags": [],
+                    "language": "en",
+                    "expires_at": angle.get("expiry_hint"),
+                }
+            ]
+
     for index, value in enumerate(values):
         decision = _mapping(value, f"decisions[{index}]")
         angle_id = _string(decision.get("angle_id"), "decision.angle_id")

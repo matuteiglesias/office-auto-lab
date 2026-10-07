@@ -306,6 +306,20 @@ class EditorialIntelligenceTests(unittest.TestCase):
         self.assertEqual(len(result.candidates), 1)
         self.assertEqual(result.candidates[0]["expires_at"], "2026-10-07T12:00:00Z")
 
+    def test_force_one_safe_candidate_handles_empty_judge_decision_set(self) -> None:
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([]),
+            force_one_safe_candidate=True,
+        )
+        result = engine.run_story(
+            story=story("ev:1"),
+            evidence_by_id={"ev:1": evidence("ev:1")},
+            policy={"policy_ref": "policy@test"},
+        )
+        self.assertEqual(len(result.candidates), 1)
+        self.assertTrue(result.candidates[0]["forced_pipeline_acceptance"])
+
     def test_force_one_safe_candidate_never_overrides_hard_gate(self) -> None:
         judged = decision(
             "ev:1",
