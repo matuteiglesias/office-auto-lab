@@ -403,6 +403,50 @@ class GitHubEvidenceClient:
     def __init__(self, transport: GitHubTransport) -> None:
         self.transport = transport
 
+    def list_owned_repositories(
+        self,
+        *,
+        owner: str,
+        include_archived: bool = False,
+        max_pages: int = 10,
+    ) -> tuple[str, ...]:
+        if not owner or "/" in owner:
+            raise ContractError("GitHub owner must be one account login")
+        if not 1 <= max_pages <= 20:
+            raise ContractError("max_pages must be between 1 and 20")
+        repositories: list[str] = []
+        for page in range(1, max_pages + 1):
+            rows = _list_of_mappings(
+                self.transport.get_json(
+                    "user/repos",
+                    {
+                        "affiliation": "owner",
+                        "visibility": "all",
+                        "sort": "full_name",
+                        "direction": "asc",
+                        "per_page": 100,
+                        "page": page,
+                    },
+                ),
+                "owned repository list",
+            )
+            for raw in rows:
+                full_name = raw.get("full_name")
+                raw_owner = raw.get("owner") if isinstance(raw.get("owner"), Mapping) else {}
+                if raw_owner.get("login") != owner:
+                    continue
+                if raw.get("disabled") is True:
+                    continue
+                if not include_archived and raw.get("archived") is True:
+                    continue
+                if isinstance(full_name, str) and full_name:
+                    repositories.append(full_name)
+            if len(rows) < 100:
+                break
+        else:
+            raise ContractError("owned repository discovery exceeded max_pages")
+        return tuple(sorted(set(repositories)))
+
     def fetch_pull_request(
         self,
         repository_ref: str,
@@ -474,6 +518,8 @@ class GitHubEvidenceClient:
                     max_per_kind=max_per_kind,
                     visibility=visibility,
                     observed_at=observed_at,
+                    start=start,
+                    end=end,
                 )
                 filtered = [
                     item
@@ -512,6 +558,8 @@ class GitHubEvidenceClient:
         max_per_kind: int,
         visibility: str,
         observed_at: str | None,
+        start: datetime,
+        end: datetime,
     ) -> list[ActivityEvidence]:
         if kind == "github_pr":
             listed = self.transport.get_json(
@@ -525,6 +573,14 @@ class GitHubEvidenceClient:
             )
             rows: list[ActivityEvidence] = []
             for raw in _list_of_mappings(listed, "pull list"):
+                updated_at = raw.get("updated_at")
+                if not isinstance(updated_at, str):
+                    continue
+                updated = _parse_time(updated_at)
+                if updated < start:
+                    break
+                if updated > end:
+                    continue
                 number = raw.get("number")
                 if not isinstance(number, int):
                     continue
@@ -568,7 +624,11 @@ class GitHubEvidenceClient:
                 for raw in _list_of_mappings(
                     self.transport.get_json(
                         f"repos/{repo}/commits",
-                        {"per_page": max_per_kind},
+                        {
+                            "per_page": max_per_kind,
+                            "since": start.isoformat().replace("+00:00", "Z"),
+                            "until": end.isoformat().replace("+00:00", "Z"),
+                        },
                     ),
                     "commit list",
                 )
@@ -581,6 +641,7 @@ class GitHubEvidenceClient:
                     "state": "all",
                     "sort": "updated",
                     "direction": "desc",
+                    "since": start.isoformat().replace("+00:00", "Z"),
                     "per_page": max_per_kind,
                 },
             ),
