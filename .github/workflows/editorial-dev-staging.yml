@@ -67,6 +67,14 @@ jobs:
             echo "::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON is required for unattended Sheet projection."
             exit 2
           }
+          test -n "${EDITORIAL_ANGLE_MODEL}" || {
+            echo "::error::EDITORIAL_ANGLE_MODEL repository variable is required."
+            exit 2
+          }
+          test -n "${EDITORIAL_JUDGE_MODEL}" || {
+            echo "::error::EDITORIAL_JUDGE_MODEL repository variable is required."
+            exit 2
+          }
           test -n "${EDITORIAL_DEV_SHEET_ID}" || {
             echo "::error::EDITORIAL_DEV_SHEET_ID repository variable is required."
             exit 2
