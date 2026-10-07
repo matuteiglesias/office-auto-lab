@@ -149,16 +149,33 @@ def _angle_card(value: Mapping[str, Any]) -> AngleCard:
     )
 
 
-def _repositories(request: Mapping[str, Any]) -> list[str]:
-    configured = os.environ.get("EDITORIAL_REPOSITORIES", "")
-    repositories = [item.strip() for item in configured.split(",") if item.strip()]
-    if not repositories:
+def _repositories(
+    request: Mapping[str, Any],
+    client: GitHubEvidenceClient,
+) -> tuple[list[str], str]:
+    configured = os.environ.get("EDITORIAL_REPOSITORIES", "").strip()
+    if not configured:
         raise EditorialProducerError(
             "lookback staging requires EDITORIAL_REPOSITORIES; exact PR mode does not"
         )
+    if configured == "@owned":
+        owner = os.environ.get("EDITORIAL_GITHUB_OWNER", "matuteiglesias").strip()
+        if not owner:
+            raise EditorialProducerError("EDITORIAL_GITHUB_OWNER is required with @owned")
+        try:
+            repositories = list(client.list_owned_repositories(owner=owner))
+        except GitHubHTTPError as exc:
+            raise EditorialProducerError(
+                f"owned repository discovery failed: {exc.failure_kind}"
+            ) from exc
+        if not repositories:
+            raise EditorialProducerError("owned repository discovery returned no repositories")
+        return repositories, "owned"
+
+    repositories = [item.strip() for item in configured.split(",") if item.strip()]
     if len(repositories) != len(set(repositories)):
         raise EditorialProducerError("EDITORIAL_REPOSITORIES must not contain duplicates")
-    return repositories
+    return repositories, "allowlist"
 
 
 def _max_model_stories() -> int:
@@ -186,7 +203,9 @@ def _select_model_stories(
     evidence_by_id: Mapping[str, Mapping[str, Any]],
     limit: int,
 ) -> tuple[StoryCluster, ...]:
-    eligibility_rank = {"eligible": 0, "unknown": 1, "restricted": 2}
+    eligible_stories = tuple(
+        story for story in stories if story.public_eligibility == "eligible"
+    )
     freshness_rank = {"timely": 0, "recent": 1, "evergreen": 2}
 
     def priority(story: StoryCluster) -> tuple[int, int, float, str]:
@@ -195,13 +214,12 @@ def _select_model_stories(
             for ref in story.evidence_refs
         )
         return (
-            eligibility_rank.get(story.public_eligibility, 3),
             freshness_rank.get(story.freshness_class, 3),
             -latest.timestamp(),
             story.story_id,
         )
 
-    return tuple(sorted(stories, key=priority)[:limit])
+    return tuple(sorted(eligible_stories, key=priority)[:limit])
 
 
 def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -227,6 +245,7 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
             since, until = request.get("since"), request.get("until")
             if not isinstance(since, str) or not isinstance(until, str):
                 raise EditorialProducerError("lookback requests require since and until")
+            repositories, repository_scope_mode = _repositories(request, client)
             retrievals = [
                 client.retrieve_repository_activity(
                     repository,
@@ -234,10 +253,12 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
                     until=until,
                     observed_at=started_at,
                 )
-                for repository in _repositories(request)
+                for repository in repositories
             ]
             evidence = tuple(item for result in retrievals for item in result.evidence)
             retrieval = _retrieval_for_window(request, retrievals)
+            retrieval["repository_scope_mode"] = repository_scope_mode
+            retrieval["repository_count"] = len(repositories)
     except (GitHubHTTPError, EditorialProducerError) as exc:
         finished_at = _now()
         retrieval = {
@@ -263,8 +284,14 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
     model_stories = _select_model_stories(stories, evidence_by_id, max_model_stories)
     retrieval["story_count"] = len(stories)
     retrieval["model_story_limit"] = max_model_stories
+    eligible_story_count = sum(
+        story.public_eligibility == "eligible" for story in stories
+    )
     retrieval["model_story_count"] = len(model_stories)
-    retrieval["model_story_omitted_count"] = max(0, len(stories) - len(model_stories))
+    retrieval["model_story_ineligible_count"] = len(stories) - eligible_story_count
+    retrieval["model_story_omitted_count"] = max(
+        0, eligible_story_count - len(model_stories)
+    )
     context = ({"context_id": "policy", "policy": policy_text},)
     provider_runs: list[Mapping[str, Any]] = []
     angles: list[AngleCard] = []
