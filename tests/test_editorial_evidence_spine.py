@@ -51,6 +51,35 @@ class DeniedTransport:
         raise GitHubHTTPError(404, "inaccessible_or_unknown")
 
 
+class OwnedRepositoriesTransport:
+    def get_json(self, path, params=None):
+        if path != "user/repos":
+            raise AssertionError(path)
+        page = int((params or {}).get("page", 1))
+        if page == 1:
+            return [
+                {
+                    "full_name": "matuteiglesias/a",
+                    "owner": {"login": "matuteiglesias"},
+                    "archived": False,
+                    "disabled": False,
+                },
+                {
+                    "full_name": "matuteiglesias/archived",
+                    "owner": {"login": "matuteiglesias"},
+                    "archived": True,
+                    "disabled": False,
+                },
+                {
+                    "full_name": "someone-else/shared",
+                    "owner": {"login": "someone-else"},
+                    "archived": False,
+                    "disabled": False,
+                },
+            ]
+        return []
+
+
 class EditorialEvidenceSpineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.merged = normalize_pull_request(
@@ -148,6 +177,11 @@ class EditorialEvidenceSpineTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertEqual(decision.status, "waiting")
         self.assertEqual(decision.source_kind, "github_issue_decision")
+
+    def test_owned_repository_discovery_uses_token_visible_owned_non_archived_scope(self) -> None:
+        client = GitHubEvidenceClient(OwnedRepositoriesTransport())
+        repos = client.list_owned_repositories(owner="matuteiglesias")
+        self.assertEqual(repos, ("matuteiglesias/a",))
 
     def test_inaccessible_repository_remains_unknown(self) -> None:
         result = GitHubEvidenceClient(
