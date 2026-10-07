@@ -105,6 +105,7 @@ def validate_judgments(
     raw_output: Mapping[str, Any],
     evidence_by_id: Mapping[str, Mapping[str, Any] | Any],
     generated_at: str | None = None,
+    force_one_safe_candidate: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     story_payload = _canonical_story(story)
     values = raw_output.get("decisions")
@@ -268,7 +269,170 @@ def validate_judgments(
         except ContractError as exc:
             raise IntelligenceContractError(str(exc)) from exc
         candidates.append(candidate)
+    if force_one_safe_candidate and not candidates:
+        forced = _force_one_safe_candidate(
+            story_payload=story_payload,
+            by_angle=by_angle,
+            judgments=judgments,
+            evidence_by_id=evidence_by_id,
+            generated_at=now,
+        )
+        if forced is not None:
+            forced_angle_id, forced_candidate = forced
+            warning = (
+                "FORCED_PIPELINE_ACCEPTANCE: no candidate survived the judge's soft editorial "
+                "selection; one hard-gate-safe candidate was retained only to exercise the "
+                "staging pipeline and requires human REVIEW."
+            )
+            for judgment in judgments:
+                if judgment.get("angle_id") == forced_angle_id:
+                    judgment["machine_disposition"] = "stage"
+                    judgment["forced_pipeline_acceptance"] = True
+                    judgment["editorial_warning"] = warning
+                    reasons = list(judgment.get("deterministic_rejection_reasons", []))
+                    reasons.append("forced_pipeline_acceptance_soft_override")
+                    judgment["deterministic_rejection_reasons"] = sorted(set(reasons))
+                    break
+            forced_candidate["forced_pipeline_acceptance"] = True
+            forced_candidate["editorial_warning"] = warning
+            candidates.append(forced_candidate)
+
     return judgments, candidates
+
+
+def _force_one_safe_candidate(
+    *,
+    story_payload: Mapping[str, Any],
+    by_angle: Mapping[str, Mapping[str, Any]],
+    judgments: Sequence[Mapping[str, Any]],
+    evidence_by_id: Mapping[str, Mapping[str, Any] | Any],
+    generated_at: str,
+) -> tuple[str, dict[str, Any]] | None:
+    if story_payload.get("public_eligibility") != "eligible":
+        return None
+
+    eligible: list[tuple[tuple[int, int, str], Mapping[str, Any], Mapping[str, Any], str]] = []
+    for judgment in judgments:
+        angle_id = judgment.get("angle_id")
+        angle = by_angle.get(str(angle_id))
+        if angle is None:
+            continue
+        gates = judgment.get("gates")
+        if not isinstance(gates, Mapping) or any(gates.get(name) != "pass" for name in GATE_NAMES):
+            continue
+        risk = judgment.get("risk_class")
+        if risk not in {"low", "medium"}:
+            continue
+
+        evidence_refs = judgment.get("evidence_refs")
+        if not isinstance(evidence_refs, list) or not evidence_refs:
+            continue
+        if not set(evidence_refs).issubset(set(angle.get("evidence_refs", []))):
+            continue
+        if any(ref not in evidence_by_id for ref in evidence_refs):
+            continue
+
+        draft = judgment.get("draft_text")
+        if not isinstance(draft, str) or not draft.strip():
+            claim = angle.get("claim")
+            lesson = angle.get("transferable_lesson")
+            pieces = [
+                item.strip()
+                for item in (claim, lesson)
+                if isinstance(item, str) and item.strip()
+            ]
+            draft = " ".join(dict.fromkeys(pieces)).strip()
+        if not draft:
+            continue
+
+        statuses = {
+            _evidence_payload(evidence_by_id[ref]).get("status")
+            for ref in evidence_refs
+            if ref in evidence_by_id
+        }
+        if _status_truth_violation(
+            draft,
+            statuses=statuses,
+            required_wording=angle.get("required_status_wording", []),
+        ):
+            continue
+
+        expiry = judgment.get("expires_at") or angle.get("expiry_hint")
+        if story_payload.get("freshness_class") == "timely" and not _nonempty_string(expiry):
+            continue
+
+        quality = judgment.get("quality")
+        if not isinstance(quality, Mapping):
+            continue
+        quality_total = sum(
+            int(quality.get(name, 0))
+            for name in QUALITY_NAMES
+            if isinstance(quality.get(name, 0), int)
+        )
+        draft_bonus = 1 if isinstance(judgment.get("draft_text"), str) and judgment.get("draft_text", "").strip() else 0
+        risk_rank = 1 if risk == "low" else 0
+        eligible.append(((quality_total, draft_bonus + risk_rank, str(angle_id)), judgment, angle, draft))
+
+    if not eligible:
+        return None
+
+    _, decision, angle, draft = sorted(eligible, key=lambda item: item[0], reverse=True)[0]
+    family = decision.get("candidate_family", angle["angle_type"])
+    if family not in ANGLE_TYPES:
+        return None
+    canonical_family = str(family).upper()
+    if canonical_family not in CANDIDATE_FAMILIES:
+        return None
+
+    evidence_refs = list(decision["evidence_refs"])
+    claim = str(angle["claim"])
+    fingerprint = semantic_fingerprint(
+        claim=claim,
+        family=str(family),
+        evidence_refs=evidence_refs,
+    )
+    candidate_id = _candidate_id(
+        story_id=str(story_payload["story_id"]),
+        fingerprint=fingerprint,
+    )
+    work_refs = _work_refs(evidence_refs, evidence_by_id) or evidence_refs
+    expiry = decision.get("expires_at") or angle.get("expiry_hint")
+    candidate = {
+        "schema_version": CANDIDATE_SCHEMA,
+        "candidate_id": candidate_id,
+        "profile_id": "dev",
+        "text": draft,
+        "risk_class": decision["risk_class"],
+        "evidence_refs": evidence_refs,
+        "work_refs": work_refs,
+        "story_id": story_payload["story_id"],
+        "angle_id": angle["angle_id"],
+        "candidate_family": canonical_family,
+        "semantic_fingerprint": fingerprint,
+        "language": decision.get("language", "en"),
+        "topic_tags": _optional_string_list(
+            decision.get("topic_tags", []),
+            "decision.topic_tags",
+        ),
+        "career_signals": list(angle.get("career_signals", [])),
+        "proof_object_refs": list(angle.get("proof_object_refs", [])),
+        "freshness_class": story_payload["freshness_class"],
+        "generated_at": generated_at,
+        "expires_at": expiry,
+        "machine_disposition": "stage",
+        "quality": dict(decision["quality"]),
+        "disclosure_risk": "pass",
+        "repetition_risk": "pass",
+        "status_truth_risk": "pass",
+        "claim": claim,
+        "source_event_refs": list(story_payload["evidence_refs"]),
+        "repository_refs": list(story_payload["repository_refs"]),
+    }
+    try:
+        candidate = validate_dev_candidate(candidate, _DEV_PROFILE)
+    except ContractError:
+        return None
+    return str(angle["angle_id"]), candidate
 
 
 def semantic_fingerprint(*, claim: str, family: str, evidence_refs: Sequence[str]) -> str:
