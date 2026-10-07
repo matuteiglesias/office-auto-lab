@@ -8,6 +8,8 @@ It does not re-read Gmail, ATS, Calendar or Contacts. The evidence-gathering age
 
 ## Notify conditions
 
+v1 prefers canonical ATS `action_due_on` / `followup_due_on` values and only uses fallback waiting heuristics when no explicit ATS date exists.
+
 v1 notifies only when:
 
 - a deterministic process follow-up is due;
