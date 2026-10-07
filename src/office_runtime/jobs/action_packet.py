@@ -161,6 +161,10 @@ def _follow_up(
         ats.get("status_updated_on"),
         field="ats.status_updated_on",
     )
+    explicit_followup = _iso_date(
+        ats.get("followup_due_on"),
+        field="ats.followup_due_on",
+    )
     future_events = _future_calendar(calendar, as_of)
     last_outbound = _latest_outbound(communications)
 
@@ -178,6 +182,25 @@ def _follow_up(
                 "state": "scheduled",
                 "due_on": None,
                 "reason": "A future interview/calendar event is already present.",
+                "channel": None,
+            }
+        if explicit_followup:
+            if explicit_followup <= as_of:
+                channel = (
+                    "email"
+                    if contact.get("state") in {"verified-person", "organization-channel"}
+                    else "resolve-contact"
+                )
+                return {
+                    "state": "due",
+                    "due_on": explicit_followup.isoformat(),
+                    "reason": "ATS explicit follow-up date is due and no future calendar event is present.",
+                    "channel": channel,
+                }
+            return {
+                "state": "waiting",
+                "due_on": explicit_followup.isoformat(),
+                "reason": "ATS explicit follow-up date has not arrived yet.",
                 "channel": None,
             }
         if status_updated and _business_days_after(status_updated, as_of) >= 2:
@@ -209,14 +232,35 @@ def _follow_up(
         }
 
     if process_status == "rejected":
+        if future_events:
+            return {
+                "state": "scheduled",
+                "due_on": None,
+                "reason": "A relevant future calendar event is already present.",
+                "channel": None,
+            }
         if last_outbound and str(last_outbound.get("purpose")) in {
             "feedback-request",
             "relationship-close",
         }:
+            if explicit_followup and explicit_followup <= as_of:
+                return {
+                    "state": "due",
+                    "due_on": explicit_followup.isoformat(),
+                    "reason": "A bounded post-process message was sent and the ATS residual follow-up date is now due.",
+                    "channel": (
+                        "email"
+                        if contact.get("state") in {"verified-person", "organization-channel"}
+                        else "resolve-contact"
+                    ),
+                }
             return {
                 "state": "waiting-response",
-                "due_on": None,
-                "reason": "A bounded post-process message has already been sent.",
+                "due_on": explicit_followup.isoformat() if explicit_followup else None,
+                "reason": (
+                    "A bounded post-process message has already been sent; "
+                    "wait for a response or the explicit ATS follow-up date."
+                ),
                 "channel": None,
             }
         next_action = str(ats.get("next_action_min") or "").lower()
