@@ -290,6 +290,22 @@ class EditorialIntelligenceTests(unittest.TestCase):
             result.judgments[0]["deterministic_rejection_reasons"],
         )
 
+    def test_force_one_safe_candidate_derives_bounded_expiry_for_timely_story(self) -> None:
+        judged = decision("ev:1", disposition="drop")
+        engine = EditorialIntelligence(
+            FakeProducer([angle("ev:1")]),
+            FakeJudge([judged]),
+            force_one_safe_candidate=True,
+        )
+        result = engine.run_story(
+            story=story("ev:1", freshness="timely"),
+            evidence_by_id={"ev:1": evidence("ev:1")},
+            policy={"policy_ref": "policy@test"},
+            generated_at="2026-10-06T12:00:00Z",
+        )
+        self.assertEqual(len(result.candidates), 1)
+        self.assertEqual(result.candidates[0]["expires_at"], "2026-10-07T12:00:00Z")
+
     def test_force_one_safe_candidate_never_overrides_hard_gate(self) -> None:
         judged = decision(
             "ev:1",

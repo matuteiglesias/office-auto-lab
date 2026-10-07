@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
 from office_runtime.editorial.contracts import (
@@ -359,6 +359,8 @@ def _force_one_safe_candidate(
 
         expiry = judgment.get("expires_at") or angle.get("expiry_hint")
         if story_payload.get("freshness_class") == "timely" and not _nonempty_string(expiry):
+            expiry = _forced_acceptance_expiry(generated_at)
+        if story_payload.get("freshness_class") == "timely" and not _nonempty_string(expiry):
             continue
 
         quality = judgment.get("quality")
@@ -397,6 +399,8 @@ def _force_one_safe_candidate(
     )
     work_refs = _work_refs(evidence_refs, evidence_by_id) or evidence_refs
     expiry = decision.get("expires_at") or angle.get("expiry_hint")
+    if story_payload.get("freshness_class") == "timely" and not _nonempty_string(expiry):
+        expiry = _forced_acceptance_expiry(generated_at)
     candidate = {
         "schema_version": CANDIDATE_SCHEMA,
         "candidate_id": candidate_id,
@@ -433,6 +437,13 @@ def _force_one_safe_candidate(
     except ContractError:
         return None
     return str(angle["angle_id"]), candidate
+
+
+def _forced_acceptance_expiry(generated_at: str) -> str:
+    """Give the opt-in acceptance fallback a bounded, explicit timely expiry."""
+
+    parsed = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    return (parsed + timedelta(days=1)).isoformat().replace("+00:00", "Z")
 
 
 def semantic_fingerprint(*, claim: str, family: str, evidence_refs: Sequence[str]) -> str:
