@@ -13,6 +13,7 @@ from .context import load_pinned_policy_file
 from .contracts import (
     ActivityEvidence,
     AngleCard,
+    ContractError,
     DailyBatch,
     PolicyIdentity,
     StoryCluster,
@@ -164,7 +165,7 @@ def _repositories(
             raise EditorialProducerError("EDITORIAL_GITHUB_OWNER is required with @owned")
         try:
             repositories = list(client.list_owned_repositories(owner=owner))
-        except GitHubHTTPError as exc:
+        except (GitHubHTTPError, ContractError) as exc:
             raise EditorialProducerError(
                 f"owned repository discovery failed: {exc.failure_kind}"
             ) from exc
@@ -208,7 +209,7 @@ def _select_model_stories(
     )
     freshness_rank = {"timely": 0, "recent": 1, "evergreen": 2}
 
-    def priority(story: StoryCluster) -> tuple[int, int, float, str]:
+    def priority(story: StoryCluster) -> tuple[int, float, str]:
         latest = max(
             _parse_event_time(str(evidence_by_id[ref]["event_at"]))
             for ref in story.evidence_refs
