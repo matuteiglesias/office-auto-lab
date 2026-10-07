@@ -67,3 +67,12 @@ Office does not write or approve CV content, fabricate application materials, or
 ## Next promotion
 
 Only after at least one role-family CV has been explicitly reviewed and promoted should we automate role-specific derivation from that approved base. Until then, generation should remain draft/review work, not silent asset promotion.
+
+
+## CLI
+
+    PYTHONPATH=src python3 src/office_runtime/scripts/compile_job_application_prep.py \
+      --snapshot normalized-prep-input.json \
+      --as-of 2026-10-07
+
+The snapshot contains `job_ref`, explicit `requirements`, and normalized rows from the human-owned ATS `Assets` table. The command performs no Drive search or writes.

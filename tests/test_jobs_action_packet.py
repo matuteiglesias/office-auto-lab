@@ -298,6 +298,23 @@ class JobActionPacketTests(unittest.TestCase):
             ["cover letter", "financial proposal"],
         )
 
+    def test_action_due_on_can_drive_apply_now_without_duplicate_deadline(self) -> None:
+        snapshot = _base("JOB-213", "ExampleOrg", "Process Consultant", "ready_deadline")
+        snapshot["ats"].update(
+            {
+                "action_due_on": "2026-10-08",
+                "decision": "Go/no-go and apply",
+                "next_action_min": "Complete the application before the action window closes.",
+            }
+        )
+
+        packet = compile_action_packet(snapshot, as_of="2026-10-07")
+
+        self.assertEqual(packet["action"]["class"], "APPLY_NOW")
+        self.assertEqual(packet["action"]["urgency"], "critical")
+        self.assertEqual(packet["job"]["action_due_on"], "2026-10-08")
+        self.assertIsNone(packet["job"]["deadline"])
+
     def test_direct_application_does_not_block_on_missing_contact(self) -> None:
         snapshot = _base("JOB-214", "ExampleCo", "Data Engineer", "ready_to_apply")
         snapshot["ats"].update(
@@ -314,6 +331,9 @@ class JobActionPacketTests(unittest.TestCase):
         packet = compile_action_packet(snapshot, as_of="2026-10-07")
 
         self.assertEqual(packet["contact"]["state"], "none-needed")
+        self.assertTrue(
+            packet["contact"]["resolution_plan"][0].startswith("Do not spend time")
+        )
         self.assertEqual(packet["follow_up"]["state"], "blocked-on-application")
         self.assertEqual(
             packet["preparation"]["missing_materials"],
@@ -342,6 +362,9 @@ class JobActionPacketTests(unittest.TestCase):
 
         self.assertEqual(packet["contact"]["state"], "unresolved-recommended")
         self.assertIsNone(packet["contact"]["primary"])
+        self.assertTrue(
+            packet["contact"]["resolution_plan"][0].startswith("Search recent Gmail")
+        )
         self.assertTrue(packet["warnings"])
 
     def test_invalid_evidence_without_ref_fails_closed(self) -> None:

@@ -25,6 +25,7 @@ on:
       - "tests/test_staff_packet_freshness.py"
       - "tests/test_jobs_action_packet.py"
       - "tests/test_jobs_application_prep.py"
+      - "tests/test_jobs_followup_watch.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
       - "Makefile"
@@ -111,6 +112,7 @@ jobs:
           tests.test_staff_packet_freshness
           tests.test_jobs_action_packet
           tests.test_jobs_application_prep
+          tests.test_jobs_followup_watch
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
@@ -136,5 +138,6 @@ jobs:
             tests.test_staff_packet_freshness \
             tests.test_jobs_action_packet \
             tests.test_jobs_application_prep \
+            tests.test_jobs_followup_watch \
             tests.test_capture_lifecycle \
             tests.test_capture_transcription
