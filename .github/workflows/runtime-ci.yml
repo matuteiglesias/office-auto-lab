@@ -23,6 +23,7 @@ on:
       - "tests/test_generation_invariants.py"
       - "tests/test_run_record_health.py"
       - "tests/test_staff_packet_freshness.py"
+      - "tests/test_jobs_action_packet.py"
       - "tests/test_capture_lifecycle.py"
       - "tests/test_capture_transcription.py"
       - "Makefile"
@@ -107,6 +108,7 @@ jobs:
           tests.test_generation_invariants
           tests.test_run_record_health
           tests.test_staff_packet_freshness
+          tests.test_jobs_action_packet
       - name: Capture stable offline tests
         if: matrix.profile == 'capture'
         run: python -m unittest tests.test_capture_lifecycle tests.test_capture_transcription
@@ -130,5 +132,6 @@ jobs:
             tests.test_generation_invariants \
             tests.test_run_record_health \
             tests.test_staff_packet_freshness \
+            tests.test_jobs_action_packet \
             tests.test_capture_lifecycle \
             tests.test_capture_transcription
