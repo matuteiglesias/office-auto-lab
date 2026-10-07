@@ -184,6 +184,10 @@ def _follow_up(
         ats.get("status_updated_on"),
         field="ats.status_updated_on",
     )
+    followup_due = _iso_date(
+        ats.get("followup_due_on"),
+        field="ats.followup_due_on",
+    )
     future_events = _future_calendar(calendar, as_of)
     last_outbound = _latest_outbound(communications)
 
@@ -203,7 +207,21 @@ def _follow_up(
                 "reason": "A future interview/calendar event is already present.",
                 "channel": None,
             }
-        if status_updated and _business_days_after(status_updated, as_of) >= 2:
+        if followup_due and as_of >= followup_due:
+            channel = (
+                "email"
+                if contact.get("state") in {"verified-person", "organization-channel"}
+                else "resolve-contact"
+            )
+            return {
+                "state": "due",
+                "due_on": followup_due.isoformat(),
+                "reason": "Canonical ATS follow-up date is due and no future calendar event is present.",
+                "channel": channel,
+            }
+        if followup_due:
+            due_on = followup_due.isoformat()
+        elif status_updated and _business_days_after(status_updated, as_of) >= 2:
             channel = (
                 "email"
                 if contact.get("state") in {"verified-person", "organization-channel"}
@@ -212,18 +230,19 @@ def _follow_up(
             return {
                 "state": "due",
                 "due_on": as_of.isoformat(),
-                "reason": "Availability/process handoff has waited at least two business days with no future calendar event.",
+                "reason": "No ATS follow-up date was supplied; fallback waiting rule reached two business days with no future calendar event.",
                 "channel": channel,
             }
-        due_on = None
-        if status_updated:
-            cursor = status_updated
-            remaining = 2
-            while remaining:
-                cursor += timedelta(days=1)
-                if cursor.weekday() < 5:
-                    remaining -= 1
-            due_on = cursor.isoformat()
+        else:
+            due_on = None
+            if status_updated:
+                cursor = status_updated
+                remaining = 2
+                while remaining:
+                    cursor += timedelta(days=1)
+                    if cursor.weekday() < 5:
+                        remaining -= 1
+                due_on = cursor.isoformat()
         return {
             "state": "waiting",
             "due_on": due_on,
@@ -232,14 +251,29 @@ def _follow_up(
         }
 
     if process_status == "rejected":
-        if last_outbound and str(last_outbound.get("purpose")) in {
-            "feedback-request",
-            "relationship-close",
-        }:
+        if last_outbound and str(last_outbound.get("purpose")) == "feedback-request":
+            if followup_due and as_of >= followup_due:
+                return {
+                    "state": "due",
+                    "due_on": followup_due.isoformat(),
+                    "reason": "Feedback request was already sent; the canonical ATS bounded relationship follow-up date is now due.",
+                    "channel": (
+                        "email"
+                        if contact.get("state") == "verified-person"
+                        else "resolve-contact"
+                    ),
+                }
+            return {
+                "state": "waiting-response",
+                "due_on": followup_due.isoformat() if followup_due else None,
+                "reason": "A bounded feedback request has already been sent; wait until response or the ATS follow-up date.",
+                "channel": None,
+            }
+        if last_outbound and str(last_outbound.get("purpose")) == "relationship-close":
             return {
                 "state": "waiting-response",
                 "due_on": None,
-                "reason": "A bounded post-process message has already been sent.",
+                "reason": "A bounded relationship-close message has already been sent.",
                 "channel": None,
             }
         next_action = str(ats.get("next_action_min") or "").lower()
@@ -317,12 +351,15 @@ def compile_action_packet(
     available = sorted(set(str(x) for x in materials.get("available", []) if str(x)))
     missing = sorted(set(required) - set(available))
     deadline = _iso_date(ats.get("deadline"), field="ats.deadline")
+    action_due = _iso_date(ats.get("action_due_on"), field="ats.action_due_on")
+    followup_due = _iso_date(ats.get("followup_due_on"), field="ats.followup_due_on")
+    effective_action_due = deadline or action_due
     process_status = str(ats.get("process_status") or "")
 
-    if deadline and deadline < observed and process_status not in CLOSED_STATUSES:
+    if effective_action_due and effective_action_due < observed and process_status not in CLOSED_STATUSES:
         action_class = "DEADLINE_MISSED_REVIEW"
         urgency = "critical"
-    elif deadline and deadline <= observed + timedelta(days=1) and process_status in READY_STATUSES:
+    elif effective_action_due and effective_action_due <= observed + timedelta(days=1) and process_status in READY_STATUSES:
         action_class = "APPLY_NOW"
         urgency = "critical"
     elif process_status in READY_STATUSES:
@@ -377,6 +414,8 @@ def compile_action_packet(
             "decision": ats.get("decision"),
             "process_status": process_status,
             "deadline": deadline.isoformat() if deadline else None,
+            "action_due_on": action_due.isoformat() if action_due else None,
+            "followup_due_on": followup_due.isoformat() if followup_due else None,
         },
         "action": {
             "class": action_class,
