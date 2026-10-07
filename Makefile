@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement producer-receipt-estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement producer-receipt-estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -9,7 +9,7 @@ GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 # Supported product acceptance: Office v2 CORE plus declared sidecars only.
-smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts editorial-contracts runtime-contracts repo-scans
+smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts runtime-contracts repo-scans
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
@@ -21,6 +21,8 @@ import office_runtime.editorial.contracts; \
 import office_runtime.editorial.staging; \
 import office_runtime.editorial.staging.runtime; \
 import office_runtime.editorial.staging.sheets; \
+import office_runtime.jobs; \
+import office_runtime.jobs.action_packet; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
@@ -72,6 +74,9 @@ freshness-contracts:
 
 editorial-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_editorial_contracts tests.test_editorial_evidence_spine tests.test_editorial_staging
+
+jobs-contracts:
+	PYTHONPATH=src python3 -m unittest tests.test_jobs_action_packet
 
 dependency-contracts:
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check

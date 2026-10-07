@@ -216,3 +216,17 @@ For architecture details start with:
 - [`docs/architecture/reentry-v2.md`](docs/architecture/reentry-v2.md)
 - [`docs/architecture/coherent-generation-v2.md`](docs/architecture/coherent-generation-v2.md)
 - [`docs/architecture/run-record-health-v2.md`](docs/architecture/run-record-health-v2.md)
+
+## Job-search action packets
+
+`office_runtime.jobs` is a read-only SIDECAR that compiles one canonical ATS row plus bounded process evidence into `artifact:ops.job-action-packet@1`.
+
+It exists to make application preparation, verified-contact resolution, waiting/follow-up decisions, and stop conditions cheap without creating a second ATS or giving Office autonomous application/email/calendar authority.
+
+Start from the governed Job Search Agenda when Context MCP is available, then gather only the live evidence required for the target ATS row. See [`docs/jobs/action-packet-v1.md`](docs/jobs/action-packet-v1.md).
+
+Validation:
+
+```bash
+make jobs-contracts
+```
