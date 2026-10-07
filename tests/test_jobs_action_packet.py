@@ -120,6 +120,116 @@ class JobActionPacketTests(unittest.TestCase):
         self.assertEqual(packet["follow_up"]["state"], "scheduled")
         self.assertEqual(packet["action"]["class"], "WAIT_PROCESS")
 
+    def test_explicit_waiting_followup_date_controls_due_state(self) -> None:
+        snapshot = _base(
+            "JOB-210",
+            "ExampleCo",
+            "Senior Data Scientist",
+            "availability_submitted_waiting_schedule",
+        )
+        snapshot["ats"].update(
+            {
+                "status_updated_on": "2026-10-05",
+                "followup_due_on": "2026-10-10",
+            }
+        )
+        snapshot["contacts"] = [
+            {
+                "name": "Recruiter One",
+                "email": "recruiter.one@example.com",
+                "role": "Recruiter",
+                "verification": "process-email",
+                "evidence_ref": "gmail:example:process",
+            }
+        ]
+
+        before = compile_action_packet(snapshot, as_of="2026-10-09")
+        due = compile_action_packet(snapshot, as_of="2026-10-10")
+
+        self.assertEqual(before["follow_up"]["state"], "waiting")
+        self.assertEqual(before["follow_up"]["due_on"], "2026-10-10")
+        self.assertEqual(due["follow_up"]["state"], "due")
+        self.assertEqual(due["follow_up"]["due_on"], "2026-10-10")
+
+    def test_calendar_suppresses_explicit_waiting_followup(self) -> None:
+        snapshot = _base(
+            "JOB-210",
+            "ExampleCo",
+            "Senior Data Scientist",
+            "availability_submitted_waiting_schedule",
+        )
+        snapshot["ats"]["followup_due_on"] = "2026-10-07"
+        snapshot["calendar"] = [
+            {
+                "date": "2026-10-09",
+                "status": "confirmed",
+                "evidence_ref": "calendar:example:interview",
+            }
+        ]
+
+        packet = compile_action_packet(snapshot, as_of="2026-10-07")
+
+        self.assertEqual(packet["follow_up"]["state"], "scheduled")
+        self.assertIsNone(packet["follow_up"]["due_on"])
+
+    def test_rejected_feedback_waits_until_explicit_residual_followup(self) -> None:
+        snapshot = _base("JOB-209", "ExampleCo", "Data Engineer", "rejected")
+        snapshot["ats"].update(
+            {
+                "followup_due_on": "2026-10-14",
+                "source_type": "Recruiter inbound",
+                "source_contact": "Recruiter One",
+            }
+        )
+        snapshot["contacts"] = [
+            {
+                "name": "Recruiter One",
+                "email": "recruiter.one@example.com",
+                "role": "Recruiter",
+                "verification": "process-email",
+                "evidence_ref": "gmail:example:contact",
+            }
+        ]
+        snapshot["communications"] = [
+            {
+                "direction": "outbound",
+                "date": "2026-10-07",
+                "purpose": "feedback-request",
+                "evidence_ref": "gmail:example:feedback",
+            }
+        ]
+
+        waiting = compile_action_packet(snapshot, as_of="2026-10-07")
+        due = compile_action_packet(snapshot, as_of="2026-10-14")
+
+        self.assertEqual(waiting["follow_up"]["state"], "waiting-response")
+        self.assertEqual(waiting["follow_up"]["due_on"], "2026-10-14")
+        self.assertEqual(due["follow_up"]["state"], "due")
+        self.assertEqual(due["action"]["class"], "FOLLOW_UP")
+
+    def test_calendar_suppresses_rejected_residual_followup(self) -> None:
+        snapshot = _base("JOB-209", "ExampleCo", "Data Engineer", "rejected")
+        snapshot["ats"]["followup_due_on"] = "2026-10-14"
+        snapshot["communications"] = [
+            {
+                "direction": "outbound",
+                "date": "2026-10-07",
+                "purpose": "feedback-request",
+                "evidence_ref": "gmail:example:feedback",
+            }
+        ]
+        snapshot["calendar"] = [
+            {
+                "date": "2026-10-15",
+                "status": "confirmed",
+                "evidence_ref": "calendar:example:followup-call",
+            }
+        ]
+
+        packet = compile_action_packet(snapshot, as_of="2026-10-14")
+
+        self.assertEqual(packet["follow_up"]["state"], "scheduled")
+
     def test_ready_not_applied_keeps_application_and_relationship_distinct(self) -> None:
         snapshot = _base("JOB-211", "ExampleCo", "Data Science Lead", "ready_not_applied")
         snapshot["ats"].update(
