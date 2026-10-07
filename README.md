@@ -225,6 +225,8 @@ It exists to make application preparation, verified-contact resolution, waiting/
 
 Start from the governed Job Search Agenda when Context MCP is available, then gather only the live evidence required for the target ATS row. See [`docs/jobs/action-packet-v1.md`](docs/jobs/action-packet-v1.md).
 
+Application materials are resolved through the human-owned `ATS 2026 / Assets` registry rather than fuzzy Drive search. The companion `artifact:ops.job-application-prep@1` distinguishes approved bases, review-required candidates, references and known gaps. See [`docs/jobs/application-prep-v1.md`](docs/jobs/application-prep-v1.md).
+
 Validation:
 
 ```bash
