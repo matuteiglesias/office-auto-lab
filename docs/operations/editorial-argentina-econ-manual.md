@@ -1,5 +1,10 @@
 # Editorial `argentina_econ` manual Sheet publisher
 
+**Status:** active manual intake
+**Audience:** economics editorial operators
+**Owner:** office-auto-lab Editorial publisher
+**Verified against:** `argentina_econ` profile and manual Sheet contract
+
 This is a manual-authored, Sheet-only intake for the `argentina_econ` profile.
 It does not collect news, run a model, generate copy, or schedule recurring
 publication. The operator writes the post and source context in the economics

@@ -1,6 +1,11 @@
 # Argentina Econ — GitHub Actions cloud publisher (proposal)
 
-Status: **prepared, not promoted**. Cloud GitHub Actions runs independently of
+**Status:** prepared, not promoted
+**Audience:** editorial operators and release engineers
+**Owner:** office-auto-lab Editorial publisher
+**Verified against:** `argentina_econ` profile, PR #71 branch
+
+Cloud GitHub Actions runs independently of
 Matías's laptop. This is the **publisher** for `argentina_econ` only, NOT the
 Editorial Dev generation workflow, and it does not use Cloud Run.
 
