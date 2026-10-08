@@ -181,7 +181,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_second_page_budget_stops_before_network_request(self):
         client = FakeX([page([activity()], token="TOKEN")])
-        report = qualify(client, max_results=10, max_usd=0.25)
+        report = qualify(client, max_results=10, max_usd=0.21)
         self.assertEqual(report["qualification_status"], "BUDGET_STOP")
         self.assertEqual(len([c for c in client.calls if c[0] == "posts"]), 1)
 
