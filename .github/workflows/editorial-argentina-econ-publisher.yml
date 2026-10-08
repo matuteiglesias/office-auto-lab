@@ -42,7 +42,9 @@ jobs:
       EDITORIAL_ECON_RUNTIME_PROMOTED: ${{ vars.EDITORIAL_ECON_RUNTIME_PROMOTED || 'false' }}
       EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED: ${{ vars.EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED || '1' }}
       REQUESTED_MODE: ${{ inputs.mode || 'dry_run' }}
-      HOME: ${{ runner.temp }}/editorial-argentina-econ-home
+      # runner.temp is not available in job-level expressions. The workspace
+      # is runner-local and writable, and this keeps xurl state ephemeral.
+      HOME: ${{ github.workspace }}/.editorial-argentina-econ-home
     steps:
       - uses: actions/checkout@v4
 
