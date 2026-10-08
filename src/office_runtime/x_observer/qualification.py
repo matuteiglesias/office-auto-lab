@@ -48,6 +48,7 @@ def qualify(
         "partial_pages": 0,
         "page_digests": [],
         "page_shapes": [],
+        "rate_headers_per_page": [],
         "next_page_available": None,
         "repost_evidence": "REPOST_NOT_OBSERVED",
         "estimated_resource_usd": 0.0,
@@ -101,6 +102,7 @@ def qualify(
             "result_count_reported": page.result_count,
         })
         result["next_page_available"] = bool(page.next_token)
+        result["rate_headers_per_page"].append(dict(getattr(client, "last_rate_headers", {})))
         if estimated > max_usd + 1e-8:
             result["qualification_status"] = "BUDGET_EXCEEDED_STOP"
             break
