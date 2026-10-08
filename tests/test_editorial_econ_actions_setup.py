@@ -23,6 +23,24 @@ class ActionsSetupDiagnosticsTests(unittest.TestCase):
         self.assertIn("X_REJECTED_OAUTH1_CREDENTIALS", str(err.exception))
         self.assertNotIn("sensitive-value-should-not-appear", str(err.exception))
 
+    def test_known_app_enrollment_error_is_not_labeled_bad_credentials(self):
+        fake = subprocess.CompletedProcess(
+            args=["xurl", "whoami"], returncode=1, stdout='{"detail":"client-not-enrolled","status":401}', stderr="",
+        )
+        with patch("office_runtime.scripts.editorial_econ_actions_setup.subprocess.run", return_value=fake):
+            with self.assertRaises(BootstrapBlocked) as err:
+                _command(["xurl", "whoami"], stage="X_WHOAMI")
+        self.assertIn("X_APP_NOT_ENROLLED_IN_API_PACKAGE", str(err.exception))
+
+    def test_generic_401_does_not_assume_wrong_tokens(self):
+        fake = subprocess.CompletedProcess(
+            args=["xurl", "whoami"], returncode=1, stdout='{"status":401,"detail":"Unauthorized"}', stderr="",
+        )
+        with patch("office_runtime.scripts.editorial_econ_actions_setup.subprocess.run", return_value=fake):
+            with self.assertRaises(BootstrapBlocked) as err:
+                _command(["xurl", "whoami"], stage="X_WHOAMI")
+        self.assertIn("X_REJECTED_OAUTH1_CREDENTIALS_OR_APP_ACCESS", str(err.exception))
+
     def test_missing_xurl_token_reports_specific_safe_code(self):
         fake = subprocess.CompletedProcess(
             args=["xurl", "whoami"], returncode=1, stdout="",
