@@ -38,8 +38,7 @@ jobs:
       EDITORIAL_RUNTIME_PROFILE: editorial
       EDITORIAL_ARGENTINA_ECON_SHEET_ID: ${{ vars.EDITORIAL_ARGENTINA_ECON_SHEET_ID }}
       EDITORIAL_GOOGLE_CREDENTIALS_JSON: ${{ secrets.EDITORIAL_GOOGLE_CREDENTIALS_JSON }}
-      EDITORIAL_ECON_AUTH_GCS_BUCKET: ${{ vars.EDITORIAL_ECON_AUTH_GCS_BUCKET }}
-      EDITORIAL_ECON_AUTH_GCS_OBJECT: ${{ vars.EDITORIAL_ECON_AUTH_GCS_OBJECT }}
+      EDITORIAL_ECON_XURL_OAUTH1_YAML: ${{ secrets.EDITORIAL_ECON_XURL_OAUTH1_YAML }}
       EDITORIAL_ECON_PUBLISH_ENABLED: ${{ vars.EDITORIAL_ECON_PUBLISH_ENABLED || 'false' }}
       EDITORIAL_ECON_RUNTIME_PROMOTED: ${{ vars.EDITORIAL_ECON_RUNTIME_PROMOTED || 'false' }}
       EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED: ${{ vars.EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED || '1' }}
@@ -88,12 +87,8 @@ jobs:
             echo "::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON secret is required."
             exit 2
           }
-          test -n "${EDITORIAL_ECON_AUTH_GCS_BUCKET}" && test -n "${EDITORIAL_ECON_AUTH_GCS_OBJECT}" || {
-            echo "::error::Economics-only durable OAuth2 object must be configured."
-            exit 2
-          }
-          [[ "${EDITORIAL_ECON_AUTH_GCS_OBJECT}" == auth/argentina_econ/* ]] || {
-            echo "::error::OAuth2 object must be under auth/argentina_econ/."
+          test -n "${EDITORIAL_ECON_XURL_OAUTH1_YAML}" || {
+            echo "::error::Economics-only OAuth1 GitHub Actions secret is required."
             exit 2
           }
           python - <<'PY'
@@ -110,21 +105,15 @@ jobs:
         run: |
           set -euo pipefail
           python src/office_runtime/scripts/install_profile.py editorial
-          python -m pip install -c requirements/constraints.txt google-cloud-storage
           python -m pip install PyYAML==6.0.3
           npm install --global @xdevplatform/xurl@1.3.4
           command -v xurl
           xurl --version
 
-      - name: Restore economics-only OAuth2 credential state
-        id: restore
+      - name: Restore economics-only OAuth1 credentials from GitHub secret
         run: |
           set -euo pipefail
-          test -f src/office_runtime/scripts/editorial_econ_oauth_store.py || {
-            echo "::error::OAuth2 persistence adapter not integrated: see docs/operations/editorial-argentina-econ-actions.md."
-            exit 2
-          }
-          python src/office_runtime/scripts/editorial_econ_oauth_store.py restore
+          python src/office_runtime/scripts/editorial_econ_oauth1_secret.py
 
       - name: Execute bounded Sheet cycle
         id: cycle
@@ -139,12 +128,6 @@ jobs:
             args=(--apply)
           fi
           python src/office_runtime/scripts/run_editorial_argentina_cycle.py "${args[@]}"
-
-      - name: Persist refreshed OAuth2 state even after a failed cycle
-        if: ${{ always() && steps.restore.outcome == 'success' }}
-        run: |
-          set -euo pipefail
-          python src/office_runtime/scripts/editorial_econ_oauth_store.py persist
 
       - name: Safe operator summary
         if: always()
