@@ -115,13 +115,44 @@ def _verify_xurl(binary: str, auth: str) -> tuple[str, str]:
         return username, user_id
 
 
+def _gh_variable_upsert(name: str, value: str) -> None:
+    """Set one nonsecret repo variable via gh api, including older gh versions.
+
+    GitHub REST provides POST /actions/variables and PATCH /actions/variables/{name}.
+    Check whether the variable exists; only a confirmed HTTP 404 permits create.
+    Never expose X secrets through this operation.
+    """
+    endpoint = f"repos/{REPO}/actions/variables"
+    try:
+        check = subprocess.run(
+            ["gh", "api", "-X", "GET", f"{endpoint}/{name}"],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BootstrapBlocked(f"GITHUB_VARIABLE_{name}: lookup command unavailable") from exc
+    if check.returncode == 0:
+        _command(
+            ["gh", "api", "-X", "PATCH", f"{endpoint}/{name}",
+             "-f", f"name={name}", "-f", f"value={value}"],
+            stage=f"GITHUB_VARIABLE_{name}_UPDATE",
+        )
+    elif "HTTP 404" in check.stderr or "HTTP 404" in check.stdout:
+        _command(
+            ["gh", "api", "-X", "POST", endpoint,
+             "-f", f"name={name}", "-f", f"value={value}"],
+            stage=f"GITHUB_VARIABLE_{name}_CREATE",
+        )
+    else:
+        # A 401/403/transport failure must not be misinterpreted as absent.
+        raise BootstrapBlocked(
+            f"GITHUB_VARIABLE_{name}: lookup failed (check GitHub auth and Actions-variable permission)"
+        )
+
+
 def _configure_disabled_variables() -> None:
     """First establish GitHub write permissions without asking for X secrets."""
     for key, value in DISABLED_VARIABLES.items():
-        _command(
-            ["gh", "variable", "set", key, "--repo", REPO, "--body", value],
-            stage=f"GITHUB_VARIABLE_{key}",
-        )
+        _gh_variable_upsert(key, value)
     print("GitHub Actions variables written; scheduler and publisher are disabled.")
 
 
