@@ -138,6 +138,34 @@ class PublisherTests(unittest.TestCase):
             self.assertEqual(result.reason, "reconciled prior publication")
             self.assertEqual(len(x.created), 1)
 
+    def test_dry_run_does_not_reconcile_publishing_row(self):
+        gateway = gateway_for(status="PUBLISHING")
+        x = FakeX(recent=[XPost("777", "draft", username=EXPECTED_USERNAME, author_id=EXPECTED_USER_ID)])
+        result = self.run_publisher(gateway, x=x, apply=False)
+        self.assertEqual(result.state, "BLOCKED")
+        self.assertEqual(gateway.read_rows(QUEUE_TAB)[1][5], "PUBLISHING")
+        self.assertEqual(gateway.read_rows(QUEUE_TAB)[1][7], "")
+
+    def test_reconciliation_requires_correct_identity(self):
+        gateway = gateway_for(status="PUBLISHING")
+        x = FakeX(identity=XIdentity("Other", "123"), recent=[XPost("777", "draft")])
+        result = self.run_publisher(gateway, x=x, apply=True)
+        self.assertEqual(result.reason, "X account identity mismatch")
+        self.assertEqual(gateway.read_rows(QUEUE_TAB)[1][5], "PUBLISHING")
+
+    def test_receipt_cadence_is_account_wide_across_candidates(self):
+        with TemporaryDirectory() as directory:
+            previous = Path(directory) / "other-candidate.json"
+            previous.write_text(json.dumps({
+                "profile_id": "dev",
+                "candidate_id": "cand:some-other-candidate",
+                "state": "PUBLISHED",
+                "published_at": NOW.isoformat(),
+            }), encoding="utf-8")
+            result = self.run_publisher(gateway_for(), artifacts=Path(directory))
+            self.assertEqual(result.state, "BLOCKED")
+            self.assertIn("cadence", result.reason)
+
     def test_only_explicit_pilot_id_can_be_mutated(self):
         gateway = gateway_for()
         gateway.rows[CANDIDATES_TAB][1][0] = "cand:not-authorized"
