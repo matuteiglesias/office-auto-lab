@@ -71,3 +71,5 @@ jobs:
             tests.test_editorial_batch \
             tests.test_editorial_eval_corpus \
             tests.test_dependency_profiles
+      - name: Economics OAuth1 and publishing regressions
+        run: python -m unittest tests.test_editorial_econ_oauth1_secret tests.test_editorial_argentina_cycle tests.test_editorial_publisher
