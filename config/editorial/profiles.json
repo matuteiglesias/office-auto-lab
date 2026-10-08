@@ -69,7 +69,7 @@
       "publisher": {
         "sheet_id_env": "EDITORIAL_ARGENTINA_ECON_SHEET_ID",
         "xurl_app": "argentina-econ-editorial",
-        "xurl_auth": "oauth2",
+        "xurl_auth": "oauth1",
         "expected_username": "matuteiglesias",
         "expected_user_id": "57242581",
         "receipt_namespace": "argentina_econ",
