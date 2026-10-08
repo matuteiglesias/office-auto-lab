@@ -1,0 +1,97 @@
+name: Media evidence composition proof
+
+on:
+  pull_request:
+    paths:
+      - 'src/office_runtime/media_evidence/**'
+      - 'src/office_runtime/scripts/compose_media_evidence.py'
+      - 'tests/test_media_evidence_composition.py'
+      - 'docs/media/**'
+      - 'Makefile'
+      - 'SYSTEM.yaml'
+      - '.github/workflows/media-evidence-composition.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/office_runtime/media_evidence/**'
+      - 'src/office_runtime/scripts/compose_media_evidence.py'
+      - 'tests/test_media_evidence_composition.py'
+      - 'docs/media/**'
+      - 'Makefile'
+      - 'SYSTEM.yaml'
+      - '.github/workflows/media-evidence-composition.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out Office
+        uses: actions/checkout@v4
+      - name: Check out pinned Media Monitor
+        uses: actions/checkout@v4
+        with:
+          repository: matuteiglesias/media_monitor
+          ref: 84e0373d362fec6c3d81b6c39be1a68fd64c3d2f
+          path: .producer/media-monitor
+      - name: Check out checksum-bound KB Artifacts
+        uses: actions/checkout@v4
+        with:
+          repository: matuteiglesias/kb-artifacts
+          ref: 3daf0d9f6d53fc6ae94896d72769536273382943
+          path: .consumer/kb-artifacts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install bounded fixture/selector dependencies
+        run: |
+          python -m pip install pytest jsonschema PyYAML
+          python -m pip install -e .consumer/kb-artifacts
+      - name: Run sidecar contracts
+        run: make media-evidence-contracts
+      - name: Seed governed two-channel Media summary fixture
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.producer/media-monitor
+        run: |
+          python -m apps.media_watch.evidence_fixture \
+            --store-root '${{ github.workspace }}/artifacts/media-evidence-proof/store'
+      - name: Compose one topic/date selection through owning interfaces
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python src/office_runtime/scripts/compose_media_evidence.py \
+            --selection-id office-media-inflation-fixture \
+            --from 2026-08-29 \
+            --to 2026-08-31 \
+            --topic 'inflaci[oó]n' \
+            --media-monitor-root '${{ github.workspace }}/.producer/media-monitor' \
+            --media-store-root '${{ github.workspace }}/artifacts/media-evidence-proof/store' \
+            --kb-artifacts-root '${{ github.workspace }}/.consumer/kb-artifacts' \
+            --work-root '${{ github.workspace }}/artifacts/media-evidence-proof/work' \
+            --apply | tee artifacts/media-evidence-proof/receipt.json
+      - name: Verify operator handoff
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt=json.loads(Path('artifacts/media-evidence-proof/receipt.json').read_text())
+          assert receipt['contract'] == 'ops.media-evidence-composition-receipt@1'
+          assert receipt['producer_adapter_contract'] == 'producer-local:media-monitor.evidence-jsonl@1'
+          assert receipt['selected_count'] == 2
+          assert len(receipt['selected_sha256']) == 64
+          assert receipt['handoff']['mctx_command'] == 'mctx evidence office-media-inflation-fixture'
+          manifest=json.loads(Path('.consumer/kb-artifacts/artifacts/runs/office-media-inflation-fixture/manifest.json').read_text())
+          assert manifest['selection_request']['corpus'] == 'media-monitor'
+          assert manifest['counts']['selected'] == 2
+          assert manifest['output_checksums']['selected.jsonl'] == receipt['selected_sha256']
+          PY
+      - name: Upload sidecar proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-evidence-composition-proof
+          path: artifacts/media-evidence-proof
+          if-no-files-found: warn
