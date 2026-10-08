@@ -123,6 +123,10 @@ jobs:
           args=(--dry-run)
           if [[ "${{ steps.authority.outputs.mode }}" == "apply" ]]; then
             args=(--apply)
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            # Manual qualification always proves the X user identity,
+            # even if no future scheduled post is eligible yet.
+            args+=(--verify-identity)
           fi
           python src/office_runtime/scripts/run_editorial_argentina_cycle.py "${args[@]}"
 
