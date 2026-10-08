@@ -139,7 +139,7 @@ def main() -> int:
     try:
         config = PublisherConfig.from_profile(PROFILE)
         if (config.profile_id, config.account_key, config.expected_user_id, config.xurl_app, config.xurl_auth) != (
-            PROFILE, "x_argentina_econ", "57242581", "argentina-econ-editorial", "oauth2"
+            PROFILE, "x_argentina_econ", "57242581", "argentina-econ-editorial", "oauth1"
         ):
             raise CycleBlocked("unexpected economics publisher profile")
         sheet_id = os.environ.get(config.sheet_id_env, "")
