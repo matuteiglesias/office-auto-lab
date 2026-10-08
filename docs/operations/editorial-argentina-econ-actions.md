@@ -1,6 +1,11 @@
 # Editorial Argentina Econ — GitHub Actions-only authentication
 
-**Status:** alternative, unpromoted. Do not enable recurring mutation until an
+**Status:** alternative, unpromoted
+**Audience:** editorial operators and release engineers
+**Owner:** office-auto-lab Editorial publisher
+**Verified against:** `argentina_econ` OAuth1 profile, PR #74
+
+Do not enable recurring mutation until an
 OAuth1 identity proof and two independent cloud dry-runs succeed.
 
 This is a bounded alternative to the already-merged OAuth2+GCS implementation.
