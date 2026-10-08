@@ -115,19 +115,37 @@ def _verify_xurl(binary: str, auth: str) -> tuple[str, str]:
         return username, user_id
 
 
+def _configure_disabled_variables() -> None:
+    """First establish GitHub write permissions without asking for X secrets."""
+    for key, value in DISABLED_VARIABLES.items():
+        _command(
+            ["gh", "variable", "set", key, "--repo", REPO, "--body", value],
+            stage=f"GITHUB_VARIABLE_{key}",
+        )
+    print("GitHub Actions variables written; scheduler and publisher are disabled.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Configure economics GitHub Actions OAuth1 without showing tokens")
-    parser.add_argument("--apply", action="store_true", help="actually write only the economics GitHub secret and disabled variables")
+    parser.add_argument("--apply", action="store_true", help="verify economics credentials and set GitHub secret, leaving publication disabled")
+    parser.add_argument("--configure-github-only", action="store_true", help="set only nonsecret disabled GitHub variables; no X credentials")
     args = parser.parse_args()
-    if not args.apply:
-        print("Dry description only: use --apply in your OWN interactive terminal to enter four X OAuth1 values.")
-        print("No X publication, no local OAuth2 modification; GitHub publication switches remain disabled.")
+    if not args.apply and not args.configure_github_only:
+        print("Use --configure-github-only to test GitHub variable writes without asking for X credentials.")
+        print("Use --apply after the GitHub variables have been configured successfully.")
         return 0
+    if args.apply and args.configure_github_only:
+        parser.error("choose --apply or --configure-github-only")
     try:
+        _command(["gh", "auth", "status"], stage="GITHUB_AUTH")
+        # IMPORTANT: GH permission errors must fail before the operator has to
+        # retype credentials. These values contain no X secrets.
+        _configure_disabled_variables()
+        if args.configure_github_only:
+            return 0
         if not sys.stdin.isatty():
             raise BootstrapBlocked("a private interactive operator terminal is required")
         xurl = shutil.which("xurl") or str(Path.home() / ".local" / "bin" / "xurl")
-        _command(["gh", "auth", "status"], stage="GITHUB_AUTH")
         _command([xurl, "--version"], stage="XURL_PREFLIGHT")
         prompts = {
             "consumer_key": "Economics app API key (OAuth1)",
@@ -149,9 +167,8 @@ def main() -> int:
         print("Checking economics OAuth1 identity with X (read-only). No secrets will be logged.")
         _verify_xurl(xurl, auth)
         print("Verified isolated economics OAuth1 identity: @matuteiglesias / 57242581.")
-        # Lock mutation before writing any secret, including during re-runs.
-        for key, value in DISABLED_VARIABLES.items():
-            _command(["gh", "variable", "set", key, "--repo", REPO, "--body", value], stage=f"GITHUB_VARIABLE_{key}")
+        # The variables were already forced to safe defaults above.
+        # The X secret is sent via stdin, never displayed or persisted here.
         _command(["gh", "secret", "set", "EDITORIAL_ECON_XURL_OAUTH1_YAML", "--repo", REPO], input_data=auth, stage="GITHUB_SECRET")
         print("Economics-only GitHub Actions secret configured, with ALL publication switches disabled.")
         print("Next: CI + merge PR #74, then dispatch two independent dry-runs. No live post was sent.")
