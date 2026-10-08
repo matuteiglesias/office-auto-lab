@@ -38,7 +38,6 @@ jobs:
       EDITORIAL_RUNTIME_PROFILE: editorial
       EDITORIAL_ARGENTINA_ECON_SHEET_ID: ${{ vars.EDITORIAL_ARGENTINA_ECON_SHEET_ID }}
       EDITORIAL_GOOGLE_CREDENTIALS_JSON: ${{ secrets.EDITORIAL_GOOGLE_CREDENTIALS_JSON }}
-      EDITORIAL_ECON_XURL_OAUTH1_YAML: ${{ secrets.EDITORIAL_ECON_XURL_OAUTH1_YAML }}
       EDITORIAL_ECON_PUBLISH_ENABLED: ${{ vars.EDITORIAL_ECON_PUBLISH_ENABLED || 'false' }}
       EDITORIAL_ECON_RUNTIME_PROMOTED: ${{ vars.EDITORIAL_ECON_RUNTIME_PROMOTED || 'false' }}
       EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED: ${{ vars.EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED || '1' }}
@@ -87,10 +86,6 @@ jobs:
             echo "::error::EDITORIAL_GOOGLE_CREDENTIALS_JSON secret is required."
             exit 2
           }
-          test -n "${EDITORIAL_ECON_XURL_OAUTH1_YAML}" || {
-            echo "::error::Economics-only OAuth1 GitHub Actions secret is required."
-            exit 2
-          }
           python - <<'PY'
           import json
           import os
@@ -111,6 +106,8 @@ jobs:
           xurl --version
 
       - name: Restore economics-only OAuth1 credentials from GitHub secret
+        env:
+          EDITORIAL_ECON_XURL_OAUTH1_YAML: ${{ secrets.EDITORIAL_ECON_XURL_OAUTH1_YAML }}
         run: |
           set -euo pipefail
           python src/office_runtime/scripts/editorial_econ_oauth1_secret.py
