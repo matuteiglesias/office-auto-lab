@@ -56,17 +56,6 @@ def _xurl_binary() -> str:
     return "xurl"
 
 
-def _run(args: list[str], operation: str) -> Mapping[str, Any]:
-    command = [_xurl_binary(), "--app", "modernai-editorial", "--auth", "oauth1", *args]
-    try:
-        completed = subprocess.run(command, check=False, capture_output=True, text=True)
-    except OSError as exc:
-        raise XurlError(f"cannot execute xurl for {operation}") from exc
-    if completed.returncode != 0:
-        raise XurlError(f"xurl {operation} failed with exit {completed.returncode}")
-    return _json_output(completed.stdout, operation)
-
-
 def _post_from(value: Mapping[str, Any], response: Mapping[str, Any] | None = None) -> XPost:
     post_id = str(value.get("id", ""))
     text = value.get("text")
@@ -93,8 +82,24 @@ def _post_from(value: Mapping[str, Any], response: Mapping[str, Any] | None = No
 class XurlAdapter:
     """Small OAuth1 xurl transport; credentials remain owned by xurl."""
 
+    def __init__(self, *, app: str = "modernai-editorial", auth: str = "oauth1") -> None:
+        if not app or not auth:
+            raise XurlError("xurl app and auth method are required")
+        self.app = app
+        self.auth = auth
+
+    def _run(self, args: list[str], operation: str) -> Mapping[str, Any]:
+        command = [_xurl_binary(), "--app", self.app, "--auth", self.auth, *args]
+        try:
+            completed = subprocess.run(command, check=False, capture_output=True, text=True)
+        except OSError as exc:
+            raise XurlError(f"cannot execute xurl for {operation}") from exc
+        if completed.returncode != 0:
+            raise XurlError(f"xurl {operation} failed with exit {completed.returncode}")
+        return _json_output(completed.stdout, operation)
+
     def whoami(self) -> XIdentity:
-        value = _data(_run(["whoami"], "whoami"))
+        value = _data(self._run(["whoami"], "whoami"))
         username = value.get("username")
         user_id = value.get("id")
         if not isinstance(username, str) or not isinstance(user_id, str):
@@ -102,15 +107,15 @@ class XurlAdapter:
         return XIdentity(username=username, user_id=user_id)
 
     def recent_posts(self, username: str, max_results: int = 100) -> list[XPost]:
-        value = _run(["posts", username, "-n", str(max_results)], "posts")
+        value = self._run(["posts", username, "-n", str(max_results)], "posts")
         raw = value.get("data", [])
         if not isinstance(raw, list):
             raise XurlError("posts response did not contain a data array")
         return [_post_from(item) for item in raw if isinstance(item, Mapping)]
 
     def create_post(self, text: str) -> XPost:
-        return _post_from(_data(_run(["post", text], "post")))
+        return _post_from(_data(self._run(["post", text], "post")))
 
     def read_post(self, post_id: str) -> XPost:
-        response = _run(["read", post_id], "read")
+        response = self._run(["read", post_id], "read")
         return _post_from(_data(response), response)

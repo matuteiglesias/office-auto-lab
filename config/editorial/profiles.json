@@ -18,6 +18,22 @@
         "default_mode": "dry_run",
         "max_posts_per_day": 1,
         "auto_publish_max_risk": "low"
+      },
+      "publisher": {
+        "sheet_id_env": "EDITORIAL_DEV_SHEET_ID",
+        "xurl_app": "modernai-editorial",
+        "xurl_auth": "oauth1",
+        "expected_username": "ModernAIDev",
+        "expected_user_id": "1927563136636243968",
+        "receipt_namespace": "dev",
+        "kill_switch_env": "EDITORIAL_DEV_PUBLISHER_DISABLED",
+        "min_post_gap_hours": 5,
+        "require_manual_seed": true,
+        "authorized_candidate_ids": [
+          "cand:b9572a5fdc329e88dee0bcaf",
+          "cand:e26bf2f6d60facbfcbc02c87",
+          "cand:90df81120216a3bcc1d8f2a5"
+        ]
       }
     },
     {
@@ -49,6 +65,18 @@
         "default_mode": "dry_run",
         "max_posts_per_day": 1,
         "auto_publish_max_risk": "low"
+      },
+      "publisher": {
+        "sheet_id_env": "EDITORIAL_ARGENTINA_ECON_SHEET_ID",
+        "xurl_app": "argentina-econ-editorial",
+        "xurl_auth": "oauth2",
+        "expected_username": "matuteiglesias",
+        "expected_user_id": "57242581",
+        "receipt_namespace": "argentina_econ",
+        "kill_switch_env": "EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED",
+        "min_post_gap_hours": 24,
+        "require_manual_seed": false,
+        "authorized_candidate_ids": []
       }
     }
   ]
