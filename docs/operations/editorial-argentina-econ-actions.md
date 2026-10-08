@@ -45,6 +45,8 @@ After obtaining all FOUR OAuth1 values for **only** the economics app in the X D
 PYTHONPATH=src python -m office_runtime.scripts.editorial_econ_actions_setup --apply
 ```
 
+For older `gh` versions without the `gh variable` subcommand, the helper uses `gh api` and the GitHub Actions Variables REST API (`POST` to create, `PATCH` to update). Test this independently with `--configure-github-only` before entering X credentials. Only a confirmed HTTP 404 may trigger creation; 401/403 fail closed. No GitHub CLI upgrade is required.
+
 The script uses `getpass` prompts; do **not** provide the secrets to Codex, ChatGPT, CLI arguments, chat, shell history, or a committed file. It creates an isolated temporary `HOME/.xurl/auth.yml`, performs **read-only** `whoami` and requires `matuteiglesias / 57242581`, then directly runs `gh secret set` via stdin. It never reads or rewrites existing local `~/.xurl` state. It also sets all GitHub Actions publication switches to the disabled values below. The ephemeral credential file is cleaned up after verification.
 
 Requirements: Python runtime with `PyYAML`, `xurl 1.3.4`, `gh` authenticated with permission to write this repository's Actions secrets and variables, and an operator terminal with stdin TTY. The previously used Google Sheets secret remains separately required for the cloud workflow. Local xurl OAuth1 authentication is not a prerequisite when using this helper: it constructs an isolated economics-only `auth.yml` from the four operator-entered values.
