@@ -172,8 +172,11 @@ def project_manual_drafts(sheet: ManualSheet, *, now: datetime | None = None) ->
                 raise ManualIntakeError("risk_class must be low, medium, or high")
             if risk == "high" and decision != "HOLD":
                 raise ManualIntakeError("high-risk drafts must be HOLD")
-            scheduled = _timestamp(source.get("scheduled_for_utc", ""), "scheduled_for_utc", future=True, now=current)
-            expires = _timestamp(source.get("expires_at_utc", ""), "expires_at_utc", future=True, now=current)
+            # Previously staged rows may have past schedule/expiry dates.
+            # Only first-time intake must reject already missed initial slots.
+            is_new = candidate_id not in candidates
+            scheduled = _timestamp(source.get("scheduled_for_utc", ""), "scheduled_for_utc", future=is_new, now=current)
+            expires = _timestamp(source.get("expires_at_utc", ""), "expires_at_utc", future=is_new, now=current)
             urls = _urls(source.get("source_urls", ""))
             if candidate_id in candidates:
                 existing = candidates[candidate_id]
