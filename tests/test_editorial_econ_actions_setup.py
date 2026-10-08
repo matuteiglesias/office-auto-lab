@@ -7,11 +7,23 @@ from unittest.mock import patch
 
 from office_runtime.scripts.editorial_econ_actions_setup import (
     BootstrapBlocked,
+    DISABLED_VARIABLES,
     _command,
+    _configure_disabled_variables,
 )
 
 
 class ActionsSetupDiagnosticsTests(unittest.TestCase):
+    def test_disabled_github_variables_do_not_require_x_secrets(self):
+        with patch("office_runtime.scripts.editorial_econ_actions_setup._command") as call:
+            _configure_disabled_variables()
+        self.assertEqual(call.call_count, len(DISABLED_VARIABLES))
+        for args in call.call_args_list:
+            argv = args.args[0]
+            self.assertEqual(argv[:3], ["gh", "variable", "set"])
+            self.assertIn("--repo", argv)
+            self.assertNotIn("secret", " ".join(argv))
+
     def test_wrong_oauth_token_is_classified_without_stderr_leak(self):
         fake = subprocess.CompletedProcess(
             args=["xurl", "whoami"], returncode=1, stdout="",
