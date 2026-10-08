@@ -2,5 +2,8 @@
 
 from .normalize import normalize_page
 from .qualification import qualify
+from .planner import ObservationPlan
+from .persistence import EvidenceStore
+from .projection import MemoryProjection
 
-__all__ = ["normalize_page", "qualify"]
+__all__ = ["normalize_page", "qualify", "ObservationPlan", "EvidenceStore", "MemoryProjection"]
