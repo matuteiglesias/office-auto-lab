@@ -1,0 +1,38 @@
+name: X Observer Phase A (offline contracts)
+on:
+  pull_request:
+    paths:
+      - "src/office_runtime/x_observer/**"
+      - "src/office_runtime/scripts/run_x_observer.py"
+      - "config/x_observer/**"
+      - "tests/test_x_observer_phase_a.py"
+      - "docs/spec/x-observer-v0/**"
+      - "SYSTEM.yaml"
+      - ".github/workflows/x-observer-phase-a.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile Phase A
+        run: python -m compileall -q src/office_runtime/x_observer src/office_runtime/scripts/run_x_observer.py
+      - name: Offline observer regressions (NO provider credentials)
+        env:
+          PYTHONPATH: src
+        run: python -m unittest -v tests.test_x_observer_phase_a
+      - name: CLI offline no-network preflight
+        env:
+          PYTHONPATH: src
+        run: python -m office_runtime.scripts.run_x_observer --dry-run
