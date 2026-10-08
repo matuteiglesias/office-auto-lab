@@ -46,6 +46,7 @@ class ReadOnlyXClient:
             raise ObserverContractError("separate observer bearer token is required")
         self.__bearer = bearer_token.strip()
         self.timeout = timeout
+        self.last_rate_headers: dict[str, str] = {}
 
     def _get(self, path: str, params: Mapping[str, str]) -> dict[str, Any]:
         if not path.startswith("/users/") or not re.fullmatch(r"/users/(?:by/username/[A-Za-z0-9_]{1,15}|[0-9]{1,19}/tweets)", path):
@@ -55,6 +56,12 @@ class ReadOnlyXClient:
                                     "Accept": "application/json"}, method="GET")
         try:
             with urlopen(req, timeout=self.timeout) as resp:
+                # Allowlisted, non-credential usage evidence only.
+                self.last_rate_headers = {
+                    name: str(resp.headers[name])
+                    for name in ("x-rate-limit-limit", "x-rate-limit-remaining", "x-rate-limit-reset")
+                    if resp.headers.get(name) is not None
+                }
                 raw = resp.read(MAX_RESPONSE_BYTES + 1)
                 if len(raw) > MAX_RESPONSE_BYTES:
                     raise XObserverAPIError("X response exceeds byte limit")
