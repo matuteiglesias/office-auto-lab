@@ -161,6 +161,10 @@ def main() -> int:
             intake = project_manual_drafts(draft_sheet)
             if intake.blocked:
                 raise CycleBlocked("manual intake reported blocked rows; inspect DRAFTS before publishing")
+        # Every cloud dry-run must prove the bound X identity, even when the
+        # queue has no due candidate. This keeps an empty-poll acceptance
+        # meaningful without requiring a publication candidate.
+        _assert_account(x, config)
         candidates = _records(draft_sheet.read_rows("CANDIDATES"), CANDIDATES_HEADERS, label="CANDIDATES")
         queue = _records(draft_sheet.read_rows("QUEUE"), QUEUE_HEADERS, label="QUEUE")
         now = _now()
@@ -172,7 +176,6 @@ def main() -> int:
             return 0
         # Save paid X identity reads on the usual empty/no-due polls.
         # Bind identity before any publication or reconciliation attempt.
-        _assert_account(x, config)
         if mode == "reconcile":
             if args.dry_run:
                 print(json.dumps({"state": "HOLD", "reason": "unresolved PUBLISHING requires apply-mode reconciliation"}))
