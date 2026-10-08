@@ -20,7 +20,9 @@ one GitHub Actions encrypted secret. It never copies ModernAIDev credentials.
 - App `argentina-econ-editorial`, auth **oauth1**
 - Sheet `1LAVlYY3T7POA3IUydn3zy2MQBrxc-3c1w-iUq7oFtgo`
 - One approved low-risk due post per run; **one per 24 hours**
-- Workflow schedule `7,37 * * * *` UTC, best effort; skips >75 minutes stale slots.
+- Normal workflow polling is disabled by default. The bounded pilot temporarily
+  uses `*/5 * * * *` UTC, best effort; outside the pilot the publisher returns
+  to the one-post-per-24-hours policy and the scheduler should be disabled.
 - No Cloud Run, Cloud Scheduler, GCS, service-account IAM changes, or OAuth2
   refresh-state synchronization.
 
@@ -109,6 +111,10 @@ EDITORIAL_ECON_SCHEDULER_ENABLED=false
 EDITORIAL_ECON_PUBLISH_ENABLED=false
 EDITORIAL_ECON_RUNTIME_PROMOTED=false
 EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED=1
+EDITORIAL_ECON_PILOT_ENABLED=false
+EDITORIAL_ECON_PILOT_CANDIDATE_IDS=<explicit comma-separated cohort>
+EDITORIAL_ECON_PILOT_WINDOW_START=<absolute UTC timestamp>
+EDITORIAL_ECON_PILOT_WINDOW_END=<absolute UTC timestamp>
 ```
 
 The existing `EDITORIAL_GOOGLE_CREDENTIALS_JSON` secret is reused **only
@@ -145,8 +151,11 @@ review and protect writes to workflows.
    `EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED=0` and dispatch apply once.
 6. Verify exact X URL and both QUEUE/DRAFTS writebacks and clear any
    `PUBLISHING` uncertainty before another run.
-7. Only after that, set `EDITORIAL_ECON_SCHEDULER_ENABLED=true`.
-   Turn off local economics publication timers; ModernAIDev remains untouched.
+7. For a bounded pilot only, set the pilot variables, enable the scheduler and
+   publisher switches, and keep the cohort/cap/window explicit. After the
+   cohort is exhausted or the window ends, set scheduler and pilot flags back
+   to disabled values. Turn off local economics publication timers;
+   ModernAIDev remains untouched.
 
 **Stop quickly:** set `EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED=1`.
 No high-frequency October 8 pilot flags are used in Actions.
