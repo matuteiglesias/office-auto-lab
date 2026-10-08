@@ -153,7 +153,6 @@ def main() -> int:
         gateway = GoogleSheetsGateway.from_environment(spreadsheet_id=sheet_id)
         draft_sheet = GoogleManualSheet(gateway)
         x = XurlAdapter(app=config.xurl_app, auth=config.xurl_auth)
-        _assert_account(x, config)
 
         if args.apply:
             intake = project_manual_drafts(draft_sheet)
@@ -168,6 +167,9 @@ def main() -> int:
         if candidate_id is None:
             print(json.dumps({"state": "SKIP", "reason": mode, "profile": PROFILE}))
             return 0
+        # Save paid X identity reads on the usual empty/no-due polls.
+        # Bind identity before any publication or reconciliation attempt.
+        _assert_account(x, config)
         if mode == "reconcile":
             if args.dry_run:
                 print(json.dumps({"state": "HOLD", "reason": "unresolved PUBLISHING requires apply-mode reconciliation"}))
