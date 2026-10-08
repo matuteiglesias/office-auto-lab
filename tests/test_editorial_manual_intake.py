@@ -60,6 +60,29 @@ class ManualIntakeTests(unittest.TestCase):
         self.assertEqual(sheet.rows[QUEUE_TAB][1][2], "HOLD")
         self.assertEqual(sheet.rows[CANDIDATES_TAB][1][16], draft()[0])
 
+    def test_existing_staged_row_syncs_decision_and_schedule(self):
+        sheet = FakeSheet(draft(decision="REVIEW"))
+        project_manual_drafts(sheet, now=self.NOW)
+        sheet.rows[DRAFTS_TAB][1][1] = "APPROVE"
+        sheet.rows[DRAFTS_TAB][1][2] = "2026-12-04T00:00:00Z"
+        result = project_manual_drafts(sheet, now=self.NOW)
+        self.assertEqual(result.unchanged, 1)
+        self.assertEqual(sheet.rows[QUEUE_TAB][1][2], "APPROVE")
+        self.assertEqual(sheet.rows[QUEUE_TAB][1][6], "2026-12-04T00:00:00Z")
+
+    def test_existing_published_row_preserves_publisher_state(self):
+        sheet = FakeSheet(draft(decision="REVIEW"))
+        project_manual_drafts(sheet, now=self.NOW)
+        sheet.rows[QUEUE_TAB][1][2] = "APPROVE"
+        sheet.rows[QUEUE_TAB][1][5] = "PUBLISHED"
+        sheet.rows[QUEUE_TAB][1][7] = "https://x.com/matuteiglesias/status/123"
+        sheet.rows[DRAFTS_TAB][1][1] = "REJECT"
+        sheet.rows[DRAFTS_TAB][1][2] = "2026-12-04T00:00:00Z"
+        project_manual_drafts(sheet, now=self.NOW)
+        self.assertEqual(sheet.rows[QUEUE_TAB][1][2], "APPROVE")
+        self.assertEqual(sheet.rows[QUEUE_TAB][1][5], "PUBLISHED")
+        self.assertEqual(sheet.rows[QUEUE_TAB][1][7], "https://x.com/matuteiglesias/status/123")
+
     def test_high_risk_requires_hold_and_does_not_stage(self):
         sheet = FakeSheet(draft(decision="APPROVE", risk="high"))
         result = project_manual_drafts(sheet, now=self.NOW)
