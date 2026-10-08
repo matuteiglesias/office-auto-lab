@@ -45,18 +45,18 @@ def test_plan_is_non_mutating_and_returns_mcp_handoff(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "request",
+    "case",
     [
         CompositionRequest("../bad", "2026-10-05", "2026-10-07", "inflacion"),
         CompositionRequest("ok", "2026-10-08", "2026-10-07", "inflacion"),
         CompositionRequest("ok", "2026-10-05", "2026-10-07", ""),
     ],
 )
-def test_invalid_requests_fail_before_writes(tmp_path: Path, request: CompositionRequest) -> None:
+def test_invalid_requests_fail_before_writes(tmp_path: Path, case: CompositionRequest) -> None:
     media, kb, store = _roots(tmp_path)
     with pytest.raises(CompositionError):
         compose_media_selection(
-            request=request,
+            request=case,
             media_monitor_root=media,
             media_store_root=store,
             kb_artifacts_root=kb,
