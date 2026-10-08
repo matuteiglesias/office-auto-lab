@@ -10,19 +10,50 @@ from office_runtime.scripts.editorial_econ_actions_setup import (
     DISABLED_VARIABLES,
     _command,
     _configure_disabled_variables,
+    _gh_variable_upsert,
 )
 
 
 class ActionsSetupDiagnosticsTests(unittest.TestCase):
     def test_disabled_github_variables_do_not_require_x_secrets(self):
-        with patch("office_runtime.scripts.editorial_econ_actions_setup._command") as call:
+        with patch("office_runtime.scripts.editorial_econ_actions_setup._gh_variable_upsert") as call:
             _configure_disabled_variables()
         self.assertEqual(call.call_count, len(DISABLED_VARIABLES))
         for args in call.call_args_list:
-            argv = args.args[0]
-            self.assertEqual(argv[:3], ["gh", "variable", "set"])
-            self.assertIn("--repo", argv)
-            self.assertNotIn("secret", " ".join(argv))
+            self.assertIn(args.args[0], DISABLED_VARIABLES)
+            self.assertEqual(args.args[1], DISABLED_VARIABLES[args.args[0]])
+
+    def test_older_gh_rest_creates_missing_repo_variable(self):
+        not_found = subprocess.CompletedProcess(
+            args=["gh", "api"], returncode=1, stdout="",
+            stderr="gh: Not Found (HTTP 404)",
+        )
+        with patch("office_runtime.scripts.editorial_econ_actions_setup.subprocess.run", return_value=not_found), \
+             patch("office_runtime.scripts.editorial_econ_actions_setup._command") as command:
+            _gh_variable_upsert("EDITORIAL_ECON_SCHEDULER_ENABLED", "false")
+        argv = command.call_args.args[0]
+        self.assertEqual(argv[:4], ["gh", "api", "-X", "POST"])
+        self.assertIn("value=false", argv)
+
+    def test_older_gh_rest_updates_existing_repo_variable(self):
+        exists = subprocess.CompletedProcess(args=["gh", "api"], returncode=0, stdout='{"name":"test"}', stderr="")
+        with patch("office_runtime.scripts.editorial_econ_actions_setup.subprocess.run", return_value=exists), \
+             patch("office_runtime.scripts.editorial_econ_actions_setup._command") as command:
+            _gh_variable_upsert("EDITORIAL_ECON_SCHEDULER_ENABLED", "false")
+        argv = command.call_args.args[0]
+        self.assertEqual(argv[:4], ["gh", "api", "-X", "PATCH"])
+        self.assertIn("value=false", argv)
+
+    def test_403_does_not_create_or_overwrite_variable(self):
+        forbidden = subprocess.CompletedProcess(
+            args=["gh", "api"], returncode=1, stdout="",
+            stderr="gh: Resource not accessible by integration (HTTP 403)",
+        )
+        with patch("office_runtime.scripts.editorial_econ_actions_setup.subprocess.run", return_value=forbidden), \
+             patch("office_runtime.scripts.editorial_econ_actions_setup._command") as command:
+            with self.assertRaises(BootstrapBlocked):
+                _gh_variable_upsert("EDITORIAL_ECON_SCHEDULER_ENABLED", "false")
+        command.assert_not_called()
 
     def test_wrong_oauth_token_is_classified_without_stderr_leak(self):
         fake = subprocess.CompletedProcess(
