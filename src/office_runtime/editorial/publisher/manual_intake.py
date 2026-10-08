@@ -172,8 +172,11 @@ def project_manual_drafts(sheet: ManualSheet, *, now: datetime | None = None) ->
                 raise ManualIntakeError("risk_class must be low, medium, or high")
             if risk == "high" and decision != "HOLD":
                 raise ManualIntakeError("high-risk drafts must be HOLD")
-            scheduled = _timestamp(source.get("scheduled_for_utc", ""), "scheduled_for_utc", future=True, now=current)
-            expires = _timestamp(source.get("expires_at_utc", ""), "expires_at_utc", future=True, now=current)
+            # Previously staged rows may have past schedule/expiry dates.
+            # Only first-time intake must reject already missed initial slots.
+            is_new = candidate_id not in candidates
+            scheduled = _timestamp(source.get("scheduled_for_utc", ""), "scheduled_for_utc", future=is_new, now=current)
+            expires = _timestamp(source.get("expires_at_utc", ""), "expires_at_utc", future=is_new, now=current)
             urls = _urls(source.get("source_urls", ""))
             if candidate_id in candidates:
                 existing = candidates[candidate_id]
@@ -182,6 +185,21 @@ def project_manual_drafts(sheet: ManualSheet, *, now: datetime | None = None) ->
                 queue = queues.get(candidate_id)
                 if queue is None:
                     raise ManualIntakeError("candidate exists without QUEUE row")
+                # DRAFTS is the operator-owned intake surface. Approval and
+                # scheduling changes must flow to the review queue, while
+                # publication state remains publisher-owned.
+                if queue.get("publisher_status") not in {"PUBLISHING", "PUBLISHED"}:
+                    queue_updates = {
+                        "decision": "REVIEW" if decision == "DRAFT" else decision,
+                        "scheduled_for": scheduled,
+                        "updated_at": current.isoformat().replace("+00:00", "Z"),
+                    }
+                    queue_values = _row(QUEUE_HEADERS, {**queue, **queue_updates})
+                    queue_number = next(
+                        number for number, raw in enumerate(queue_raw[1:], start=2)
+                        if raw and raw[0] == candidate_id
+                    )
+                    sheet.replace_row(QUEUE_TAB, queue_number, queue_values)
                 updated["sync_status"] = "PUBLISHED" if queue.get("publisher_status") == "PUBLISHED" else "STAGED"
                 updated["candidate_id"] = candidate_id
                 updated["published_ref"] = queue.get("published_ref", "")
