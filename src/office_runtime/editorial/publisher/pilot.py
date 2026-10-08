@@ -51,6 +51,28 @@ class PublisherResult:
         return self.__dict__.copy()
 
 
+@dataclass(frozen=True)
+class PilotPolicy:
+    candidate_ids: frozenset[str]
+    window_start: datetime
+    window_end: datetime
+    cap: int = 10
+    slot_minutes: int = 5
+
+    def validate(self, config: PublisherConfig) -> None:
+        if config.profile_id != "argentina_econ":
+            raise PublisherBlocked("temporary pilot mode is restricted to argentina_econ")
+        if not self.candidate_ids or len(self.candidate_ids) > self.cap:
+            raise PublisherBlocked("pilot candidate allowlist must contain 1..cap IDs")
+        if self.window_end <= self.window_start:
+            raise PublisherBlocked("pilot window must end after it starts")
+        if not 1 <= self.slot_minutes <= 60:
+            raise PublisherBlocked("pilot slot must be between 1 and 60 minutes")
+
+    def active(self, now: datetime) -> bool:
+        return self.window_start <= now < self.window_end
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -157,6 +179,7 @@ class PilotPublisher:
         *,
         allow_manual_seed: bool,
         now: datetime,
+        pilot: PilotPolicy | None = None,
     ) -> str:
         if self.config.authorized_candidate_ids and candidate_id not in self.config.authorized_candidate_ids:
             return "candidate is outside the explicitly authorized pilot set"
@@ -180,6 +203,15 @@ class PilotPublisher:
         scheduled = _parse_time(queue.get("scheduled_for"))
         if scheduled is not None and scheduled > now:
             return "candidate is not due"
+        if pilot is not None:
+            if candidate_id not in pilot.candidate_ids:
+                return "candidate is outside the temporary pilot allowlist"
+            if not pilot.active(now):
+                return "temporary pilot window is inactive"
+            if scheduled is None:
+                return "temporary pilot requires an explicit scheduled_for"
+            if now >= scheduled + timedelta(minutes=pilot.slot_minutes):
+                return "scheduled pilot slot was missed; reschedule instead of catching up"
         quality = _quality(candidate.get("quality_summary", ""))
         if quality.get("forced_pipeline_acceptance") is True:
             return "forced pipeline acceptance is never publishable"
@@ -244,7 +276,19 @@ class PilotPublisher:
             self.drafts_sheet.replace_row(DRAFTS_TAB, row_number, [record[column] for column in DRAFTS_HEADERS])
             return
 
-    def run(self, candidate_id: str, *, apply: bool, allow_manual_seed: bool = False) -> PublisherResult:
+    def run(
+        self,
+        candidate_id: str,
+        *,
+        apply: bool,
+        allow_manual_seed: bool = False,
+        pilot: PilotPolicy | None = None,
+    ) -> PublisherResult:
+        if pilot is not None:
+            try:
+                pilot.validate(self.config)
+            except PublisherBlocked as exc:
+                return PublisherResult(candidate_id, False, False, "BLOCKED", str(exc))
         if apply and os.environ.get(self.config.kill_switch_env, "").strip().lower() in {"1", "true", "yes", "on"}:
             return PublisherResult(candidate_id, False, False, "BLOCKED", "profile kill switch is active")
         now = self.clock()
@@ -256,7 +300,7 @@ class PilotPublisher:
         reconciled = self._reconcile(candidate_id, candidate, queue, row_numbers[candidate_id], now)
         if reconciled is not None:
             return reconciled
-        reason = self._eligibility(candidate_id, candidate, queue, allow_manual_seed=allow_manual_seed, now=now)
+        reason = self._eligibility(candidate_id, candidate, queue, allow_manual_seed=allow_manual_seed, now=now, pilot=pilot)
         if reason != "eligible":
             return PublisherResult(candidate_id, False, False, "BLOCKED", reason)
         receipts = self._receipt_paths(candidate_id)
@@ -270,15 +314,28 @@ class PilotPublisher:
         if any(_normalize_text(post.text) == _normalize_text(draft) for post in recent):
             return PublisherResult(candidate_id, False, False, "BLOCKED", "exact text already exists in recent X history")
         published_times = []
+        pilot_receipts = []
         for path in receipts:
             data = json.loads(path.read_text(encoding="utf-8"))
             if data.get("state") == "PUBLISHED":
-                published_times.append(_parse_time(data.get("published_at")) or now)
-        recent_pilot = [value for value in published_times if now - value < timedelta(hours=24)]
-        if len(recent_pilot) >= self.config.max_posts_per_day:
-            return PublisherResult(candidate_id, False, False, "BLOCKED", "pilot daily cadence limit reached")
-        if any(now - value < timedelta(hours=self.config.min_post_gap_hours) for value in published_times):
-            return PublisherResult(candidate_id, False, False, "BLOCKED", "pilot minimum post gap not met")
+                published_at = _parse_time(data.get("published_at")) or now
+                published_times.append(published_at)
+                if data.get("pilot_mode") is True:
+                    pilot_receipts.append(data)
+        if pilot is None:
+            recent_pilot = [value for value in published_times if now - value < timedelta(hours=24)]
+            if len(recent_pilot) >= self.config.max_posts_per_day:
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "pilot daily cadence limit reached")
+            if any(now - value < timedelta(hours=self.config.min_post_gap_hours) for value in published_times):
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "pilot minimum post gap not met")
+        else:
+            window_posts = [item for item in pilot_receipts if pilot.window_start <= (_parse_time(item.get("published_at")) or now) < pilot.window_end]
+            if len(window_posts) >= pilot.cap:
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "temporary pilot cap reached")
+            scheduled_value = _parse_time(queue.get("scheduled_for"))
+            slot = scheduled_value.isoformat() if scheduled_value else ""
+            if any(item.get("pilot_slot") == slot for item in pilot_receipts):
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "pilot slot already published")
         if not apply:
             return PublisherResult(candidate_id, True, False, "DRY_RUN", "eligible")
 
@@ -298,6 +355,14 @@ class PilotPublisher:
             "state": "PUBLISHING",
             "events": [{"at": now.isoformat().replace("+00:00", "Z"), "state": "PUBLISHING"}],
         }
+        if pilot is not None:
+            scheduled_value = _parse_time(queue.get("scheduled_for"))
+            receipt.update({
+                "pilot_mode": True,
+                "pilot_window_start": pilot.window_start.isoformat().replace("+00:00", "Z"),
+                "pilot_window_end": pilot.window_end.isoformat().replace("+00:00", "Z"),
+                "pilot_slot": scheduled_value.isoformat() if scheduled_value else "",
+            })
         self._write_receipt(receipt_path, receipt)
         self.gateway.replace_row(QUEUE_TAB, row_numbers[candidate_id], _replace_field(queue, QUEUE_HEADERS, publisher_status="PUBLISHING", updated_at=now.isoformat().replace("+00:00", "Z")))
         try:

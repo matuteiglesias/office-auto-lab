@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from office_runtime.editorial.publisher.pilot import (
     EXPECTED_USER_ID,
     EXPECTED_USERNAME,
+    PilotPolicy,
     PilotPublisher,
 )
 from office_runtime.editorial.publisher.config import PublisherConfig
@@ -68,6 +69,20 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual((econ.xurl_app, econ.xurl_auth, econ.expected_username, econ.expected_user_id), ("argentina-econ-editorial", "oauth2", "matuteiglesias", "57242581"))
         self.assertNotEqual(dev.sheet_id_env, econ.sheet_id_env)
         self.assertNotEqual(dev.receipt_namespace, econ.receipt_namespace)
+
+    def test_temporary_economics_pilot_is_explicit_and_bounded(self):
+        config = PublisherConfig.from_profile("argentina_econ")
+        gateway = gateway_for()
+        gateway.rows[QUEUE_TAB][1][6] = "2026-10-07T21:00:00Z"
+        pilot = PilotPolicy(
+            candidate_ids=frozenset({P1}),
+            window_start=datetime(2026, 10, 7, 20, 55, tzinfo=timezone.utc),
+            window_end=datetime(2026, 10, 7, 21, 5, tzinfo=timezone.utc),
+        )
+        result = PilotPublisher(gateway, config=config, x=FakeX(identity=XIdentity("matuteiglesias", "57242581")), clock=lambda: datetime(2026, 10, 7, 21, 0, tzinfo=timezone.utc)).run(P1, apply=False, pilot=pilot)
+        self.assertEqual((result.state, result.eligible), ("DRY_RUN", True))
+        dev_result = PilotPublisher(gateway, x=FakeX(), clock=lambda: NOW).run(P1, apply=False, pilot=pilot)
+        self.assertIn("restricted", dev_result.reason)
 
     def run_publisher(self, gateway, x=None, *, apply=False, allow=True, artifacts=None):
         return PilotPublisher(gateway, x=x or FakeX(), artifacts_dir=artifacts or Path("/tmp/unused-publisher-test"), clock=lambda: NOW).run(P1, apply=apply, allow_manual_seed=allow)
