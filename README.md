@@ -232,3 +232,31 @@ Validation:
 ```bash
 make jobs-contracts
 ```
+
+
+## Media evidence composition
+
+`office_runtime.media_evidence` is a SIDECAR orchestration boundary for the
+governed Media → KB Artifacts → MCP workflow. It does not own summary or
+selection semantics.
+
+The default command is plan-only:
+
+```bash
+PYTHONPATH=src python3 src/office_runtime/scripts/compose_media_evidence.py \
+  --selection-id media-inflation-20261007 \
+  --from 2026-10-05 --to 2026-10-07 \
+  --topic 'inflaci[oó]n' \
+  --media-monitor-root /path/to/media_monitor \
+  --media-store-root /path/to/governed/media/store \
+  --kb-artifacts-root /path/to/kb-artifacts
+```
+
+Add `--apply` to generate the derived KB selection. A successful receipt
+returns the exact handoff, for example:
+
+```bash
+mctx evidence media-inflation-20261007
+```
+
+See [the v1 composition contract](docs/media/evidence-composition-v1.md).
