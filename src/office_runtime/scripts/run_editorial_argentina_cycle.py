@@ -14,7 +14,7 @@ from typing import Mapping, Sequence
 
 from office_runtime.editorial.publisher.config import PublisherConfig
 from office_runtime.editorial.publisher.manual_intake import GoogleManualSheet, project_manual_drafts
-from office_runtime.editorial.publisher.pilot import PilotPublisher
+from office_runtime.editorial.publisher.pilot import PilotPolicy, PilotPublisher
 from office_runtime.editorial.publisher.xurl_adapter import XurlAdapter, XIdentity
 from office_runtime.editorial.staging.sheets import GoogleSheetsGateway, QUEUE_HEADERS, CANDIDATES_HEADERS
 
@@ -68,14 +68,21 @@ def _assert_account(x: XurlAdapter, config: PublisherConfig) -> XIdentity:
     return actual
 
 
-def _recent_account_publication(x: XurlAdapter, config: PublisherConfig, now: datetime) -> bool:
+def _recent_account_publication(
+    x: XurlAdapter,
+    config: PublisherConfig,
+    now: datetime,
+    *,
+    min_gap: timedelta | None = None,
+) -> bool:
     # Conservative: any recent public X post by the authenticated account
     # counts, including posts authored outside this automation.
     posts = x.recent_posts(config.expected_username, 100)
     for post in posts:
         if not post.created_at:
             raise CycleBlocked("X recent post has no created_at; cannot establish account cadence")
-        if _parse_utc(post.created_at, field="X.created_at") > now - timedelta(hours=config.min_post_gap_hours):
+        gap = min_gap or timedelta(hours=config.min_post_gap_hours)
+        if _parse_utc(post.created_at, field="X.created_at") > now - gap:
             return True
     return False
 
@@ -87,6 +94,7 @@ def select_candidate(
     now: datetime,
     min_gap: timedelta = timedelta(hours=24),
     max_lateness: timedelta = MAX_LATENESS,
+    pilot: PilotPolicy | None = None,
 ) -> tuple[str | None, str]:
     by_id = {item["candidate_id"]: item for item in candidates}
     if set(item["candidate_id"] for item in queue) - set(by_id):
@@ -96,6 +104,17 @@ def select_candidate(
         raise CycleBlocked("multiple unresolved PUBLISHING rows")
     if publishing:
         return publishing[0]["candidate_id"], "reconcile"
+
+    if pilot is not None:
+        published_in_window = 0
+        for item in queue:
+            if item["publisher_status"] != "PUBLISHED":
+                continue
+            published_at = _parse_utc(item["updated_at"], field="QUEUE.published_at")
+            if pilot.window_start <= published_at < pilot.window_end:
+                published_in_window += 1
+        if published_in_window >= pilot.cap:
+            return None, "temporary pilot cap reached"
 
     # This is account-wide, unlike legacy per-candidate receipt lookup.
     for item in queue:
@@ -107,6 +126,8 @@ def select_candidate(
     for item in queue:
         candidate = by_id.get(item["candidate_id"])
         if candidate is None:
+            continue
+        if pilot is not None and item["candidate_id"] not in pilot.candidate_ids:
             continue
         if item["decision"] != "APPROVE" or item["target_surface"] != "X":
             continue
@@ -168,8 +189,29 @@ def main() -> int:
         candidates = _records(draft_sheet.read_rows("CANDIDATES"), CANDIDATES_HEADERS, label="CANDIDATES")
         queue = _records(draft_sheet.read_rows("QUEUE"), QUEUE_HEADERS, label="QUEUE")
         now = _now()
+        pilot = None
+        if os.environ.get("EDITORIAL_ECON_PILOT_ENABLED", "false").strip().lower() == "true":
+            ids = frozenset(
+                value.strip()
+                for value in os.environ.get("EDITORIAL_ECON_PILOT_CANDIDATE_IDS", "").split(",")
+                if value.strip()
+            )
+            start = os.environ.get("EDITORIAL_ECON_PILOT_WINDOW_START", "")
+            end = os.environ.get("EDITORIAL_ECON_PILOT_WINDOW_END", "")
+            if not ids or not start or not end:
+                raise CycleBlocked("bounded pilot requires candidate IDs and an absolute UTC window")
+            pilot = PilotPolicy(candidate_ids=ids, window_start=_parse_utc(start, field="pilot.window_start"), window_end=_parse_utc(end, field="pilot.window_end"))
+            pilot.validate(config)
+            if not pilot.active(now):
+                pilot = None
+        cadence = timedelta(minutes=5) if pilot is not None else timedelta(hours=config.min_post_gap_hours)
         candidate_id, mode = select_candidate(
-            candidates, queue, now=now, min_gap=timedelta(hours=config.min_post_gap_hours)
+            candidates,
+            queue,
+            now=now,
+            min_gap=cadence,
+            max_lateness=timedelta(minutes=5) if pilot is not None else MAX_LATENESS,
+            pilot=pilot,
         )
         if candidate_id is None:
             print(json.dumps({"state": "SKIP", "reason": mode, "profile": PROFILE}))
@@ -180,7 +222,7 @@ def main() -> int:
             if args.dry_run:
                 print(json.dumps({"state": "HOLD", "reason": "unresolved PUBLISHING requires apply-mode reconciliation"}))
                 return 0
-        elif _recent_account_publication(x, config, now):
+        elif _recent_account_publication(x, config, now, min_gap=cadence):
             print(json.dumps({"state": "SKIP", "reason": "account cadence gate (X history)", "profile": PROFILE}))
             return 0
 
@@ -191,7 +233,7 @@ def main() -> int:
         # The publisher still owns duplicate, identity, X readback, and Sheet writeback gates.
         # No temporary high-frequency pilot policy is passed in cloud operation.
         publisher = PilotPublisher(gateway, config=config, x=x, drafts_sheet=draft_sheet)
-        result = publisher.run(candidate_id, apply=True)
+        result = publisher.run(candidate_id, apply=True, pilot=pilot)
         print(json.dumps(result.as_dict(), ensure_ascii=False, sort_keys=True))
         if result.state == "PUBLISHED":
             return 0

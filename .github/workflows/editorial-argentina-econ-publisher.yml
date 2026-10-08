@@ -6,7 +6,7 @@ on:
   schedule:
     # Deliberately off the top of the hour; GitHub schedule timing is best-effort.
     # 48 checks/day (versus 288/day for a five-minute cron).
-    - cron: "7,37 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -41,6 +41,10 @@ jobs:
       EDITORIAL_ECON_PUBLISH_ENABLED: ${{ vars.EDITORIAL_ECON_PUBLISH_ENABLED || 'false' }}
       EDITORIAL_ECON_RUNTIME_PROMOTED: ${{ vars.EDITORIAL_ECON_RUNTIME_PROMOTED || 'false' }}
       EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED: ${{ vars.EDITORIAL_ARGENTINA_ECON_PUBLISHER_DISABLED || '1' }}
+      EDITORIAL_ECON_PILOT_ENABLED: ${{ vars.EDITORIAL_ECON_PILOT_ENABLED || 'false' }}
+      EDITORIAL_ECON_PILOT_CANDIDATE_IDS: ${{ vars.EDITORIAL_ECON_PILOT_CANDIDATE_IDS || '' }}
+      EDITORIAL_ECON_PILOT_WINDOW_START: ${{ vars.EDITORIAL_ECON_PILOT_WINDOW_START || '' }}
+      EDITORIAL_ECON_PILOT_WINDOW_END: ${{ vars.EDITORIAL_ECON_PILOT_WINDOW_END || '' }}
       REQUESTED_MODE: ${{ inputs.mode || 'dry_run' }}
       # runner.temp is not available in job-level expressions. The workspace
       # is runner-local and writable, and this keeps xurl state ephemeral.

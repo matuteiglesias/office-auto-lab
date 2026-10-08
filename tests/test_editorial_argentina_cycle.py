@@ -5,6 +5,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from office_runtime.scripts.run_editorial_argentina_cycle import CycleBlocked, select_candidate
+from office_runtime.editorial.publisher.pilot import PilotPolicy
 
 
 class EconomicsActionsSelectorTests(unittest.TestCase):
@@ -103,6 +104,45 @@ class EconomicsActionsSelectorTests(unittest.TestCase):
                 [self.queue("cand:old", publisher_status="PUBLISHED"), self.queue("cand:new")],
                 now=self.now,
             )
+
+    def test_pilot_selects_only_allowlisted_candidate(self):
+        pilot = PilotPolicy(
+            candidate_ids=frozenset({"cand:one"}),
+            window_start=self.now - timedelta(minutes=1),
+            window_end=self.now + timedelta(minutes=10),
+        )
+        self.assertEqual(
+            select_candidate(
+                [self.candidate("cand:other"), self.candidate("cand:one")],
+                [self.queue("cand:other", ago_minutes=2), self.queue("cand:one", ago_minutes=2)],
+                now=self.now,
+                min_gap=timedelta(minutes=5),
+                max_lateness=timedelta(minutes=5),
+                pilot=pilot,
+            ),
+            ("cand:one", "publish"),
+        )
+
+    def test_pilot_cap_is_durable_in_queue_history(self):
+        pilot = PilotPolicy(
+            candidate_ids=frozenset({"cand:previous", "cand:new"}),
+            window_start=self.now - timedelta(minutes=10),
+            window_end=self.now + timedelta(minutes=10),
+            cap=1,
+        )
+        published = self.queue("cand:previous", publisher_status="PUBLISHED")
+        published["updated_at"] = (self.now - timedelta(minutes=1)).isoformat()
+        self.assertEqual(
+            select_candidate(
+                [self.candidate("cand:previous"), self.candidate("cand:new")],
+                [published, self.queue("cand:new")],
+                now=self.now,
+                min_gap=timedelta(minutes=5),
+                max_lateness=timedelta(minutes=5),
+                pilot=pilot,
+            ),
+            (None, "temporary pilot cap reached"),
+        )
 
 
 if __name__ == "__main__":
