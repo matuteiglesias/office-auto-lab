@@ -66,7 +66,7 @@ class PublisherTests(unittest.TestCase):
         dev = PublisherConfig.from_profile("dev")
         econ = PublisherConfig.from_profile("argentina_econ")
         self.assertEqual((dev.xurl_app, dev.xurl_auth, dev.expected_user_id), ("modernai-editorial", "oauth1", "1927563136636243968"))
-        self.assertEqual((econ.xurl_app, econ.xurl_auth, econ.expected_username, econ.expected_user_id), ("argentina-econ-editorial", "oauth2", "matuteiglesias", "57242581"))
+        self.assertEqual((econ.xurl_app, econ.xurl_auth, econ.expected_username, econ.expected_user_id), ("argentina-econ-editorial", "oauth1", "matuteiglesias", "57242581"))
         self.assertNotEqual(dev.sheet_id_env, econ.sheet_id_env)
         self.assertNotEqual(dev.receipt_namespace, econ.receipt_namespace)
 

@@ -134,12 +134,13 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true", help="no Sheet or X mutation")
     mode.add_argument("--apply", action="store_true", help="one authorized due X mutation")
+    parser.add_argument("--verify-identity", action="store_true", help="read-only whoami even if no post is due")
     args = parser.parse_args()
 
     try:
         config = PublisherConfig.from_profile(PROFILE)
         if (config.profile_id, config.account_key, config.expected_user_id, config.xurl_app, config.xurl_auth) != (
-            PROFILE, "x_argentina_econ", "57242581", "argentina-econ-editorial", "oauth2"
+            PROFILE, "x_argentina_econ", "57242581", "argentina-econ-editorial", "oauth1"
         ):
             raise CycleBlocked("unexpected economics publisher profile")
         sheet_id = os.environ.get(config.sheet_id_env, "")
@@ -153,6 +154,8 @@ def main() -> int:
         gateway = GoogleSheetsGateway.from_environment(spreadsheet_id=sheet_id)
         draft_sheet = GoogleManualSheet(gateway)
         x = XurlAdapter(app=config.xurl_app, auth=config.xurl_auth)
+        if args.verify_identity:
+            _assert_account(x, config)
 
         if args.apply:
             intake = project_manual_drafts(draft_sheet)
