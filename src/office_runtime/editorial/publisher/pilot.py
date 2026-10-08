@@ -157,13 +157,16 @@ class PilotPublisher:
         queue = _rows(queue_raw, QUEUE_HEADERS)
         return candidates, queue, _row_numbers(queue_raw, QUEUE_HEADERS)
 
-    def _receipt_paths(self, candidate_id: str) -> list[Path]:
+    def _all_receipt_paths(self) -> list[Path]:
         if not self.artifacts_dir.exists():
             return []
-        return sorted(
-            path for path in self.artifacts_dir.glob("*.json")
-            if path.is_file() and path.read_text(encoding="utf-8", errors="ignore").find(candidate_id) >= 0
-        )
+        return sorted(path for path in self.artifacts_dir.glob("*.json") if path.is_file())
+
+    def _receipt_paths(self, candidate_id: str) -> list[Path]:
+        return [
+            path for path in self._all_receipt_paths()
+            if path.read_text(encoding="utf-8", errors="ignore").find(candidate_id) >= 0
+        ]
 
     def _write_receipt(self, path: Path, receipt: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -297,9 +300,17 @@ class PilotPublisher:
         queue = queue_rows.get(candidate_id)
         if candidate is None or queue is None:
             return PublisherResult(candidate_id, False, False, "BLOCKED", "candidate or queue row is missing")
-        reconciled = self._reconcile(candidate_id, candidate, queue, row_numbers[candidate_id], now)
-        if reconciled is not None:
-            return reconciled
+        if queue.get("publisher_status") == "PUBLISHING":
+            # Reconciliation writes to Sheets, therefore never execute it in
+            # dry-run. Verify X account identity before the readback/writeback.
+            if not apply:
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "unresolved PUBLISHING; dry-run is read-only")
+            identity = self.x.whoami()
+            if identity.username.casefold() != self.config.expected_username.casefold() or identity.user_id != self.config.expected_user_id:
+                return PublisherResult(candidate_id, False, False, "BLOCKED", "X account identity mismatch")
+            reconciled = self._reconcile(candidate_id, candidate, queue, row_numbers[candidate_id], now)
+            if reconciled is not None:
+                return reconciled
         reason = self._eligibility(candidate_id, candidate, queue, allow_manual_seed=allow_manual_seed, now=now, pilot=pilot)
         if reason != "eligible":
             return PublisherResult(candidate_id, False, False, "BLOCKED", reason)
@@ -315,8 +326,12 @@ class PilotPublisher:
             return PublisherResult(candidate_id, False, False, "BLOCKED", "exact text already exists in recent X history")
         published_times = []
         pilot_receipts = []
-        for path in receipts:
+        # Cadence is account-wide within the isolated receipt namespace.
+        # The prior candidate-scoped scan failed to limit distinct candidates.
+        for path in self._all_receipt_paths():
             data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("profile_id", self.config.profile_id) != self.config.profile_id:
+                continue
             if data.get("state") == "PUBLISHED":
                 published_at = _parse_time(data.get("published_at")) or now
                 published_times.append(published_at)
