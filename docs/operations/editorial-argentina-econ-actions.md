@@ -37,7 +37,21 @@ References:
 - https://github.com/xdevplatform/xurl/blob/main/README.md
 - https://pkg.go.dev/github.com/xdevplatform/xurl/store
 
-## 1. Operator-only setup on local machine
+## One-command local bootstrap (recommended)
+
+After obtaining all FOUR OAuth1 values for **only** the economics app in the X Developer Console, start a private interactive shell in your local `office-auto-lab` checkout. Pull the PR branch, then execute:
+
+```bash
+PYTHONPATH=src python -m office_runtime.scripts.editorial_econ_actions_setup --apply
+```
+
+The script uses `getpass` prompts; do **not** provide the secrets to Codex, ChatGPT, CLI arguments, chat, shell history, or a committed file. It creates an isolated temporary `HOME/.xurl/auth.yml`, performs **read-only** `whoami` and requires `matuteiglesias / 57242581`, then directly runs `gh secret set` via stdin. It never reads or rewrites existing local `~/.xurl` state. It also sets all GitHub Actions publication switches to the disabled values below. The ephemeral credential file is cleaned up after verification.
+
+Requirements: Python runtime with `PyYAML`, `xurl 1.3.4`, `gh` authenticated with permission to write this repository's Actions secrets and variables, and an operator terminal with stdin TTY. The previously used Google Sheets secret remains separately required for the cloud workflow. Local xurl OAuth1 authentication is not a prerequisite when using this helper: it constructs an isolated economics-only `auth.yml` from the four operator-entered values.
+
+This procedure **does not** publish, merge, enable schedule, or run cloud dry-runs. Stop immediately on identity mismatch, and never override that guard.
+
+## 1. Operator-only setup on local machine (manual alternative)
 
 In the X Developer Console open **the existing economics app**, not
 ModernAIDev. Configure user authentication for **Read and Write**. In
