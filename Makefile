@@ -1,4 +1,4 @@
-.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement producer-receipt-estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
+.PHONY: imports docs-check parent-docs-check audit parent-audit office-v2-generate office-v2-shadow frontier-view-v1 frontier-view-v1-contracts runtime-health-v2 capture-lifecycle evidence-git evidence-files estate-movement producer-receipt-estate-movement smoke control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts media-evidence-contracts dependency-contracts systemd-contracts runtime-contracts install-profile repo-scans evidence-today logs-tail
 
 ROOTS ?= .
 START ?= $(shell date +%F)
@@ -9,7 +9,7 @@ GIT_OUT ?= $(OUT_DIR)/git_trace/$(START)_$(END).jsonl
 FILES_OUT ?= $(OUT_DIR)/fs_trace/$(START)_$(END).jsonl
 
 # Supported product acceptance: Office v2 CORE plus declared sidecars only.
-smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts runtime-contracts repo-scans
+smoke: imports control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts run-record-contracts freshness-contracts editorial-contracts jobs-contracts media-evidence-contracts runtime-contracts repo-scans
 
 imports:
 	PYTHONPATH=src python3 -c "import office_runtime; \
@@ -23,6 +23,8 @@ import office_runtime.editorial.staging.runtime; \
 import office_runtime.editorial.staging.sheets; \
 import office_runtime.jobs; \
 import office_runtime.jobs.action_packet; \
+import office_runtime.media_evidence; \
+import office_runtime.media_evidence.composition; \
 import office_runtime.office.config; \
 import office_runtime.office.control_snapshot; \
 import office_runtime.office.identity; \
@@ -78,6 +80,9 @@ editorial-contracts:
 jobs-contracts:
 	PYTHONPATH=src python3 -m unittest tests.test_jobs_action_packet tests.test_jobs_application_prep
 
+media-evidence-contracts:
+	PYTHONPATH=src python3 -m pytest -q tests/test_media_evidence_composition.py
+
 dependency-contracts:
 	PYTHONPATH=src python3 src/office_runtime/scripts/install_profile.py --check
 	PYTHONPATH=src python3 -m unittest tests.test_dependency_profiles
@@ -102,7 +107,7 @@ audit: docs-check runtime-contracts
 	$(MAKE) imports
 	git diff --check
 
-parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts jobs-contracts run-record-contracts freshness-contracts
+parent-audit: parent-docs-check runtime-contracts control-contracts identity-contracts work-contracts staff-v2-contracts principal-contracts execution-contracts reentry-v2-contracts generation-v2-contracts frontier-view-v1-contracts jobs-contracts media-evidence-contracts run-record-contracts freshness-contracts
 	python3 -m compileall -q -x '/editorial/' src/office_runtime
 	PYTHONPATH=src python3 src/office_runtime/scripts/profile_smoke.py full
 	git diff --check
