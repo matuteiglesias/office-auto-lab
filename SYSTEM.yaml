@@ -27,6 +27,7 @@ lifecycle_classes:
       - src/office_runtime/evidence
       - src/office_runtime/editorial
       - src/office_runtime/jobs
+      - src/office_runtime/media_evidence
       - src/office_runtime/estate_movement.py
     rule: adjacent producer or consumer with an explicit interface; cannot redefine Office governance semantics
 
@@ -48,6 +49,7 @@ authority:
     - bounded editorial projection execution after explicit capability promotion
     - deterministic read-only job-search action packet compilation from normalized ATS/process evidence
     - deterministic application-asset readiness compilation from a human-owned asset registry
+    - bounded orchestration of Media Monitor producer-owned evidence into KB Artifacts named-corpus selections
   does_not_own:
     - human review decisions
     - GitHub estate authority or repository health/readiness semantics
@@ -57,6 +59,7 @@ authority:
     - upstream media, economic, or scientific source semantics
     - automatic acceptance of reentry proposals into Control Tower state
     - canonical job/application state, relationship truth, recruiter contact truth, or external job-search mutations
+    - Media Monitor summary semantics, KB Artifacts selection semantics, or MCP evidence transport semantics
 
 interfaces:
   consumes:
@@ -64,6 +67,8 @@ interfaces:
     - context:github-repositories@1 (advisory identity/estate context from projects)
     - registry:estate-surfaces@1 (advisory governance context from projects)
     - artifact:ops.capture-record@1
+    - producer-local:media-monitor.evidence-jsonl@1
+    - artifact:kb.selected-evidence@1
   produces:
     - artifact:ops.control-state-snapshot@2
     - artifact:ops.work-item-set@1
@@ -81,6 +86,8 @@ interfaces:
     - artifact:ops.runtime-health-projection@2
     - artifact:ops.job-action-packet@1
     - artifact:ops.job-application-prep@1
+    - artifact:ops.media-evidence-composition-plan@1
+    - artifact:ops.media-evidence-composition-receipt@1
 
 upstream:
   - repo.projects
@@ -100,6 +107,7 @@ canonical_commands:
   - make runtime-health-v2
   - make runtime-contracts
   - make jobs-contracts
+  - make media-evidence-contracts
 
 generated_paths:
   - artifacts/v2/
