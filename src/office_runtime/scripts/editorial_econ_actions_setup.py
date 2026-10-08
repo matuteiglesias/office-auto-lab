@@ -42,6 +42,28 @@ class BootstrapBlocked(RuntimeError):
     pass
 
 
+def _diagnose_x_failure(raw: str) -> str:
+    """Return a fixed safe classification; NEVER return original provider text."""
+    lower = raw.casefold()
+    if "tokennotfound" in lower or "token not found" in lower:
+        return "NO_OAUTH1_TOKEN_LOADED"
+    if "client-not-enrolled" in lower or "client_not_enrolled" in lower:
+        return "X_APP_NOT_ENROLLED_IN_API_PACKAGE"
+    if "client-forbidden" in lower or "client_forbidden" in lower:
+        return "X_APP_NOT_ENROLLED_IN_API_PACKAGE"
+    if "invalid or expired token" in lower or "could not authenticate you" in lower:
+        return "X_INVALID_OR_EXPIRED_USER_TOKEN"
+    if "signature" in lower and ("invalid" in lower or "failed" in lower):
+        return "X_OAUTH1_SIGNATURE_OR_KEY_PAIR_MISMATCH"
+    if "403" in lower or "forbidden" in lower or "not enrolled" in lower:
+        return "X_APP_PERMISSION_OR_PACKAGE_BLOCKED"
+    if "429" in lower or "rate limit" in lower:
+        return "X_RATE_LIMITED"
+    if "401" in lower or "unauthorized" in lower:
+        return "X_REJECTED_OAUTH1_CREDENTIALS_OR_APP_ACCESS"
+    return "X_WHOAMI_COMMAND_FAILED"
+
+
 def _command(argv: list[str], *, input_data: str | None = None, env: dict[str, str] | None = None, stage: str = "COMMAND") -> str:
     try:
         result = subprocess.run(
@@ -55,16 +77,7 @@ def _command(argv: list[str], *, input_data: str | None = None, env: dict[str, s
         # since CLI tools may unintentionally include tokens in diagnostics.
         detail = (result.stderr + "\n" + result.stdout).casefold()
         if stage == "X_WHOAMI":
-            if "tokennotfound" in detail or "token not found" in detail:
-                reason = "NO_OAUTH1_TOKEN_LOADED"
-            elif "401" in detail or "unauthorized" in detail:
-                reason = "X_REJECTED_OAUTH1_CREDENTIALS"
-            elif "403" in detail or "forbidden" in detail or "not enrolled" in detail:
-                reason = "X_APP_PERMISSION_OR_PACKAGE_BLOCKED"
-            elif "429" in detail or "rate limit" in detail:
-                reason = "X_RATE_LIMITED"
-            else:
-                reason = "X_WHOAMI_COMMAND_FAILED"
+            reason = _diagnose_x_failure(detail)
             raise BootstrapBlocked(f"{stage}: {reason} (exit {result.returncode})")
         raise BootstrapBlocked(f"{stage}: command failed (exit {result.returncode})")
     return result.stdout
@@ -80,7 +93,13 @@ def _verify_xurl(binary: str, auth: str) -> tuple[str, str]:
             stream.write(auth)
         env = os.environ.copy()
         env["HOME"] = str(home)
-        # Only a read-only identity proof. No app post or OAuth2 refresh.
+        # Check xurl recognizes the freshly serialized OAuth1 token.
+        # Do not print the store or any credential-bearing content.
+        status = _command([binary, "auth", "status"], env=env, stage="XURL_TOKEN_STORE")
+        if APP not in status or "oauth1: ✓" not in status:
+            raise BootstrapBlocked("XURL_TOKEN_STORE: OAUTH1_NOT_LOADED")
+        print("xurl token store: isolated economics OAuth1 credential recognized.")
+        # Read-only X API identity proof; no posting or refresh.
         raw = _command([binary, "--app", APP, "--auth", "oauth1", "whoami"], env=env, stage="X_WHOAMI")
         try:
             decoded = json.loads(raw)
