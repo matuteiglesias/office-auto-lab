@@ -122,5 +122,5 @@ jobs:
               f.write("### ModernAIDev publication\n\n")
               f.write(f"- Actual cycle state: `{state}`\n- Detail: `{reason}`\n")
           if state in ("NO_ELIGIBLE_CONTENT","CADENCE_HOLD"):
-              print(f"::warning::ModernAIDev ${{state}}: ${{reason}}")
+              print(f"::warning::ModernAIDev {state}: {reason}")
           PY
