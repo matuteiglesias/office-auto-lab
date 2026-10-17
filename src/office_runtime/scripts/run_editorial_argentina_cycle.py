@@ -210,7 +210,7 @@ def main() -> int:
             queue,
             now=now,
             min_gap=cadence,
-            max_lateness=timedelta(minutes=5) if pilot is not None else MAX_LATENESS,
+            max_lateness=timedelta(minutes=60) if pilot is not None else MAX_LATENESS,
             pilot=pilot,
         )
         if candidate_id is None:
