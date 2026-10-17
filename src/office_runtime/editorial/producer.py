@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Mapping
@@ -190,6 +191,27 @@ def _repositories(
     return repositories, "allowlist"
 
 
+def _model_pacing_seconds() -> int:
+    """Gap between independent story invocations; preserve free-tier RPM headroom."""
+    raw = os.environ.get("EDITORIAL_MODEL_PACE_SECONDS", "0").strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise EditorialProducerError("EDITORIAL_MODEL_PACE_SECONDS must be an integer") from exc
+    if not 0 <= value <= 30:
+        raise EditorialProducerError("EDITORIAL_MODEL_PACE_SECONDS must be between 0 and 30")
+    return value
+
+
+def _rate_limited(exc: Exception) -> bool:
+    """Retry only quota throttling; never hide unrelated model errors."""
+    return (
+        getattr(exc, "status_code", None) == 429
+        or "ResourceExhausted" in type(exc).__name__
+        or "RESOURCE_EXHAUSTED" in str(exc)
+    )
+
+
 def _max_model_stories() -> int:
     raw = os.environ.get("EDITORIAL_MAX_STORIES_PER_RUN", str(_DEFAULT_MAX_MODEL_STORIES)).strip()
     try:
@@ -320,14 +342,26 @@ def produce_bundle(request: Mapping[str, Any]) -> Mapping[str, Any]:
                 judge_model=judge_model,
                 force_one_safe_candidate=force_one_safe_candidate,
             )
-            for story in model_stories:
-                result = intelligence.run_story(
-                    story=story.to_dict(),
-                    evidence_by_id=evidence_by_id,
-                    context=context,
-                    policy=policy.to_dict(),
-                    generated_at=started_at,
-                )
+            pace = _model_pacing_seconds()
+            for index, story in enumerate(model_stories):
+                if index and pace:
+                    time.sleep(pace)
+                def invoke_story() -> Any:
+                    return intelligence.run_story(
+                        story=story.to_dict(),
+                        evidence_by_id=evidence_by_id,
+                        context=context,
+                        policy=policy.to_dict(),
+                        generated_at=started_at,
+                    )
+                try:
+                    result = invoke_story()
+                except Exception as exc:
+                    if not _rate_limited(exc):
+                        raise
+                    # One bounded retry after free-tier minute-level rate throttling.
+                    time.sleep(20)
+                    result = invoke_story()
                 angles.extend(_angle_card(item) for item in result.angles)
                 candidates.extend(
                     {**dict(candidate), "source_tier": "1"}
