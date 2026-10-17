@@ -123,6 +123,21 @@ class EconomicsActionsSelectorTests(unittest.TestCase):
             ("cand:one", "publish"),
         )
 
+    def test_delayed_pilot_poll_within_sixty_minutes_is_accepted(self):
+        pilot = PilotPolicy(
+            candidate_ids=frozenset({"cand:one"}),
+            window_start=self.now - timedelta(hours=1),
+            window_end=self.now + timedelta(hours=1),
+        )
+        pilot.validate(__import__("office_runtime.editorial.publisher.config", fromlist=["PublisherConfig"]).PublisherConfig.from_profile("argentina_econ"))
+        self.assertEqual(pilot.slot_minutes, 60)
+        self.assertEqual(
+            select_candidate([self.candidate()], [self.queue(ago_minutes=45)],
+                             now=self.now, min_gap=timedelta(minutes=5),
+                             max_lateness=timedelta(minutes=60), pilot=pilot),
+            ("cand:one", "publish"),
+        )
+
     def test_pilot_cap_is_durable_in_queue_history(self):
         pilot = PilotPolicy(
             candidate_ids=frozenset({"cand:previous", "cand:new"}),

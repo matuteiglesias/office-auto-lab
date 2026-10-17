@@ -1,0 +1,126 @@
+name: Editorial ModernAIDev — Sheet publisher
+
+on:
+  schedule:
+    - cron: "13 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry_run or one gated publication"
+        required: true
+        type: choice
+        default: dry_run
+        options: [dry_run, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editorial-dev-publisher
+  cancel-in-progress: false
+
+jobs:
+  publisher:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.EDITORIAL_DEV_SCHEDULER_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PYTHONPATH: src
+      EDITORIAL_DEV_SHEET_ID: ${{ vars.EDITORIAL_DEV_SHEET_ID }}
+      EDITORIAL_GOOGLE_CREDENTIALS_JSON: ${{ secrets.EDITORIAL_GOOGLE_CREDENTIALS_JSON }}
+      EDITORIAL_DEV_PUBLISH_ENABLED: ${{ vars.EDITORIAL_DEV_PUBLISH_ENABLED || 'false' }}
+      EDITORIAL_DEV_RUNTIME_PROMOTED: ${{ vars.EDITORIAL_DEV_RUNTIME_PROMOTED || 'false' }}
+      EDITORIAL_DEV_PUBLISHER_DISABLED: ${{ vars.EDITORIAL_DEV_PUBLISHER_DISABLED || '1' }}
+      REQUESTED_MODE: ${{ inputs.mode || 'dry_run' }}
+      HOME: ${{ github.workspace }}/.editorial-modernaidev-home
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Resolve explicit authority
+        id: authority
+        run: |
+          set -euo pipefail
+          mode=dry-run
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${EDITORIAL_DEV_PUBLISH_ENABLED}" == "true" ]] || [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${REQUESTED_MODE}" == "apply" ]]; then
+            mode=apply
+          fi
+          if [[ "${mode}" == "apply" ]]; then
+            test "${EDITORIAL_DEV_RUNTIME_PROMOTED}" = "true"
+            test "${EDITORIAL_DEV_PUBLISH_ENABLED}" = "true"
+            test "${EDITORIAL_DEV_PUBLISHER_DISABLED}" = "0"
+          fi
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install editorial dependencies
+        run: |
+          set -euo pipefail
+          python src/office_runtime/scripts/install_profile.py editorial
+          python -m pip install PyYAML==6.0.3
+          npm install --global @xdevplatform/xurl@1.3.4
+
+      - name: Restore isolated ModernAIDev OAuth1
+        env:
+          EDITORIAL_DEV_XURL_OAUTH1_YAML: ${{ secrets.EDITORIAL_DEV_XURL_OAUTH1_YAML }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, pathlib, yaml
+          from office_runtime.editorial.publisher.config import PublisherConfig
+          config=PublisherConfig.from_profile("dev")
+          raw=os.environ.get("EDITORIAL_DEV_XURL_OAUTH1_YAML","")
+          if not raw: raise SystemExit("Missing account-specific ModernAIDev OAuth1 secret")
+          parsed=yaml.safe_load(raw)
+          if not isinstance(parsed,dict) or parsed.get("default_app")!="modernai-editorial":
+              raise SystemExit("ModernAIDev auth binding failed")
+          apps=parsed.get("apps")
+          if not isinstance(apps,dict) or set(apps)!={"modernai-editorial"}:
+              raise SystemExit("Unexpected OAuth1 apps")
+          app=apps["modernai-editorial"]
+          if not isinstance(app,dict) or "oauth1_token" not in app or "oauth2_tokens" in app or "bearer_token" in app:
+              raise SystemExit("Non-isolated ModernAIDev token")
+          token=app["oauth1_token"]
+          if not isinstance(token,dict) or token.get("type")!="oauth1":
+              raise SystemExit("Invalid ModernAIDev OAuth1 type")
+          path=pathlib.Path.home()/".xurl";path.mkdir(mode=0o700,parents=True,exist_ok=True)
+          p=path/"auth.yml";p.write_text(raw);p.chmod(0o600)
+          PY
+
+      - name: Publish or check due content
+        run: |
+          set -euo pipefail
+          test -n "${EDITORIAL_DEV_SHEET_ID}"
+          test -n "${EDITORIAL_GOOGLE_CREDENTIALS_JSON}"
+          mode=(--dry-run)
+          if [[ "${{ steps.authority.outputs.mode }}" == "apply" ]]; then mode=(--apply); fi
+          python src/office_runtime/scripts/run_editorial_dev_cycle.py "${mode[@]}" | tee cycle-result.jsonl
+
+      - name: Surface publishing result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          p=pathlib.Path("cycle-result.jsonl")
+          state="FAILED";reason="job ended before cycle"
+          if p.exists():
+              try:
+                  payload=json.loads(p.read_text().splitlines()[-1])
+                  state=payload.get("state",state)
+                  reason=payload.get("reason") or payload.get("candidate_id") or ""
+              except (ValueError,IndexError): pass
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:
+              f.write("### ModernAIDev publication\n\n")
+              f.write(f"- Actual cycle state: `{state}`\n- Detail: `{reason}`\n")
+          if state in ("NO_ELIGIBLE_CONTENT","CADENCE_HOLD"):
+              print(f"::warning::ModernAIDev ${{state}}: ${{reason}}")
+          PY

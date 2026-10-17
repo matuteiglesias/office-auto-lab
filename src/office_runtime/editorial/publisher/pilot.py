@@ -57,7 +57,7 @@ class PilotPolicy:
     window_start: datetime
     window_end: datetime
     cap: int = 10
-    slot_minutes: int = 5
+    slot_minutes: int = 60
 
     def validate(self, config: PublisherConfig) -> None:
         if config.profile_id != "argentina_econ":
