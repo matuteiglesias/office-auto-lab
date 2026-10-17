@@ -1,0 +1,32 @@
+name: Editorial X publishing health
+on:
+  schedule:
+    - cron: "29 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: editorial-publishing-health
+  cancel-in-progress: false
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PYTHONPATH: src
+      EDITORIAL_RUNTIME_PROFILE: editorial
+      EDITORIAL_DEV_SHEET_ID: ${{ vars.EDITORIAL_DEV_SHEET_ID }}
+      EDITORIAL_ARGENTINA_ECON_SHEET_ID: ${{ vars.EDITORIAL_ARGENTINA_ECON_SHEET_ID }}
+      EDITORIAL_GOOGLE_CREDENTIALS_JSON: ${{ secrets.EDITORIAL_GOOGLE_CREDENTIALS_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+      - name: Install editorial reader dependencies
+        run: python src/office_runtime/scripts/install_profile.py editorial
+      - name: Check published receipts and queue runway
+        run: python src/office_runtime/scripts/run_editorial_publication_health.py
