@@ -1,0 +1,13 @@
+{
+  "schema_version": "x.observer.accounts.v0.1",
+  "accounts": [
+    {
+      "handle": "JMilei",
+      "numeric_user_id": null,
+      "enabled": false,
+      "live_identity_proven": false,
+      "capture_mode": "public_timeline",
+      "first_phase": "O0_O1_READONLY_QUALIFICATION"
+    }
+  ]
+}

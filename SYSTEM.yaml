@@ -26,6 +26,7 @@ lifecycle_classes:
       - src/office_runtime/capture
       - src/office_runtime/evidence
       - src/office_runtime/editorial
+      - src/office_runtime/x_observer
       - src/office_runtime/jobs
       - src/office_runtime/media_evidence
       - src/office_runtime/estate_movement.py
