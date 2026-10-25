@@ -1,0 +1,8 @@
+[Unit]
+Description=Office Runtime - Submit Immutable Producer Receipts to Private Estate Relay
+ConditionPathExists=%h/.config/office-auto-lab/runtime.env
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/office-auto-lab/runtime.env
+ExecStart=/usr/bin/bash -lc 'exec "$OFFICE_PYTHON" "$OFFICE_ROOT/src/office_runtime/scripts/dispatch_producer_receipts.py" --spool "$OFFICE_PRODUCER_RECEIPT_OUT" --ledger "$OFFICE_PRODUCER_DELIVERY_LEDGER" --dispatch'

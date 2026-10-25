@@ -26,7 +26,12 @@ run_receipted() {
   fi
   shift
   if [[ -n "${OFFICE_PRODUCER_RECEIPT_RUNNER:-}" ]]; then
+    local spool_args=()
+    if [[ -n "${OFFICE_PRODUCER_RECEIPT_OUT:-}" ]]; then
+      spool_args+=(--out "${OFFICE_PRODUCER_RECEIPT_OUT}")
+    fi
     exec "${OFFICE_PYTHON}" "${OFFICE_PRODUCER_RECEIPT_RUNNER}" \
+      "${spool_args[@]}" \
       --producer "${producer_id}" \
       --cwd "${OFFICE_ROOT}" \
       "${evidence_args[@]}" \
@@ -117,7 +122,12 @@ run_evidence_daily() {
 
 case "${routine}" in
   office-v2-generation)
-    run_v2_generation generation
+    # This is the actual timer-backed successor of office-compile.timer.
+    # Reuse its logical producer ID; do not produce a second front.
+    run_receipted producer.local.office-compile \
+      --evidence-changed "artifacts/v2/current.json" \
+      --evidence-json 'artifacts/v2/current.json#/schema_version=ops.office-current-pointer.v2' \
+      -- bash "${BASH_SOURCE[0]}" office-compile-inner
     ;;
   office-v2-shadow)
     run_v2_generation shadow
