@@ -58,3 +58,15 @@ pretending successful delivery on HTTP 204 alone.
   authoritative; no new schema or duplicate producer identity is introduced.
 - A manual wrapper test may prove mechanism, but only actual scheduled
   executions establish recurring operational acceptance.
+
+## WP02 hardening (2026-10-25)
+
+- Daily evidence may write identical bytes during valid executions. The new
+  evidence-written check compares before/after file timestamps and inode; it
+  does not require content inequality. Existing content-change checks stay
+  strict for other producers, and missing/untouched files still fail.
+- The relay workflow now labels its run with the receipt SHA-256, allowing
+  the host to verify that a matching GitHub Actions job completed successfully
+  before marking the local ledger confirmed. Missing/failed deliveries have
+  bounded retries and safe stage-level diagnostics.
+- Local HTTP 204 event submission is never mistaken for remote GCP acceptance.

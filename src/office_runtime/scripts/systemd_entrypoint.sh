@@ -148,9 +148,9 @@ case "${routine}" in
     today="$(date +%F)"
     out_root="${OFFICE_EVIDENCE_OUT_ROOT:-artifacts/evidence}"
     run_receipted producer.local.office-evidence-daily \
-      --evidence-changed "${out_root}/git_trace/${today}_${today}.jsonl" \
-      --evidence-changed "${out_root}/fs_trace/${today}_${today}.jsonl" \
-      --evidence-changed "${out_root}/activity_trace/${today}_${today}.jsonl" \
+      --evidence-written "${out_root}/git_trace/${today}_${today}.jsonl" \
+      --evidence-written "${out_root}/fs_trace/${today}_${today}.jsonl" \
+      --evidence-written "${out_root}/activity_trace/${today}_${today}.jsonl" \
       -- bash "${BASH_SOURCE[0]}" evidence-daily-inner "${today}" "${out_root}"
     ;;
   evidence-daily-inner)
