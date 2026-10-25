@@ -1,0 +1,11 @@
+[Unit]
+Description=Office Runtime - Retry Metadata-only Producer Receipt Delivery
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=15
+Unit=office-producer-receipt-dispatch.service
+
+[Install]
+WantedBy=timers.target

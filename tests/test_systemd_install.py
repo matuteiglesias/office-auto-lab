@@ -31,7 +31,10 @@ class SystemdInstallTests(unittest.TestCase):
             self.assertNotIn("/home/matias/", text)
             self.assertNotIn("@@", text)
             self.assertIn("runtime.env", text)
-            self.assertIn("systemd_entrypoint.sh", text)
+            if path.name == "office-producer-receipt-dispatch.service":
+                self.assertIn("dispatch_producer_receipts.py", text)
+            else:
+                self.assertIn("systemd_entrypoint.sh", text)
 
     def test_v2_timer_is_one_coherent_office_clock(self) -> None:
         timer = (ROOT / "systemd/user/office-v2-generation.timer").read_text(encoding="utf-8")
